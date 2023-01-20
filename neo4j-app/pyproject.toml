@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "neo4j_app"
+version = "0.1.0"
+description = "neo4j backend for the Datashare extension"
+authors = ["ICIJ <engineering@icij.org>"]
+# TODO: add readme
+packages = [
+    { include = "neo4j_app" }
+]
+exclude = ["neo4j_app/tests"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+# PyYaml > 5.3.1 does not seem to be installable on macos 13.x
+pyyaml = "<=5.3.1"
+fastapi = "^0.89.1"
+uvicorn = { version = "^0.20.0", extras = ["standard"] }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.1"
+fastapi = { version = "^0.89.1", extras = ["all"] }
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
