@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+
+function _export_global_variables() {
+    export ROOT_DIR
+    ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
+    export PYTHON_APP_DIR="$ROOT_DIR/neo4j-app"
+    export NEO4J_APP_BIN="neo4j_app"
+}
+
+function _helpers() {
+    
+    function _print_step() {
+        echo "##### -> $1"
+    }
+
+    function _pip_install() (
+        python -m pip install "$@"
+    )
+
+    function _poetry_shell() {
+        command -v poetry 1>/dev/null 2>&1 || fail "Poetry is not installed"
+
+        local venv_path
+        venv_path=$(poetry env info -p)
+
+        . "$venv_path"/bin/activate
+    }
+
+    function _install_poetry() (
+        echo "Installing Poetry..."
+        # TODO: restrict the python version here
+        curl -sSL https://install.python-poetry.org | python3 -
+    )
+
+    function _install_pyinstaller() (
+        echo "Installing pyinstaller..."
+        pip install pyinstaller==5.7.0
+    )
+
+    function _array_contains() {
+        local e match="$1"
+        shift
+        for e; do [[ "$e" == "$match" ]] && return 0; done
+        return 1
+    }
+
+    function join_by {
+        local d=${1-} f=${2-}
+        if shift 2; then
+            printf %s "$f" "${@/#/$d}"
+        fi
+    }
+
+    function _should_run_project() {
+        if [ "$PROJECT" = ALL ] || [ "$PROJECT" = "$1" ]; then
+            return 0
+        else
+            return 1
+        fi
+    }
+
+}
+
+function _commands() {
+
+    function setup() {
+        if _should_run_project "neo4j_app"; then
+            _print_step "Setting up neo4j_app"
+
+            command -v poetry 1>/dev/null 2>&1 || _install_poetry
+
+            cd "$PYTHON_APP_DIR"
+            poetry "install"
+        else
+            exit_with_message "Can't setup project $PROJECT"
+        fi
+    }
+
+    function build() {
+        if _should_run_project "neo4j_app"; then
+            _print_step "Building Python app executable"
+
+            cd "$ROOT_DIR"/neo4j-app
+
+            _poetry_shell
+            command -v pyinstaller 1>/dev/null 2>&1 || _install_pyinstaller
+
+            local app_dir
+            app_dir="$ROOT_DIR"/bins
+
+            local site_packages_path
+            site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+
+            pyinstaller neo4j_app/run/run.py \
+                --distpath "$app_dir" \
+                -F -y \
+                --name $NEO4J_APP_BIN \
+                --specpath "$app_dir" \
+                --log-level=DEBUG \
+                -p neo4j_app \
+                -p "$site_packages_path"
+
+            local app_bin
+            app_bin="$app_dir/$NEO4J_APP_BIN"
+            chmod +x "$app_bin"
+        else
+            exit_with_message "Can't build project $PROJECT"
+        fi
+    }
+
+    function run() {
+        if [ "$PROJECT" == neo4j_app ]; then
+            # TODO: maybe we should run the binary we've copied to the java dir
+            "$ROOT_DIR/bins/$NEO4J_APP_BIN"
+        else
+            exit_with_message "Can't run project $PROJECT"
+        fi
+    }
+}
+
+function _main() {
+    PROJECT=
+    PROJECTS=
+
+    # Define sub projects here
+    PROJECTS=(
+        neo4j_app
+    )
+
+    function exit_with_message() {
+        echo "$1"
+        exit "${2:-1}"
+    }
+
+    function _parse_project_flag() {
+        local project
+        project=$1
+        if [ -z "$project" ]; then
+            exit_with_message "Empty project flag, please provide one !"
+        elif _array_contains "$project" "${PROJECTS[@]}"; then
+            PROJECT=$project
+        else
+            exit_with_message "Unknown project \"$project\", available projects: $(join_by "," "${PROJECTS[@]}")"
+        fi
+    }
+
+    function _parse_args() {
+        # Unless specified we run commands for all projects
+        PROJECT=ALL
+        if [[ "$#" -ge 2 ]]; then
+            for i in $(seq 2 $#); do
+                if [[ -z "${SKIP_NEXT_TYPE_ARG}" ]]; then
+                    j=$((i + 1))
+                    TYPE_ARG="${!i}"
+                    VALUE_ARG="${!j}"
+                    if [[ "$TYPE_ARG" == "-p" ]]; then
+                        _parse_project_flag $VALUE_ARG
+                        SKIP_NEXT_TYPE_ARG=true
+                    fi
+                else
+                    unset SKIP_NEXT_TYPE_ARG
+                fi
+            done
+        fi
+    }
+
+    set -e
+    # Define helpers and commands
+    _helpers
+    _commands
+
+    # Parse user command
+    _parse_args "$@"
+
+    # Export variables
+    _export_global_variables
+
+    if [[ $# == 0 ]]; then
+        printf "Error: No command specified\n\n" && exit 1
+    # If we manage to find a commande previously declared with _commands, run it
+    elif declare -f "$1" >/dev/null; then
+        "$@"
+    else
+        printf "Error: Invalid command %s\n\n" "$1" && exit 1
+    fi
+}
+
+_main "$@"
