@@ -16,6 +16,7 @@ venv
 *.egg-info
 .eggs
 __pycache__
+*.pytest_cache
 *.pyc
 build
 dist
