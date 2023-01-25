@@ -103,6 +103,11 @@ function _commands() {
             local app_bin
             app_bin="$app_dir/$NEO4J_APP_BIN"
             chmod +x "$app_bin"
+
+            local java_resources
+            java_resources=$ROOT_DIR/src/main/resources
+            echo "Copying neo4j app binary to java extension resources: $java_resources"
+            cp $app_bin $java_resources
         else
             exit_with_message "Can't build project $PROJECT"
         fi
