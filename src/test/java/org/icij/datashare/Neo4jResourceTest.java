@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
+import java.lang.ref.Cleaner;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 
@@ -22,6 +23,8 @@ public class Neo4jResourceTest {
     private static Neo4jResource neo4jAppResource;
     private static int port;
     private static int neo4jAppPort;
+
+    private static final Cleaner testCleaner = Cleaner.create();
 
     private static PropertiesProvider propertyProvider;
 
@@ -49,7 +52,7 @@ public class Neo4jResourceTest {
     public static class BindNeo4jResource extends ProdWebServerRuleExtension implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
-            neo4jAppResource = new Neo4jResource(propertyProvider);
+            neo4jAppResource = new Neo4jResource(propertyProvider, testCleaner);
             this.configure(
                     routes -> routes
                             .add(neo4jAppResource)

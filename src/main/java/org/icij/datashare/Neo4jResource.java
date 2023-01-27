@@ -13,6 +13,7 @@ import org.apache.http.impl.client.HttpClientBuilder;
 
 import javax.inject.Inject;
 import java.io.IOException;
+import java.lang.ref.Cleaner;
 import java.net.Socket;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -20,7 +21,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 @Prefix("/api/neo4j")
-public class Neo4jResource {
+public class Neo4jResource implements AutoCloseable {
     // TODO: add some logging ?
     // TODO: can we do better than harding this name ?
     private static final String NEO4J_APP_BIN = "neo4j_app";
@@ -28,6 +29,28 @@ public class Neo4jResource {
     private final int port;
     private final String host = "127.0.0.1";
     protected volatile Process serverProcess;
+
+    // TODO: not sure that we want to delete the process when this deleted...
+    // Cleaner which will ensure the Python server will be close when the resource is deleted
+    private Cleaner cleaner;
+    private Cleaner.Cleanable cleanable;
+
+    static class CleaningState implements Runnable {
+        private final Neo4jResource resource;
+
+        CleaningState(Neo4jResource resource) {
+            this.resource = resource;
+        }
+
+        public void run() {
+            try {
+                this.resource.startServerProcess();
+            } catch (IOException | URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
 
     protected static class ServerStopResponse {
         public final boolean alreadyStopped;
@@ -80,9 +103,10 @@ public class Neo4jResource {
 
 
     @Inject
-    public Neo4jResource(PropertiesProvider propertiesProvider) {
+    public Neo4jResource(PropertiesProvider propertiesProvider, Cleaner cleaner) {
         this.propertiesProvider = propertiesProvider;
         this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
+        this.cleaner = cleaner;
         Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
     }
 
@@ -186,6 +210,7 @@ public class Neo4jResource {
                 // TODO: fix this mess when we can afford calling getServerBinaryPath -> replace with orElse
                 .orElse(new String[]{serverBinaryPath.toAbsolutePath().toString(), propertiesPath.toAbsolutePath().toString()});
         this.serverProcess = new ProcessBuilder(startServerCmd).start();
+        this.cleanable = cleaner.register(this, new CleaningState(this));
     }
 
     protected void stopServerProcess() {
@@ -202,6 +227,11 @@ public class Neo4jResource {
 
     private String getNeo4jUrl(String url) {
         return "http://" + this.host + ":" + this.port + url;
+    }
+
+    @Override
+    public void close() {
+        this.cleanable.clean();
     }
 
 }
