@@ -29,18 +29,20 @@ public class Neo4jResource {
     private final String host = "127.0.0.1";
     protected volatile Process serverProcess;
 
-    public static class ServerStopResponse {
+    protected static class ServerStopResponse {
         public final boolean alreadyStopped;
 
-        ServerStopResponse(boolean alreadyStopped) {
+        @JsonCreator
+        ServerStopResponse(@JsonProperty("alreadyStopped") boolean alreadyStopped) {
             this.alreadyStopped = alreadyStopped;
         }
     }
 
-    public static class ServerStartResponse {
+    protected static class ServerStartResponse {
         public final boolean alreadyRunning;
 
-        ServerStartResponse(boolean alreadyRunning) {
+        @JsonCreator
+        ServerStartResponse(@JsonProperty("alreadyRunning") boolean alreadyRunning) {
             this.alreadyRunning = alreadyRunning;
         }
     }
@@ -59,6 +61,16 @@ public class Neo4jResource {
     static class Neo4jNotRunningError extends RuntimeException {
         public Neo4jNotRunningError() {
             super("Neo4j Python app is not running, please start it before calling the extension");
+        }
+
+        public HttpUtils.HttpError toJsonError() {
+            return new HttpUtils.HttpError().withDetail(this.getMessage());
+        }
+    }
+
+    static class Neo4jAlreadyRunningError extends RuntimeException {
+        public Neo4jAlreadyRunningError() {
+            super("Neo4j Python is already running in likely in another phantom process");
         }
 
         public HttpUtils.HttpError toJsonError() {
@@ -94,13 +106,17 @@ public class Neo4jResource {
     }
 
     @Post("/start")
-    public ServerStartResponse postStartNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
+    public Payload postStartNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
         // TODO: check that the user is allowed
         boolean alreadyRunning = this.serverProcess != null;
         if (!alreadyRunning) {
-            this.startNeo4jApp();
+            try {
+                this.startNeo4jApp();
+            } catch (Neo4jAlreadyRunningError e) {
+                return new Payload("application/problem+json", e.toJsonError()).withCode(500);
+            }
         }
-        return new ServerStartResponse(alreadyRunning);
+        return new Payload(new ServerStartResponse(alreadyRunning));
     }
 
     @Post("/stop")
@@ -146,6 +162,9 @@ public class Neo4jResource {
         if (!this.isNeoAppRunning()) {
             synchronized (this) {
                 if (!this.isNeoAppRunning()) {
+                    if (isOpen(host, port)) {
+                        throw new Neo4jAlreadyRunningError();
+                    }
                     this.startServerProcess();
                     // TODO: smart recovery in case of failure
                     this.waitForServerToBeUp();
