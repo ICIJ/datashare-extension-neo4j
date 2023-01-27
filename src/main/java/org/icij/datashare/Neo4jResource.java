@@ -27,7 +27,45 @@ public class Neo4jResource {
     private final PropertiesProvider propertiesProvider;
     private final int port;
     private final String host = "127.0.0.1";
-    private volatile Process serverProcess;
+    protected volatile Process serverProcess;
+
+    public static class ServerStopResponse {
+        public final boolean alreadyStopped;
+
+        ServerStopResponse(boolean alreadyStopped) {
+            this.alreadyStopped = alreadyStopped;
+        }
+    }
+
+    public static class ServerStartResponse {
+        public final boolean alreadyRunning;
+
+        ServerStartResponse(boolean alreadyRunning) {
+            this.alreadyRunning = alreadyRunning;
+        }
+    }
+
+    // TODO: move this elsewhere
+    protected static class Neo4jAppStatus {
+        // TODO: replace this one with a date or something like this
+        public final boolean isRunning;
+
+        @JsonCreator
+        Neo4jAppStatus(@JsonProperty("isRunning") boolean isRunning) {
+            this.isRunning = isRunning;
+        }
+    }
+
+    static class Neo4jNotRunningError extends RuntimeException {
+        public Neo4jNotRunningError() {
+            super("Neo4j Python app is not running, please start it before calling the extension");
+        }
+
+        public HttpUtils.HttpError toJsonError() {
+            return new HttpUtils.HttpError().withDetail(this.getMessage());
+        }
+    }
+
 
     @Inject
     public Neo4jResource(PropertiesProvider propertiesProvider) {
@@ -36,9 +74,9 @@ public class Neo4jResource {
         Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
     }
 
-    private static void waitForServerToBeUp(String host, int port) throws InterruptedException {
+    protected void waitForServerToBeUp() throws InterruptedException {
         for (int nbTries = 0; nbTries < 60; nbTries++) {
-            if (isOpen(host, port)) {
+            if (isOpen(this.host, this.port)) {
                 return;
             } else {
                 Thread.sleep(500);
@@ -56,7 +94,7 @@ public class Neo4jResource {
     }
 
     @Post("/start")
-    public ServerStartResponse postStartNeo4jApp() throws IOException, URISyntaxException, InterruptedException {
+    public ServerStartResponse postStartNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
         // TODO: check that the user is allowed
         boolean alreadyRunning = this.serverProcess != null;
         if (!alreadyRunning) {
@@ -79,50 +117,62 @@ public class Neo4jResource {
     @Get("/status")
     public Neo4jAppStatus getStopNeo4jApp() {
         // TODO: check that the user is allowed
-        return new Neo4jAppStatus(this.serverProcess != null);
+        return new Neo4jAppStatus(this.isNeoAppRunning());
     }
 
     @Get("/ping")
     public Payload getPingMethod() {
+        try {
+            checkNeo4jAppStarted();
+        } catch (Neo4jNotRunningError e) {
+            return new Payload("application/problem+json", e.toJsonError()).withCode(503);
+        }
         kong.unirest.HttpResponse<byte[]> httpResponse = Unirest.get(this.getNeo4jUrl("/ping")).asBytes();
         return new Payload(httpResponse.getBody()).withCode(httpResponse.getStatus());
+
     }
 
-    private void startNeo4jApp() throws IOException, URISyntaxException, InterruptedException {
-        if (this.serverProcess == null) {
+    protected boolean isNeoAppRunning() {
+        return this.serverProcess != null;
+    }
+
+    private void checkNeo4jAppStarted() {
+        if (!this.isNeoAppRunning()) {
+            throw new Neo4jNotRunningError();
+        }
+    }
+
+    private void startNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
+        if (!this.isNeoAppRunning()) {
             synchronized (this) {
-                if (this.serverProcess == null) {
-                    // TODO: is it the right place ???
-                    // TODO: read the name from the property provider rather than harcoding
-                    ProcessBuilder pb = startServerProcess();
-                    // TODO: read the binary path from the config ?
-                    // TODO: do some smarter thing with the Python server stdout and sterr (pb.redirectErrorStream...)
-                    this.serverProcess = pb.start();
+                if (!this.isNeoAppRunning()) {
+                    this.startServerProcess();
                     // TODO: smart recovery in case of failure
-                    waitForServerToBeUp(this.host, this.port);
+                    this.waitForServerToBeUp();
                 }
             }
         }
     }
 
-    private ProcessBuilder startServerProcess() throws IOException, URISyntaxException {
+    protected void startServerProcess() throws IOException, URISyntaxException {
+        // TODO: should I handle the potential nullpointer exception thrown by getPath
         Path propertiesPath = Paths.get(Neo4jResource.class.getResource("").getPath(), "datashare.properties");
         this.propertiesProvider.getProperties().store(Files.newOutputStream(propertiesPath), "Datashare properties");
-        // TODO: do some starter thing to find the right binary name depending on the platform
         Path serverBinaryPath = Paths.get(ClassLoader.getSystemResource(NEO4J_APP_BIN).toURI());
+        // TODO: do some smarter thing with the Python server stdout and sterr (pb.redirectErrorStream...)
         String[] startServerCmd = this.propertiesProvider
-                // TODO: when retrieving a custom command there are chance that we run a sever
-                //  specifying a port which is different than the on in the datashare properties...
-                //  to use carefully (test mainly)
-                .get("neo4jStartServerCmd").map(s -> s.split("\\s+")).orElse(new String[]{serverBinaryPath.toFile().getAbsolutePath(), propertiesPath.toFile().getAbsolutePath()});
-        return new ProcessBuilder(startServerCmd);
+                // TODO: this might allow to run arbitrary code...
+                .get("neo4jStartServerCmd")
+                .map(s -> s.split("\\s+"))
+                // TODO: fix this mess when we can afford calling getServerBinaryPath -> replace with orElse
+                .orElse(new String[]{serverBinaryPath.toAbsolutePath().toString(), propertiesPath.toAbsolutePath().toString()});
+        this.serverProcess = new ProcessBuilder(startServerCmd).start();
     }
 
-
-    private void stopServerProcess() {
-        if (this.serverProcess != null) {
+    protected void stopServerProcess() {
+        if (isNeoAppRunning()) {
             synchronized (this) {
-                if (this.serverProcess != null) {
+                if (isNeoAppRunning()) {
                     // TODO: check if we want to force destroyForcibly
                     this.serverProcess.destroy();
                     this.serverProcess = null;
@@ -131,36 +181,8 @@ public class Neo4jResource {
         }
     }
 
-
     private String getNeo4jUrl(String url) {
         return "http://" + this.host + ":" + this.port + url;
-    }
-
-
-    public static class ServerStopResponse {
-        public final boolean alreadyStopped;
-
-        ServerStopResponse(boolean alreadyStopped) {
-            this.alreadyStopped = alreadyStopped;
-        }
-    }
-
-    public static class ServerStartResponse {
-        public final boolean alreadyRunning;
-
-        ServerStartResponse(boolean alreadyRunning) {
-            this.alreadyRunning = alreadyRunning;
-        }
-    }
-
-    public static class Neo4jAppStatus {
-        // TODO: replace this one with a date or something like this
-        public final boolean isRunning;
-
-        @JsonCreator
-        Neo4jAppStatus(@JsonProperty("isRunning") boolean isRunning) {
-            this.isRunning = isRunning;
-        }
     }
 
 }

@@ -18,15 +18,16 @@ package org.icij.datashare;
 import net.codestory.http.Configuration;
 import net.codestory.http.WebServer;
 import net.codestory.http.misc.Env;
-import org.junit.rules.ExternalResource;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.util.function.Supplier;
 
 import static net.codestory.http.Configuration.NO_ROUTE;
 import static net.codestory.http.misc.MemoizingSupplier.memoize;
 
-public class ProdWebServerRule extends ExternalResource {
-    private final Supplier<WebServer> server = memoize(() -> new WebServer() {
+public class ProdWebServerRuleExtension implements AfterAllCallback {
+    protected final Supplier<WebServer> server = memoize(() -> new WebServer() {
         @Override
         protected Env createEnv() {
             return Env.prod();
@@ -34,7 +35,7 @@ public class ProdWebServerRule extends ExternalResource {
     }.startOnRandomPort());
 
     @Override
-    protected void after() {
+    public void afterAll(ExtensionContext extensionContext) {
         server.get().configure(NO_ROUTE);
     }
 
@@ -45,4 +46,5 @@ public class ProdWebServerRule extends ExternalResource {
     public int port() {
         return server.get().port();
     }
+
 }
