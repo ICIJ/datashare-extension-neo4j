@@ -141,13 +141,11 @@ public class Neo4jResource implements AutoCloseable {
     @Post("/start")
     public Payload postStartNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
         // TODO: check that the user is allowed
-        boolean alreadyRunning = this.serverProcess != null;
-        if (!alreadyRunning) {
-            try {
-                this.startNeo4jApp();
-            } catch (Neo4jAlreadyRunningError e) {
-                return new Payload("application/problem+json", e.toJsonError()).withCode(500);
-            }
+        boolean alreadyRunning;
+        try {
+            alreadyRunning = this.startNeo4jApp();
+        } catch (Neo4jAlreadyRunningError e) {
+            return new Payload("application/problem+json", e.toJsonError()).withCode(500);
         }
         return new Payload(new ServerStartResponse(alreadyRunning));
     }
@@ -155,12 +153,7 @@ public class Neo4jResource implements AutoCloseable {
     @Post("/stop")
     public ServerStopResponse postStopNeo4jApp() {
         // TODO: check that the user is allowed
-        boolean alreadyStopped = true;
-        if (this.serverProcess != null) {
-            alreadyStopped = false;
-            stopServerProcess();
-        }
-        return new ServerStopResponse(alreadyStopped);
+        return new ServerStopResponse(stopServerProcess());
     }
 
     @Get("/status")
@@ -191,8 +184,9 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    private void startNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
-        if (!this.isNeoAppRunning()) {
+    private boolean startNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
+        boolean alreadyRunning = this.isNeoAppRunning();
+        if (!alreadyRunning) {
             synchronized (this) {
                 if (!this.isNeoAppRunning()) {
                     if (isOpen(host, port)) {
@@ -204,6 +198,7 @@ public class Neo4jResource implements AutoCloseable {
                 }
             }
         }
+        return alreadyRunning;
     }
 
     protected void startServerProcess() throws IOException, URISyntaxException {
@@ -236,8 +231,9 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    protected void stopServerProcess() {
-        if (isNeoAppRunning()) {
+    protected boolean stopServerProcess() {
+        boolean alreadyStopped = !isNeoAppRunning();
+        if (!alreadyStopped) {
             synchronized (this) {
                 if (isNeoAppRunning()) {
                     // TODO: check if we want to force destroyForcibly
@@ -247,6 +243,7 @@ public class Neo4jResource implements AutoCloseable {
                 }
             }
         }
+        return alreadyStopped;
     }
 
     private String getNeo4jUrl(String url) {
