@@ -64,7 +64,7 @@ function _commands() {
             command -v poetry 1>/dev/null 2>&1 || echo "poetry is not installed"
 
             cd "$PYTHON_APP_DIR"
-            poetry "install"
+            poetry install --with dev
         else
             exit_with_message "Can't setup project $PROJECT"
         fi
@@ -101,7 +101,7 @@ function _commands() {
             local java_resources
             java_resources=$ROOT_DIR/src/main/resources
             echo "Copying neo4j app binary to java extension resources: $java_resources"
-            cp $app_bin $java_resources
+            cp "$app_bin" "$java_resources"
         else
             exit_with_message "Can't build project $PROJECT"
         fi
@@ -183,7 +183,7 @@ function _main() {
 
     if [[ $# == 0 ]]; then
         printf "Error: No command specified\n\n" && exit 1
-    # If we manage to find a commande previously declared with _commands, run it
+    # If we manage to find a command previously declared with _commands, run it
     elif declare -f "$1" >/dev/null; then
         "$@"
     else
