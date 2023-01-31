@@ -33,7 +33,8 @@ public class Neo4jResourceTest {
         public void beforeAll(ExtensionContext extensionContext) {
             propertyProvider = new PropertiesProvider(new HashMap<>() {{
                 put("neo4jAppPort", Integer.toString(neo4jAppPort));
-                put("neo4jStartServerCmd", "ls .");
+                // TODO: fix this path ?
+                put("neo4jStartServerCmd", "src/test/resources/shell_mock");
             }});
         }
     }
@@ -44,7 +45,7 @@ public class Neo4jResourceTest {
             propertyProvider = new PropertiesProvider(new HashMap<>() {{
                 put("neo4jAppPort", Integer.toString(neo4jAppPort));
                 // TODO: how to fix the path ?
-                put("neo4jStartServerCmd", "python -m http.server -d src/test/resources/test_app " + neo4jAppPort);
+                put("neo4jStartServerCmd", "src/test/resources/python_mock " + neo4jAppPort);
             }});
         }
     }
@@ -284,7 +285,7 @@ public class Neo4jResourceTest {
                         "-m",
                         "http.server",
                         "-d",
-                        "src/test/resources/test_app",
+                        "src/test/resources/python_mock",
                         "8080"
                 ).start();
             }
