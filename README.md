@@ -1,5 +1,12 @@
 # Datashare Extension for Neo4j
 
+## Dependencies
+
+Users are expected to have the following dependencies on their file system:  
+- [Python](https://www.python.org/downloads/) `>3.8,<4.0`
+- [poetry](https://python-poetry.org/) (see `./neo4j install_peotry`)
+- JDK `>= 11`
+
 ## Commands
 
 The `neo4j` script allows to run commands for this repository.

@@ -26,12 +26,6 @@ function _helpers() {
         . "$venv_path"/bin/activate
     }
 
-    function _install_poetry() (
-        echo "Installing Poetry..."
-        # TODO: restrict the python version here
-        curl -sSL https://install.python-poetry.org | python3 -
-    )
-
     function _install_pyinstaller() (
         echo "Installing pyinstaller..."
         pip install pyinstaller==5.7.0
@@ -67,7 +61,7 @@ function _commands() {
         if _should_run_project "neo4j_app"; then
             _print_step "Setting up neo4j_app"
 
-            command -v poetry 1>/dev/null 2>&1 || _install_poetry
+            command -v poetry 1>/dev/null 2>&1 || echo "poetry is not installed"
 
             cd "$PYTHON_APP_DIR"
             poetry "install"
@@ -121,6 +115,13 @@ function _commands() {
             exit_with_message "Can't run project $PROJECT"
         fi
     }
+
+    function install_poetry() (
+        echo "Installing Poetry..."
+        # TODO: restrict the python version here
+        curl -sSL https://install.python-poetry.org | python3 -
+    )
+
 }
 
 function _main() {
