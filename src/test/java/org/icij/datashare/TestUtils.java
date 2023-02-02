@@ -1,16 +1,15 @@
 package org.icij.datashare;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.fest.assertions.Fail.fail;
+import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 public class TestUtils {
-    private final static ObjectMapper mapper = new ObjectMapper();
 
     public static <T> void assertJson(String json, Class<T> cls, AssertionChain<T> assertionChain) {
         try {
-            T object = mapper.readValue(json, cls);
+            T object = MAPPER.readValue(json, cls);
             assertionChain.doAssert(object);
         } catch (JsonProcessingException e) {
             String msg = "Failed to convert the json string into a valid " + cls.getName() + ":";
@@ -24,4 +23,7 @@ public class TestUtils {
         void doAssert(T obj) throws AssertionError;
     }
 
+    public static String makeJsonHttpError(String title, String detail) {
+        return "{\"title\": \"" + title + "\", " + "\"detail\": " + detail + "\"}";
+    }
 }
