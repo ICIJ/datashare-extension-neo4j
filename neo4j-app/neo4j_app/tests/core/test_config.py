@@ -2,7 +2,7 @@ import io
 
 import pytest
 
-from neo4j_app.core import AppConfig, UviCornConfig
+from neo4j_app.core import AppConfig, UviCornModel
 
 
 def test_should_support_alias():
@@ -46,15 +46,15 @@ def test_should_load_from_java(config: str, expected_config: AppConfig):
     [
         (
             AppConfig(neo4j_app_host="127.0.0.3", neo4j_app_port=8888),
-            UviCornConfig(host="127.0.0.3", port=8888, log_level="INFO"),
+            UviCornModel(host="127.0.0.3", port=8888, log_level="INFO"),
         ),
         (
             AppConfig(neo4j_app_log_level="DEBUG"),
-            UviCornConfig(host="127.0.0.1", port=8080, log_level="DEBUG"),
+            UviCornModel(host="127.0.0.1", port=8080, log_level="DEBUG"),
         ),
     ],
 )
-def test_to_uvicorn(config: AppConfig, expected_uvicorn_config: UviCornConfig):
+def test_to_uvicorn(config: AppConfig, expected_uvicorn_config: UviCornModel):
     # When
     uvicorn_config = config.to_uvicorn()
 

@@ -1,1 +1,1 @@
-from .config import AppConfig, UviCornConfig
+from .config import AppConfig, UviCornModel
