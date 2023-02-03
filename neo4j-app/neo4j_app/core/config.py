@@ -4,7 +4,7 @@ import configparser
 from configparser import ConfigParser
 from typing import TextIO
 
-from neo4j_app.utils.pydantic import (
+from neo4j_app.core.utils.pydantic import (
     BaseICIJModel,
     IgnoreExtraModel,
     LowerCamelCaseModel,

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from neo4j_app.utils.asyncio import run_concurrently
+from neo4j_app.core.utils.asyncio import run_concurrently
 
 
 @pytest.mark.asyncio
