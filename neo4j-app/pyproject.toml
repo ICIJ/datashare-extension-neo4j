@@ -16,6 +16,7 @@ fastapi = "^0.89.1"
 pyyaml = "<=5.3.1"
 uvicorn = { version = "^0.20.0", extras = ["standard"] }
 elasticsearch = {version = "^7.17.9", extras = ["async"]}
+neo4j = "^5.5.0"
 
 [tool.poetry.group.dev.dependencies]
 fastapi = { version = "^0.89.1", extras = ["all"] }
