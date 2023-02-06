@@ -1,0 +1,29 @@
+target/
+out/
+dependency-reduced-pom.xml
+.idea/
+*.iml
+dist/
+logs/
+/app
+pom.xml.versionsBackup
+.gitsecret/keys/random_seed
+datashare-web/src/main/resources/secret.properties
+
+# Python
+*.log
+venv
+*.egg-info
+.eggs
+__pycache__
+*.pytest_cache
+*.pyc
+build
+dist
+test/.env
+.cache
+tmp
+./*.csv
+
+# VS code
+.vscode
