@@ -12,6 +12,7 @@ function _export_global_variables() {
     else
         export ELASTICSEARCH_PORT=$_ELASTICSEARCH_PORT
     fi
+    export NEO4J_VERSION=4.2.11
 }
 
 function _helpers() {
@@ -129,12 +130,32 @@ function _commands() {
         curl -sSL https://install.python-poetry.org | python3 -
     )
 
-    function run_test_elasticsearch() (
+    function start_all_test_service() (
+        docker compose up --detach \
+            --build test-elasticsearch \
+            --build test-neo4j \
+            test-elasticsearch \
+            test-neo4j
+    )
+
+    function stop_all_test_service() (
+        docker compose stop test-elasticsearch test-neo4j
+    )
+
+    function start_test_elasticsearch() (
         docker compose up --build test-elasticsearch --attach test-elasticsearch
     )
 
     function stop_test_elasticsearch() (
-        docker compose stop
+        docker compose stop test-elasticsearch
+    )
+
+    function start_test_neo4j() (
+        docker compose up --build test-neo4j --attach test-neo4j
+    )
+
+    function stop_test_neo4j() (
+        docker compose stop test-neo4j
     )
 }
 
