@@ -151,7 +151,6 @@ function _commands() {
             docker run --name elasticsearch-test \
                 --network elastic \
                 -p "$ELASTICSEARCH_PORT":"$ELASTICSEARCH_PORT" \
-                -p 9300:9300 \
                 -e "discovery.type=single-node" \
                 -t docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
         fi
