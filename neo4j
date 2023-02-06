@@ -130,34 +130,11 @@ function _commands() {
     )
 
     function run_test_elasticsearch() (
-        if ! docker network inspect elastic 1>/dev/null 2>&1; then
-            echo 'Creating network "elastic"...'
-            docker network create elastic
-        fi
-
-        local docker_img
-        docker_img=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
-        if [ -z "$(docker images $docker_img -q)" ]; then
-            echo 'Pulling image "elasticsearch"...'
-            docker pull $docker_img
-        fi
-
-        echo Launching elastic search on "$ELASTICSEARCH_PORT"...
-        local container_id
-        container_id="$(docker ps -q --all -f name=elasticsearch-test)"
-        if [ -n "$container_id" ];then
-            docker start -a elasticsearch-test
-        else
-            docker run --name elasticsearch-test \
-                --network elastic \
-                -p "$ELASTICSEARCH_PORT":"$ELASTICSEARCH_PORT" \
-                -e "discovery.type=single-node" \
-                -t docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
-        fi
+        docker compose up --build test-elasticsearch --attach test-elasticsearch
     )
 
     function stop_test_elasticsearch() (
-         docker stop elasticsearch-test
+        docker compose stop
     )
 }
 
