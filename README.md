@@ -41,9 +41,9 @@ only the Python app:
 ### Start elasticsearch
 On `9200`:
 ```bash
-./neo4j run_test_elasticsearch
+./neo4j start-elasticsearch
 ```
 or
 ```bash
-./neo4j run_test_elasticsearch --elasticsearch-port 9999
+./neo4j start-elasticsearch --elasticsearch-port 9999
 ```

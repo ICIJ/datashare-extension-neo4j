@@ -15,7 +15,7 @@ fastapi = "^0.89.1"
 # PyYaml > 5.3.1 does not seem to be installable on macos 13.x
 pyyaml = "<=5.3.1"
 uvicorn = { version = "^0.20.0", extras = ["standard"] }
-elasticsearch = {extras = ["async"], version = "^7.17.9"}
+elasticsearch = {version = "^7.17.9", extras = ["async"]}
 neo4j = "^5.5.0"
 
 [tool.poetry.group.dev.dependencies]
