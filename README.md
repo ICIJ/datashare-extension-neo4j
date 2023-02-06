@@ -1,11 +1,14 @@
 # Datashare Extension for Neo4j
 
 ## Dependencies
-
+### Main
 Users are expected to have the following dependencies on their file system:  
 - [Python](https://www.python.org/downloads/) `>3.8,<4.0`
 - [poetry](https://python-poetry.org/) (see `./neo4j install_peotry`)
 - JDK `>= 11`
+
+### Test
+- Docker
 
 ## Commands
 
@@ -32,7 +35,15 @@ All projects:
 
 only the Python app:
 ```bash
-./neo4j run -p neo4j_app
+./neo4j build -p neo4j_app
 ```
 
-### Running
+### Start elasticsearch
+On `9200`:
+```bash
+./neo4j start-elasticsearch
+```
+or
+```bash
+./neo4j start-elasticsearch --elasticsearch-port 9999
+```
