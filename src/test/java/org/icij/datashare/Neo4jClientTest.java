@@ -42,9 +42,9 @@ public class Neo4jClientTest {
         private static Payload mockDocumentsImport(Context context) throws IOException {
             String body;
             if (Objects.equals(context.request().content(), "{}")) {
-                body = "{\"nDocumentsToInsert\": 3,\"nDocumentsInserted\": 3}";
+                body = "{\"nDocsToInsert\": 3,\"nInsertedDocs\": 3}";
             } else {
-                body = "{\"nDocumentsToInsert\": 3,\"nDocumentsInserted\": 1}";
+                body = "{\"nDocsToInsert\": 3,\"nInsertedDocs\": 1}";
             }
             return new Payload("application/json", body);
         }
@@ -66,8 +66,8 @@ public class Neo4jClientTest {
             // When
             Neo4jClient.DocumentImportResponse res = client.importDocuments(null);
             // Then
-            assertThat(res.nDocumentsToInsert).isEqualTo(3);
-            assertThat(res.nDocumentsInserted).isEqualTo(3);
+            assertThat(res.nDocsToInsert).isEqualTo(3);
+            assertThat(res.nInsertedDocs).isEqualTo(3);
         }
 
         @Test
@@ -77,8 +77,8 @@ public class Neo4jClientTest {
             // When
             Neo4jClient.DocumentImportResponse res = client.importDocuments("{\"someQuery\": \"here\"}");
             // Then
-            assertThat(res.nDocumentsToInsert).isEqualTo(3);
-            assertThat(res.nDocumentsInserted).isEqualTo(1);
+            assertThat(res.nDocsToInsert).isEqualTo(3);
+            assertThat(res.nInsertedDocs).isEqualTo(1);
         }
 
         @Test

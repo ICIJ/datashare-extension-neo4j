@@ -36,13 +36,13 @@ public class Neo4jClient {
 
     protected static class DocumentImportResponse {
 
-        public final long nDocumentsToInsert;
-        public final long nDocumentsInserted;
+        public final long nDocsToInsert;
+        public final long nInsertedDocs;
 
         @JsonCreator
-        DocumentImportResponse(@JsonProperty("nDocumentsToInsert") long nDocumentsToInsert, @JsonProperty("nDocumentsInserted") long nDocumentsInserted) {
-            this.nDocumentsToInsert = nDocumentsToInsert;
-            this.nDocumentsInserted = nDocumentsInserted;
+        DocumentImportResponse(@JsonProperty("nDocsToInsert") long nDocsToInsert, @JsonProperty("nInsertedDocs") long nInsertedDocs) {
+            this.nDocsToInsert = nDocsToInsert;
+            this.nInsertedDocs = nInsertedDocs;
         }
 
     }

@@ -340,7 +340,7 @@ public class Neo4jResourceTest {
             neo4jApp.configure(
                     routes -> routes.post(
                             "/documents",
-                            context -> new Payload("application/json", "{\"nDocumentsToInsert\": 10,\"nDocumentsInserted\": 8}")
+                            context -> new Payload("application/json", "{\"nDocsToInsert\": 10,\"nInsertedDocs\": 8}")
                     )
             );
             // When
@@ -353,8 +353,8 @@ public class Neo4jResourceTest {
                     response.content(),
                     Neo4jClient.DocumentImportResponse.class,
                     res -> {
-                        assertThat(res.nDocumentsToInsert).isEqualTo(10);
-                        assertThat(res.nDocumentsInserted).isEqualTo(8);
+                        assertThat(res.nDocsToInsert).isEqualTo(10);
+                        assertThat(res.nInsertedDocs).isEqualTo(8);
                     }
             );
         }
