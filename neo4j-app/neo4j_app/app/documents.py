@@ -10,10 +10,46 @@ from neo4j_app.core.objects import DocumentImportRequest, DocumentImportResponse
 
 _DOCUMENT_TAG = "Documents"
 _DOC_IMPORT_SUM = "Documents import from `elasticsearch` to `neo4j`"
-_DOC_IMPORT_DESC = (
-    "Documents are searched for in `elasticsearch` potentially using the"
-    " provided query they are then upserted into the `neo4j` database"
-)
+_DOC_IMPORT_DESC = """Documents are searched for in `elasticsearch` potentially using \
+the provided query they are then upserted into the `neo4j` database.
+
+They query must be an content of the `query` field of an elasticsearch query. When \
+provided it will combined into `bool` query in order to restrict the provided query to \
+ apply to documents. 
+
+If you provide:
+```json
+{
+    "match": {
+        "path": "somePath"
+    }
+}
+```
+then the query which will actually be performed will be:
+```json
+{
+    "query": {
+        "bool": {
+            "must": [
+                {
+                    "term": {
+                        "<docFieldType>": "Document"
+                    }
+                }
+                {
+                    "match": {
+                        "path": "somePath"
+                    }
+                }           
+            ]
+        }
+    }
+}
+```
+
+The `<docFieldType>` defaults to `type` and is supposed to be forwarded from the Java \
+app to the Python one through configuration. 
+"""
 
 
 def documents_router() -> APIRouter:
