@@ -9,10 +9,9 @@ from neo4j_app.app.utils import create_app
 
 
 def debug_app():
-    neo4j_import_dir = Path(__file__).parents[3].joinpath(".data", "neo4j", "import")
+    neo4j_import_dir = Path(__file__).parents[4].joinpath(".data", "neo4j", "import")
     config = AppConfig(
-        neo4j_project="Debug project",
-        neo4j_import_dir=str(neo4j_import_dir),
+        neo4j_import_dir=str(neo4j_import_dir), neo4j_project="Debug project"
     )
     app = create_app(config)
     return app
