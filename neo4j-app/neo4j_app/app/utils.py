@@ -79,7 +79,7 @@ def _make_open_api_tags(tags: Iterable[str]) -> List[Dict]:
 
 def create_app(config: AppConfig) -> FastAPI:
     app = FastAPI(
-        title=config.neo4j_app_name,
+        title=config.doc_app_name,
         openapi_tags=_make_open_api_tags([DOCUMENT_TAG, OTHER_TAG]),
     )
     # Important note: we only put the config in the global state, we provide all
