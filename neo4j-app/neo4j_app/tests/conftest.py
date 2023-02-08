@@ -160,7 +160,7 @@ def index_noise_ops(*, index_name: str, n: int) -> Generator[Dict, None, None]:
             "_op_type": "index",
             "_index": index_name,
             "_id": f"noise-{i}",
-            "this": f"noise number {i}",
+            "_source": {"this": f"noise number {i}"},
         }
         yield op
 
