@@ -53,12 +53,11 @@ app to the Python one through configuration.
 
 
 def documents_router() -> APIRouter:
-    router = APIRouter(dependencies=[Depends(neo4j_session_dep)])
+    router = APIRouter(dependencies=[Depends(neo4j_session_dep)], tags=[_DOCUMENT_TAG])
 
     @router.post(
         "/documents",
         response_model=DocumentImportResponse,
-        tags=[_DOCUMENT_TAG],
         summary=_DOC_IMPORT_SUM,
         description=_DOC_IMPORT_DESC,
     )
