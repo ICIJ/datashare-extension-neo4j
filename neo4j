@@ -7,7 +7,7 @@ function _export_global_variables() {
     export PYTHON_APP_DIR="$ROOT_DIR/neo4j-app"
     export NEO4J_APP_BIN="neo4j_app"
     export ELASTICSEARCH_VERSION=7.9.1
-    if [ -z "$_ELASTICSEARCH_PORT" ];then
+    if [ -z "$_ELASTICSEARCH_PORT" ]; then
         export ELASTICSEARCH_PORT="9200"
     else
         export ELASTICSEARCH_PORT=$_ELASTICSEARCH_PORT
@@ -17,7 +17,7 @@ function _export_global_variables() {
 }
 
 function _helpers() {
-    
+
     function _print_step() {
         echo "##### -> $1"
     }
@@ -62,6 +62,37 @@ function _helpers() {
         fi
     }
 
+    function _build_neo4j_app() {
+        _print_step "Building Python app executable"
+        cd "$ROOT_DIR"/neo4j-app
+
+        _poetry_shell
+        command -v pyinstaller 1>/dev/null 2>&1 || _install_pyinstaller
+
+        local app_dir
+        app_dir="$ROOT_DIR"/bins
+
+        local site_packages_path
+        site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+
+        pyinstaller neo4j_app/run/run.py \
+            --distpath "$app_dir" \
+            -F -y \
+            --name $NEO4J_APP_BIN \
+            --specpath "$app_dir" \
+            --log-level=DEBUG \
+            -p neo4j_app \
+            -p "$site_packages_path"
+
+        local app_bin
+        app_bin="$app_dir/$NEO4J_APP_BIN"
+        chmod +x "$app_bin"
+
+        local java_resources
+        java_resources=$ROOT_DIR/src/main/resources
+        echo "Copying neo4j app binary to java extension resources: $java_resources"
+        cp "$app_bin" "$java_resources"
+    }
 }
 
 function _commands() {
@@ -81,36 +112,12 @@ function _commands() {
 
     function build() {
         if _should_run_project "neo4j_app"; then
-            _print_step "Building Python app executable"
-
-            cd "$ROOT_DIR"/neo4j-app
-
-            _poetry_shell
-            command -v pyinstaller 1>/dev/null 2>&1 || _install_pyinstaller
-
-            local app_dir
-            app_dir="$ROOT_DIR"/bins
-
-            local site_packages_path
-            site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
-
-            pyinstaller neo4j_app/run/run.py \
-                --distpath "$app_dir" \
-                -F -y \
-                --name $NEO4J_APP_BIN \
-                --specpath "$app_dir" \
-                --log-level=DEBUG \
-                -p neo4j_app \
-                -p "$site_packages_path"
-
-            local app_bin
-            app_bin="$app_dir/$NEO4J_APP_BIN"
-            chmod +x "$app_bin"
-
-            local java_resources
-            java_resources=$ROOT_DIR/src/main/resources
-            echo "Copying neo4j app binary to java extension resources: $java_resources"
-            cp "$app_bin" "$java_resources"
+            _build_neo4j_app
+        elif _should_run_project "neo4j_extension"; then
+            _print_step "Building the java extension"
+            _build_neo4j_app
+            cd $ROOT_DIR
+            mvn package -Dmaven.test.skip=true >$ROOT_DIR/bins/mvn.out
         else
             exit_with_message "Can't build project $PROJECT"
         fi
@@ -174,6 +181,7 @@ function _main() {
     # Define sub projects here
     PROJECTS=(
         neo4j_app
+        neo4j_extension
     )
 
     function exit_with_message() {

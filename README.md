@@ -10,9 +10,11 @@ Users are expected to have the following dependencies on their file system:
 - [poetry](https://python-poetry.org/) (see `./neo4j install_peotry`)
 - JDK `>= 11`
 
-### Test
+
+### Dev, test and build
 
 - Docker
+- [maven](https://maven.apache.org/) `>3.8,<4.0`
 
 ## Commands
 
