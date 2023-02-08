@@ -159,7 +159,7 @@ function _commands() {
         docker compose stop test-neo4j
     )
 
-    function start_test_app() (
+    function start_debug_app() (
         cd "$ROOT_DIR"/neo4j-app
 
         poetry run uvicorn --factory --reload --port "$TEST_APP_PORT" neo4j_app.run.run:debug_app
