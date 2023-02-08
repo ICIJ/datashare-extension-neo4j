@@ -9,7 +9,7 @@ from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.objects import DocumentImportRequest, DocumentImportResponse
 
 _DOCUMENT_TAG = "Documents"
-_DOC_IMPORT_SUM = "Documents import from `elasticsearch` to `neo4j`"
+_DOC_IMPORT_SUM = "Documents import from elasticsearch to neo4j"
 _DOC_IMPORT_DESC = """Documents are searched for in `elasticsearch` potentially using \
 the provided query they are then upserted into the `neo4j` database.
 
