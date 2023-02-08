@@ -130,7 +130,7 @@ function _commands() {
         curl -sSL https://install.python-poetry.org | python3 -
     )
 
-    function start_all_test_service() (
+    function start_all_test_services() (
         docker compose up --detach \
             --build test-elasticsearch \
             --build test-neo4j \
@@ -138,7 +138,7 @@ function _commands() {
             test-neo4j
     )
 
-    function stop_all_test_service() (
+    function stop_all_test_services() (
         docker compose stop test-elasticsearch test-neo4j
     )
 
