@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 
-_TAGS = ["Other"]
+OTHER_TAG = "Other"
 
 
 def main_router() -> APIRouter:
-    router = APIRouter(tags=_TAGS)
+    router = APIRouter(tags=[OTHER_TAG])
 
     @router.get("/ping")
     def ping() -> str:
