@@ -28,7 +28,7 @@ async def import_documents(
     # Let's restrict the search to documents, the type is a keyword property
     # we can safely use a term query
     document_type_query = {TERM: {doc_type_field: ES_DOCUMENT_TYPE}}
-    if query is not None:
+    if query is not None and query:
         query = and_query(document_type_query, query)
     else:
         query = {QUERY: document_type_query}

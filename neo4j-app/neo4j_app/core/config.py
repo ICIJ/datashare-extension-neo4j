@@ -17,6 +17,7 @@ from neo4j_app.core.utils.pydantic import (
 
 
 class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
+    doc_app_name: str = "🕸 neo4j app"
     es_doc_type_field: str = Field(alias="docTypeField", default="type")
     es_host: str = "127.0.0.1"
     es_port: int = 9200
@@ -26,7 +27,9 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_log_level: str = "INFO"
     neo4j_app_name: str = "neo4j app"
     neo4j_app_port: int = 8080
+    neo4j_host: int = "127.0.0.1"
     neo4j_import_dir: str
+    neo4j_port: int = 7687
     neo4j_project: str
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
@@ -55,7 +58,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
 
     @property
     def neo4j_uri(self) -> str:
-        return f"neo4j://{self.neo4j_app_host}:{self.neo4j_app_port}"
+        return f"neo4j://{self.neo4j_host}:{self.neo4j_port}"
 
     @property
     def es_hosts(self) -> List[Dict]:
