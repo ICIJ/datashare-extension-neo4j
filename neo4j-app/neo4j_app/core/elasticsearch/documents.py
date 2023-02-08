@@ -1,14 +1,16 @@
-from typing import Dict, Generator, Iterable
+from typing import AsyncIterable, Dict, Generator
 
 from neo4j_app.constants import DOC_COLUMNS
+from neo4j_app.core.elasticsearch.utils import SOURCE
 
 
-def to_document_csv(
-    document_hits: Iterable[Dict],
+async def to_document_csv(
+    document_hits: AsyncIterable[Dict],
 ) -> Generator[Dict[str, str], None, None]:
-    for doc in document_hits:
+    async for doc in document_hits:
         yield _hit_to_row(doc)
 
 
 def _hit_to_row(document_hit: Dict) -> Dict[str, str]:
-    return {k: document_hit[k] for k in document_hit if k in DOC_COLUMNS}
+    hit_source = document_hit[SOURCE]
+    return {k: hit_source[k] for k in hit_source if k in DOC_COLUMNS}

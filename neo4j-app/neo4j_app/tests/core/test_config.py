@@ -8,7 +8,11 @@ from neo4j_app.core import AppConfig, UviCornModel
 def test_should_support_alias():
     # When
     neo4j_app_name = "test_name"
-    config = AppConfig(neo4j_app_name=neo4j_app_name)
+    config = AppConfig(
+        neo4j_app_name=neo4j_app_name,
+        neo4j_import_dir="import-dir",
+        neo4j_project="test-project",
+    )
 
     # Then
     assert config.neo4j_app_name == neo4j_app_name
@@ -18,15 +22,29 @@ def test_should_support_alias():
     "config,expected_config",
     [
         (
-            "",
-            AppConfig(neo4j_app_host="127.0.0.1", neo4j_app_port=8080),
+            """neo4jProject=test-project
+neo4jImportDir=import-dir
+""",
+            AppConfig(
+                neo4j_app_host="127.0.0.1",
+                neo4j_app_port=8080,
+                neo4j_import_dir="import-dir",
+                neo4j_project="test-project",
+            ),
         ),
         (
-            """neo4jAppHost=this-the-neo4j-app
+            """neo4jProject=test-project
+neo4jImportDir=import-dir
+neo4jAppHost=this-the-neo4j-app
 neo4jAppPort=3333
 someExtraInfo=useless
 """,
-            AppConfig(neo4j_app_host="this-the-neo4j-app", neo4j_app_port=3333),
+            AppConfig(
+                neo4j_app_host="this-the-neo4j-app",
+                neo4j_app_port=3333,
+                neo4j_import_dir="import-dir",
+                neo4j_project="test-project",
+            ),
         ),
     ],
 )
@@ -45,11 +63,20 @@ def test_should_load_from_java(config: str, expected_config: AppConfig):
     "config,expected_uvicorn_config",
     [
         (
-            AppConfig(neo4j_app_host="127.0.0.3", neo4j_app_port=8888),
+            AppConfig(
+                neo4j_app_host="127.0.0.3",
+                neo4j_app_port=8888,
+                neo4j_import_dir="import-dir",
+                neo4j_project="test-project",
+            ),
             UviCornModel(host="127.0.0.3", port=8888, log_level="INFO"),
         ),
         (
-            AppConfig(neo4j_app_log_level="DEBUG"),
+            AppConfig(
+                neo4j_app_log_level="DEBUG",
+                neo4j_import_dir="import-dir",
+                neo4j_project="test-project",
+            ),
             UviCornModel(host="127.0.0.1", port=8080, log_level="DEBUG"),
         ),
     ],

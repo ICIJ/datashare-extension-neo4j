@@ -5,7 +5,7 @@ from pathlib import Path
 import uvicorn
 
 from neo4j_app.core.config import AppConfig
-from neo4j_app.run.utils import create_app
+from neo4j_app.app.utils import create_app
 
 
 def main():

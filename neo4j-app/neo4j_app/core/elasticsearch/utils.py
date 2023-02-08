@@ -4,13 +4,20 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
+ES_DOCUMENT_TYPE = "Document"
 DEFAULT_SCROLL_DURATION = "1m"
 HITS = "hits"
 MATCH_ALL = "match_all"
 QUERY = "query"
 SCROLL_ID = "_scroll_id"
+SOURCE = "_source"
+TERM = "term"
 TOTAL = "total"
 VALUE = "value"
+
+
+def and_query(*queries: Dict) -> Dict:
+    return {QUERY: {"bool": {"must": list(queries)}}}
 
 
 def match_all_query() -> Dict:

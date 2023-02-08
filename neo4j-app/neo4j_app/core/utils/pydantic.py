@@ -1,3 +1,5 @@
+from copy import copy
+
 from pydantic import BaseModel
 
 
@@ -12,6 +14,14 @@ class BaseICIJModel(BaseModel):
         allow_mutation = False
         extra = "forbid"
         allow_population_by_field_name = True
+
+    def dict(self, **kwargs):
+        kwargs = copy(kwargs)
+        if "by_alias" in kwargs:
+            by_alias = kwargs.pop("by_alias")
+            if not by_alias:
+                raise f"Can't serialize a {BaseICIJModel} without using alias"
+        return super().dict(by_alias=True, **kwargs)
 
 
 class LowerCamelCaseModel(BaseICIJModel):

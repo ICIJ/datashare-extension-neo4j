@@ -1,21 +1,30 @@
 import io
-from pathlib import Path
-from tempfile import NamedTemporaryFile
+from typing import Iterable
 
 import neo4j
 import pytest
-
 from neo4j.time import DateTime
 
 from neo4j_app.core.elasticsearch.documents import to_document_csv
-from neo4j_app.core.neo4j.documents import import_documents_from_csv_tx, write_neo4j_csv
-from neo4j_app.tests.conftest import DATA_DIR, make_docs
+from neo4j_app.core.neo4j.documents import (
+    import_documents_from_csv_tx,
+    make_neo4j_import_file,
+    write_neo4j_csv,
+)
+from neo4j_app.tests.conftest import NEO4J_TEST_IMPORT_DIR, make_docs
 
 
-def test_write_neo4j_csv():
+async def _make_async_gen(docs: Iterable):
+    for doc in docs:
+        yield doc
+
+
+@pytest.mark.asyncio
+async def test_write_neo4j_csv():
     # Given
-    docs = make_docs(n=3)
-    f = io.StringIO("w", newline="")
+
+    docs = _make_async_gen(make_docs(n=3))
+    f = io.StringIO()
     headers = [
         "documentId",
         "rootId",
@@ -27,7 +36,7 @@ def test_write_neo4j_csv():
     ]
 
     # When
-    write_neo4j_csv(f, rows=to_document_csv(docs), header=headers)
+    await write_neo4j_csv(f, rows=to_document_csv(docs), header=headers)
     csv = f.getvalue()
 
     # Then
@@ -59,27 +68,30 @@ async def test_import_documents_from_empty_db(
         "extractionDate",
         "path",
     ]
-    local_import_path = DATA_DIR.joinpath("neo4j", "import")
     # When
     n_created_first = 0
     if n_existing:
-        with NamedTemporaryFile(
-            "w", dir=str(local_import_path), suffix=".csv"
-        ) as tmp_csv:
-            rows = to_document_csv(docs[:n_existing])
-            write_neo4j_csv(tmp_csv, rows=rows, header=headers)
-            tmp_csv.flush()
-            instance_import_path = Path(tmp_csv.name).name
+        with make_neo4j_import_file(neo4j_import_dir=NEO4J_TEST_IMPORT_DIR) as (
+            f,
+            neo4j_path,
+        ):
+            rows = to_document_csv(_make_async_gen(docs[:n_existing]))
+            await write_neo4j_csv(f, rows=rows, header=headers)
+            f.flush()
             summary = await neo4j_test_session.execute_write(
-                import_documents_from_csv_tx, csv_path=instance_import_path
+                import_documents_from_csv_tx, neo4j_import_path=neo4j_path
             )
             n_created_first = summary.counters.nodes_created
-    with NamedTemporaryFile("w", dir=str(local_import_path), suffix=".csv") as tmp_csv:
-        write_neo4j_csv(tmp_csv, rows=to_document_csv(docs), header=headers)
-        tmp_csv.flush()
-        instance_import_path = Path(tmp_csv.name).name
+    with make_neo4j_import_file(neo4j_import_dir=NEO4J_TEST_IMPORT_DIR) as (
+        f,
+        neo4j_path,
+    ):
+        await write_neo4j_csv(
+            f, rows=to_document_csv(_make_async_gen(docs)), header=headers
+        )
+        f.flush()
         summary = await neo4j_test_session.execute_write(
-            import_documents_from_csv_tx, csv_path=instance_import_path
+            import_documents_from_csv_tx, neo4j_import_path=neo4j_path
         )
         n_created_second = summary.counters.nodes_created
 
@@ -116,14 +128,16 @@ CREATE (n:Document {documentId: 'document-0', contentType: 'someContentType'})
         "extractionDate",
         "path",
     ]
-    local_import_path = DATA_DIR.joinpath("neo4j", "import")
-    with NamedTemporaryFile("w", dir=str(local_import_path), suffix=".csv") as tmp_csv:
-        write_neo4j_csv(tmp_csv, rows=to_document_csv(docs), header=headers)
-        tmp_csv.flush()
-        instance_import_path = Path(tmp_csv.name).name
-
+    with make_neo4j_import_file(NEO4J_TEST_IMPORT_DIR) as (
+        f,
+        neo4j_path,
+    ):
+        await write_neo4j_csv(
+            f, rows=to_document_csv(_make_async_gen(docs)), header=headers
+        )
+        f.flush()
         await neo4j_test_session.execute_write(
-            import_documents_from_csv_tx, csv_path=instance_import_path
+            import_documents_from_csv_tx, neo4j_import_path=neo4j_path
         )
 
     # Then
