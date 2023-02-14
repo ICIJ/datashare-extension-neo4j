@@ -15,11 +15,13 @@ fastapi = "^0.89.1"
 # PyYaml > 5.3.1 does not seem to be installable on macos 13.x
 pyyaml = "<=5.3.1"
 uvicorn = { version = "^0.20.0", extras = ["standard"] }
+elasticsearch = {version = "^7.17.9", extras = ["async"]}
 
 [tool.poetry.group.dev.dependencies]
 fastapi = { version = "^0.89.1", extras = ["all"] }
 pylint = "^2.15.10"
 pytest = "^7.2.1"
+pytest-asyncio = "^0.20.3"
 
 [build-system]
 requires = ["poetry-core"]

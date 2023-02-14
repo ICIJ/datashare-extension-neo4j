@@ -7,18 +7,18 @@ def to_lower_camel(field: str) -> str:
     )
 
 
-class BaseICIJConfig(BaseModel):
+class BaseICIJModel(BaseModel):
     class Config:
         allow_mutation = False
         extra = "forbid"
         allow_population_by_field_name = True
 
 
-class LowerCamelCaseConfig(BaseICIJConfig):
+class LowerCamelCaseModel(BaseICIJModel):
     class Config:
         alias_generator = to_lower_camel
 
 
-class IgnoreExtraConfig(BaseICIJConfig):
+class IgnoreExtraModel(BaseICIJModel):
     class Config:
         extra = "ignore"

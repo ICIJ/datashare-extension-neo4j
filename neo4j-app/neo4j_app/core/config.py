@@ -4,21 +4,21 @@ import configparser
 from configparser import ConfigParser
 from typing import TextIO
 
-from neo4j_app.utils.pydantic import (
-    BaseICIJConfig,
-    IgnoreExtraConfig,
-    LowerCamelCaseConfig,
+from neo4j_app.core.utils.pydantic import (
+    BaseICIJModel,
+    IgnoreExtraModel,
+    LowerCamelCaseModel,
 )
 
 
-class AppConfig(LowerCamelCaseConfig, IgnoreExtraConfig):
+class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_name: str = "neo4j app"
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_port: int = 8080
     neo4j_app_log_level: str = "INFO"
 
-    def to_uvicorn(self) -> UviCornConfig:
-        return UviCornConfig(
+    def to_uvicorn(self) -> UviCornModel:
+        return UviCornModel(
             host=self.neo4j_app_host,
             port=self.neo4j_app_port,
             log_level=self.neo4j_app_log_level,
@@ -46,7 +46,7 @@ class AppConfig(LowerCamelCaseConfig, IgnoreExtraConfig):
         return config
 
 
-class UviCornConfig(BaseICIJConfig):
+class UviCornModel(BaseICIJModel):
     host: str
     port: int
     log_level: str = "INFO"
