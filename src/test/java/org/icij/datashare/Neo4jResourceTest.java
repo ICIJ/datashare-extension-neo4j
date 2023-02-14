@@ -1,6 +1,7 @@
 package org.icij.datashare;
 
 import net.codestory.http.filters.basic.BasicAuthFilter;
+import net.codestory.http.payload.Payload;
 import net.codestory.rest.FluentRestTest;
 import net.codestory.rest.Response;
 import org.junit.jupiter.api.DisplayName;
@@ -23,16 +24,22 @@ public class Neo4jResourceTest {
     private static Neo4jResource neo4jAppResource;
     private static int port;
     private static int neo4jAppPort;
+    private static ProdWebServerRuleExtension neo4jApp;
 
     private static final Cleaner testCleaner = Cleaner.create();
 
     private static PropertiesProvider propertyProvider;
+
+    static
+    Neo4jClient client;
+
 
     public static class MockAppProperties implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             propertyProvider = new PropertiesProvider(new HashMap<>() {{
                 put("neo4jAppPort", Integer.toString(neo4jAppPort));
+                put("neo4jProject", "foo-datashare");
                 // TODO: fix this path ?
                 put("neo4jStartServerCmd", "src/test/resources/shell_mock");
             }});
@@ -44,16 +51,19 @@ public class Neo4jResourceTest {
         public void beforeAll(ExtensionContext extensionContext) {
             propertyProvider = new PropertiesProvider(new HashMap<>() {{
                 put("neo4jAppPort", Integer.toString(neo4jAppPort));
+                put("neo4jProject", "foo-datashare");
                 // TODO: how to fix the path ?
                 put("neo4jStartServerCmd", "src/test/resources/python_mock " + neo4jAppPort);
             }});
+            client = new Neo4jClient(neo4jAppPort);
         }
     }
 
-    public static class BindNeo4jResource extends ProdWebServerRuleExtension implements BeforeAllCallback {
+    public static class BindNeo4jResource extends ProdWebServerRuleExtension implements BeforeAllCallback, AfterEachCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
-            neo4jAppResource = new Neo4jResource(propertyProvider, testCleaner);
+            client = new Neo4jClient(neo4jAppPort);
+            neo4jAppResource = new Neo4jResource(propertyProvider, client, testCleaner);
             this.configure(
                     routes -> routes
                             .add(neo4jAppResource)
@@ -61,21 +71,18 @@ public class Neo4jResourceTest {
             );
             port = this.port();
         }
-    }
-
-    public static class MockNeo4jApp extends ProdWebServerRuleExtension implements BeforeAllCallback, AfterEachCallback {
-        @Override
-        public void beforeAll(ExtensionContext extensionContext) {
-            this.configure(routes -> routes.get("/ping", (context) -> new HashMap<String, String>() {{
-                put("Method", "Get");
-                put("Neo4jUrl", "/ping");
-            }}));
-            neo4jAppPort = this.port();
-        }
 
         @Override
         public void afterEach(ExtensionContext extensionContext) {
             neo4jAppResource.stopServerProcess();
+        }
+    }
+
+    public static class MockNeo4jApp extends ProdWebServerRuleExtension implements BeforeAllCallback {
+        @Override
+        public void beforeAll(ExtensionContext extensionContext) {
+            neo4jAppPort = this.port();
+            neo4jApp = this;
         }
     }
 
@@ -129,11 +136,11 @@ public class Neo4jResourceTest {
         public void test_get_ping() throws IOException, URISyntaxException {
             // When
             neo4jAppResource.startServerProcess();
-            get("/api/neo4j/ping").withPreemptiveAuthentication("foo", "null")
-                    // Then
-                    .should()
-                    .respond(200)
-                    .contain("\"Method\":\"Get\"").contain("\"Neo4jUrl\":\"/ping\"");
+            neo4jApp.configure(routes -> routes.get("/ping", (context) -> "pong"));
+            Response res = get("/api/neo4j/ping").withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(res.code()).isEqualTo(200);
+            assertThat(res.content()).isEqualTo("pong");
         }
 
 
@@ -192,7 +199,7 @@ public class Neo4jResourceTest {
                     response.content(),
                     HttpUtils.HttpError.class,
                     status -> assertThat(status.detail)
-                            .isEqualTo("Neo4j Python app is not running, please start it before calling the extension")
+                            .isEqualTo("neo4j Python app is not running, please start it before calling the extension")
             );
         }
 
@@ -308,7 +315,7 @@ public class Neo4jResourceTest {
                         response.content(),
                         HttpUtils.HttpError.class,
                         status -> assertThat(status.detail)
-                                .isEqualTo("Neo4j Python is already running in likely in another phantom process")
+                                .isEqualTo("neo4j Python app is already running in likely in another phantom process")
                 );
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -316,4 +323,56 @@ public class Neo4jResourceTest {
         }
     }
 
+    @DisplayName("test documents import")
+    @ExtendWith(MockNeo4jApp.class)
+    @ExtendWith(MockAppProperties.class)
+    @ExtendWith(BindNeo4jResource.class)
+    public static class Neo4jResourceDocumentImportTest implements FluentRestTest {
+        @Override
+        public int port() {
+            return port;
+        }
+
+        @Test
+        public void test_post_import_documents_should_return_200() throws IOException, URISyntaxException {
+            // Given
+            neo4jAppResource.startServerProcess();
+            neo4jApp.configure(
+                    routes -> routes.post(
+                            "/documents",
+                            context -> new Payload("application/json", "{\"nDocsToInsert\": 10,\"nInsertedDocs\": 8}")
+                    )
+            );
+            // When
+            Response response = post("/api/neo4j/projects/foo-datashare/documents", "{}")
+                    .withPreemptiveAuthentication("foo", "null")
+                    .response();
+            // Then
+            assertThat(response.code()).isEqualTo(200);
+            assertJson(
+                    response.content(),
+                    Neo4jClient.DocumentImportResponse.class,
+                    res -> {
+                        assertThat(res.nDocsToInsert).isEqualTo(10);
+                        assertThat(res.nInsertedDocs).isEqualTo(8);
+                    }
+            );
+        }
+
+        @Test
+        public void test_post_import_should_return_401_for_invalid_project() {
+            // When
+            Response response = post("/api/neo4j/projects/unknownproject/documents").withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_import_should_return_401_for_unauthorized_user() {
+            // When
+            Response response = post("/api/neo4j/projects/foo-datashare/documents").withPreemptiveAuthentication("unauthorized", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+    }
 }

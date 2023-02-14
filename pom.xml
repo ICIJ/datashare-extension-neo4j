@@ -44,10 +44,9 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>9</maven.compiler.release>
-        <jackson.version>2.10.2</jackson.version>
+        <jackson.version>2.12.2</jackson.version>
         <maven.test.redirectTestOutputToFile>true</maven.test.redirectTestOutputToFile>
         <guice.version>4.1.0</guice.version>
-
     </properties>
 
     <repositories>
@@ -61,7 +60,7 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>datashare-api</artifactId>
-            <version>7.30.0</version>
+            <version>8.7.1</version>
         </dependency>
 
         <dependency>

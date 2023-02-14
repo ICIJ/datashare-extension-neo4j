@@ -5,11 +5,17 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import kong.unirest.Unirest;
 import kong.unirest.apache.ApacheClient;
+import net.codestory.http.Context;
+import net.codestory.http.Request;
 import net.codestory.http.annotations.Get;
 import net.codestory.http.annotations.Post;
 import net.codestory.http.annotations.Prefix;
+import net.codestory.http.errors.UnauthorizedException;
 import net.codestory.http.payload.Payload;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.icij.datashare.user.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -21,6 +27,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.Optional;
 
 @Prefix("/api/neo4j")
@@ -28,15 +35,35 @@ public class Neo4jResource implements AutoCloseable {
     // TODO: add some logging ?
     // TODO: can we do better than harding this name ?
     private static final String NEO4J_APP_BIN = "neo4j_app";
+
     private final PropertiesProvider propertiesProvider;
     private final int port;
     private final String host = "127.0.0.1";
+    // TODO: should we use a Project object instead ?
+    private final String projectId;
+
+    protected final Neo4jClient client;
     protected volatile Process serverProcess;
+
+    private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
 
     // TODO: not sure that we want to delete the process when this deleted...
     // Cleaner which will ensure the Python server will be close when the resource is deleted
     private final Cleaner cleaner;
     private Cleaner.Cleanable cleanable;
+
+    @Inject
+    public Neo4jResource(PropertiesProvider propertiesProvider, Neo4jClient client, Cleaner cleaner) {
+        this.propertiesProvider = propertiesProvider;
+        this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
+        this.client = client;
+        this.cleaner = cleaner;
+        // TODO: for now we support a single project for the extension, we'll figure out later
+        //  how to support multiple ones
+        projectId = propertiesProvider.get("neo4jProject").orElseThrow((() -> new IllegalArgumentException("neo4jProject is missing from properties")));
+        Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
+    }
+
 
     static class CleaningState implements Runnable {
         private final Neo4jResource resource;
@@ -53,7 +80,6 @@ public class Neo4jResource implements AutoCloseable {
             }
         }
     }
-
 
     protected static class ServerStopResponse {
         public final boolean alreadyStopped;
@@ -84,23 +110,36 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    static class Neo4jNotRunningError extends RuntimeException {
-        public Neo4jNotRunningError() {
-            super("Neo4j Python app is not running, please start it before calling the extension");
-        }
+    static class Neo4jNotRunningError extends HttpUtils.HttpError {
+        public static final String title = "neo4j app not running";
+        public static final String detail = "neo4j Python app is not running, please start it before calling the extension";
 
-        public HttpUtils.HttpError toJsonError() {
-            return new HttpUtils.HttpError().withDetail(this.getMessage());
+        public Neo4jNotRunningError() {super(title, detail);}
+    }
+
+    protected static class ImportRequest {
+        public String query;
+
+        @JsonCreator
+        ImportRequest(@JsonProperty("query") String query) {
+            this.query = query;
         }
     }
 
-    static class Neo4jAlreadyRunningError extends RuntimeException {
-        public Neo4jAlreadyRunningError() {
-            super("Neo4j Python is already running in likely in another phantom process");
-        }
+    static class Neo4jAlreadyRunningError extends HttpUtils.HttpError {
+        public static final String title = "neo4j app already running";
+        public static final String detail = "neo4j Python app is already running in likely in another phantom process";
 
-        public HttpUtils.HttpError toJsonError() {
-            return new HttpUtils.HttpError().withDetail(this.getMessage());
+        Neo4jAlreadyRunningError() {
+            super(title, detail);
+        }
+    }
+
+    static class InvalidProjectError extends HttpUtils.HttpError {
+        public static final String title = "Invalid project";
+
+        public InvalidProjectError(String project, String invalidProject) {
+            super(title, "Invalid project '" + invalidProject + "' extension is setup to support project '" + project + "'");
         }
     }
 
@@ -110,14 +149,6 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-
-    @Inject
-    public Neo4jResource(PropertiesProvider propertiesProvider, Cleaner cleaner) {
-        this.propertiesProvider = propertiesProvider;
-        this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
-        this.cleaner = cleaner;
-        Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
-    }
 
     protected void waitForServerToBeUp() throws InterruptedException {
         for (int nbTries = 0; nbTries < 60; nbTries++) {
@@ -145,7 +176,7 @@ public class Neo4jResource implements AutoCloseable {
         try {
             alreadyRunning = this.startNeo4jApp();
         } catch (Neo4jAlreadyRunningError e) {
-            return new Payload("application/problem+json", e.toJsonError()).withCode(500);
+            return new Payload("application/problem+json", e).withCode(500);
         }
         return new Payload(new ServerStartResponse(alreadyRunning));
     }
@@ -162,16 +193,32 @@ public class Neo4jResource implements AutoCloseable {
         return new Neo4jAppStatus(this.isNeoAppRunning());
     }
 
+    @Post("/projects/:project/documents")
+    public Payload postImport(String project, Context context) throws IOException {
+        checkAccess(project, context);
+        // TODO: find an elegant way not to repeat this piece on each route
+        ImportRequest importRequest = context.extract(ImportRequest.class);
+        try {
+            return new Payload(this.importDocuments(project, importRequest.query)).withCode(200);
+        } catch (InvalidProjectError e) {
+            return new Payload("application/problem+json", e).withCode(401);
+        } catch (Neo4jNotRunningError e) {
+            return new Payload("application/problem+json", e).withCode(503);
+        }
+    }
+
     @Get("/ping")
     public Payload getPingMethod() {
         try {
-            checkNeo4jAppStarted();
+            return new Payload(this.ping());
         } catch (Neo4jNotRunningError e) {
-            return new Payload("application/problem+json", e.toJsonError()).withCode(503);
+            return new Payload("application/problem+json", e).withCode(503);
         }
-        kong.unirest.HttpResponse<byte[]> httpResponse = Unirest.get(this.getNeo4jUrl("/ping")).asBytes();
-        return new Payload(httpResponse.getBody()).withCode(httpResponse.getStatus());
+    }
 
+    private String ping() {
+        checkNeo4jAppStarted();
+        return client.ping();
     }
 
     protected boolean isNeoAppRunning() {
@@ -209,8 +256,7 @@ public class Neo4jResource implements AutoCloseable {
 
         String[] startServerCmd = this.propertiesProvider
                 // TODO: this might allow to run arbitrary code...
-                .get("neo4jStartServerCmd")
-                .map(s -> s.split("\\s+"))
+                .get("neo4jStartServerCmd").map(s -> s.split("\\s+"))
                 // TODO: fix this mess when we can afford calling getServerBinaryPath -> replace with orElse
                 .orElse(new String[]{serverBinaryPath.toAbsolutePath().toString(), propertiesPath.toAbsolutePath().toString()});
 
@@ -221,9 +267,7 @@ public class Neo4jResource implements AutoCloseable {
     }
 
     protected void checkServerCommand(String[] startServerCmd) {
-        String mainCommand = (String) Optional.ofNullable(Array.get(startServerCmd, 0)).orElseThrow(
-                () -> new InvalidNeo4jCommandError("Empty neo4j server command")
-        );
+        String mainCommand = (String) Optional.ofNullable(Array.get(startServerCmd, 0)).orElseThrow(() -> new InvalidNeo4jCommandError("Empty neo4j server command"));
         File maybeFile = new File(mainCommand);
         if (!maybeFile.isFile() || !maybeFile.canExecute()) {
             String msg = mainCommand + " does not seem to be an executable file found on the filesystem";
@@ -246,8 +290,10 @@ public class Neo4jResource implements AutoCloseable {
         return alreadyStopped;
     }
 
-    private String getNeo4jUrl(String url) {
-        return "http://" + this.host + ":" + this.port + url;
+    protected Neo4jClient.DocumentImportResponse importDocuments(String projectId, String query) {
+        checkExtensionProject(projectId);
+        checkNeo4jAppStarted();
+        return client.importDocuments(query);
     }
 
     @Override
@@ -255,4 +301,18 @@ public class Neo4jResource implements AutoCloseable {
         this.cleanable.clean();
     }
 
+    private void checkAccess(String project, Context context) {
+        if (!((User) context.currentUser()).isGranted(project)) {
+            throw new UnauthorizedException();
+        }
+    }
+
+    // TODO: remove this for multiple projects support
+    private void checkExtensionProject(String candidateProject) {
+        if (!Objects.equals(this.projectId, candidateProject)) {
+            InvalidProjectError error = new InvalidProjectError(this.projectId, candidateProject);
+            logger.error(error.getMessage());
+            throw error;
+        }
+    }
 }
