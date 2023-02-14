@@ -1,0 +1,26 @@
+version: '3.7'
+services:
+
+  test-elasticsearch:
+    container_name: test-elasticsearch
+    image: "docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION}"
+    environment:
+      - discovery.type=single-node
+      - "http.port=${ELASTICSEARCH_PORT}"
+    ports:
+      - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
+
+  test-neo4j:
+    container_name: test-neo4j
+    platform: linux/x86_64
+    image: "neo4j:${NEO4J_VERSION}"
+    environment:
+      NEO4J_AUTH: none
+      NEO4JLABS_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_allow__csv__import__from__file__urls: true
+  
+    ports:
+      - 7474:7474
+      - 7687:7687
+    volumes:
+      - .data/neo4j/import:/import:rw

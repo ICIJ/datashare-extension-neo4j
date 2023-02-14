@@ -1,5 +1,5 @@
 import logging
-from typing import Any, AsyncGenerator, Mapping, Optional
+from typing import Any, AsyncGenerator, Dict, Mapping, Optional
 
 from elasticsearch import AsyncElasticsearch
 from elasticsearch._async.helpers import async_scan
@@ -23,7 +23,7 @@ class ESClient(AsyncElasticsearch):
         scroll: str,
         scroll_size: int,
         **kwargs
-    ) -> AsyncGenerator[int, None]:
+    ) -> AsyncGenerator[Dict, None]:
         async for res in async_scan(
             self, query=query, scroll=scroll, size=scroll_size, **kwargs
         ):
