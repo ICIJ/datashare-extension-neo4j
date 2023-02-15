@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 ES_DOCUMENT_TYPE = "Document"
 DEFAULT_SCROLL_DURATION = "1m"
 HITS = "hits"
+ID = "_id"
 MATCH_ALL = "match_all"
 QUERY = "query"
 SCROLL_ID = "_scroll_id"
