@@ -87,6 +87,7 @@ async def write_neo4j_csv(
 def make_neo4j_import_file(
     *, neo4j_import_dir: Path, neo4j_import_prefix: Optional[str]
 ) -> Tuple[tempfile.NamedTemporaryFile, Path]:
+    import_file = None
     try:
         with tempfile.NamedTemporaryFile(
             "w", dir=str(neo4j_import_dir), suffix=".csv"
@@ -97,5 +98,6 @@ def make_neo4j_import_file(
             neo4j_import_path = Path(neo4j_import_prefix).joinpath(neo4j_import_path)
             yield import_file, neo4j_import_path
     finally:
-        if Path(import_file.name).exists():
-            os.remove(import_file.name)
+        if import_file is not None:
+            if Path(import_file.name).exists():
+                os.remove(import_file.name)
