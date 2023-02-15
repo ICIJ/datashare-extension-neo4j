@@ -30,6 +30,7 @@ neo4jImportDir=import-dir
                 neo4j_app_port=8080,
                 neo4j_import_dir="import-dir",
                 neo4j_project="test-project",
+                elasticsearch_address="http://127.0.0.1:9200",
             ),
         ),
         (
@@ -37,6 +38,7 @@ neo4jImportDir=import-dir
 neo4jImportDir=import-dir
 neo4jAppHost=this-the-neo4j-app
 neo4jAppPort=3333
+elasticSearchAddress=http://elasticsearch:9222
 someExtraInfo=useless
 """,
             AppConfig(
@@ -44,6 +46,7 @@ someExtraInfo=useless
                 neo4j_app_port=3333,
                 neo4j_import_dir="import-dir",
                 neo4j_project="test-project",
+                elasticsearch_address="http://elasticsearch:9222",
             ),
         ),
     ],
@@ -87,3 +90,16 @@ def test_to_uvicorn(config: AppConfig, expected_uvicorn_config: UviCornModel):
 
     # Then
     assert uvicorn_config == expected_uvicorn_config
+
+
+def test_should_parse_elasticsearch_address():
+    # Given
+    config = AppConfig(
+        elasticsearch_address="http://elasticsearch:9222",
+        neo4j_import_dir="import-dir",
+        neo4j_project="test-project",
+    )
+    # Then
+    assert config.es_host == "elasticsearch"
+    assert config.es_port == 9222
+    assert config.es_hosts == [{"host": "elasticsearch", "port": 9222}]

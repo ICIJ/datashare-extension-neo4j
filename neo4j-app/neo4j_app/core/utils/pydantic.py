@@ -1,4 +1,5 @@
 from copy import copy
+from functools import cached_property
 
 from pydantic import BaseModel
 
@@ -14,6 +15,7 @@ class BaseICIJModel(BaseModel):
         allow_mutation = False
         extra = "forbid"
         allow_population_by_field_name = True
+        keep_untouched = (cached_property,)
 
     def dict(self, **kwargs):
         kwargs = copy(kwargs)
