@@ -25,15 +25,14 @@ import java.lang.ref.Cleaner;
 import java.lang.reflect.Array;
 import java.net.Socket;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.Optional;
 
 import static java.io.File.createTempFile;
+import static org.icij.datashare.LoggingUtils.lazy;
 
 @Prefix("/api/neo4j")
 public class Neo4jResource implements AutoCloseable {
@@ -48,11 +47,13 @@ public class Neo4jResource implements AutoCloseable {
     protected final Neo4jClient client;
     protected static volatile Process serverProcess;
 
+    protected Path appBinaryPath;
+
     private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
 
     // TODO: not sure that we want to delete the process when this deleted...
     // Cleaner which will ensure the Python server will be close when the resource is deleted
-    private final Cleaner cleaner;
+    private static Cleaner cleaner;
     private Cleaner.Cleanable cleanable;
 
 
@@ -62,21 +63,9 @@ public class Neo4jResource implements AutoCloseable {
         this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
         logger.info("Loading the neo4j extension which will run on port " + this.port);
         this.client = new Neo4jClient(this.port);
-        this.cleaner = null;
-        // TODO: for now we support a single project for the extension, we'll figure out later
-        //  how to support multiple ones
-        projectId = propertiesProvider
-                .get("neo4jProject")
-                .orElseThrow((() -> new IllegalArgumentException("neo4jProject is missing from properties")));
-        Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
-    }
-
-    public Neo4jResource(PropertiesProvider propertiesProvider, Neo4jClient client, Cleaner cleaner) {
-        this.propertiesProvider = propertiesProvider;
-        this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
-        logger.info("Loading the neo4j extension which will run on port " + this.port);
-        this.client = client;
-        this.cleaner = cleaner;
+        if (cleaner == null) {
+            cleaner = Cleaner.create();
+        }
         // TODO: for now we support a single project for the extension, we'll figure out later
         //  how to support multiple ones
         projectId = propertiesProvider
@@ -94,10 +83,12 @@ public class Neo4jResource implements AutoCloseable {
         }
 
         public void run() {
-            try {
-                this.resource.startServerProcess();
-            } catch (IOException | URISyntaxException e) {
-                throw new RuntimeException(e);
+            this.resource.stopServerProcess();
+            if (this.resource.appBinaryPath != null) {
+                File appBinFile = new File(this.resource.appBinaryPath.toAbsolutePath().toString());
+                if (appBinFile.exists()) {
+                    appBinFile.delete();
+                }
             }
         }
     }
@@ -193,7 +184,7 @@ public class Neo4jResource implements AutoCloseable {
     }
 
     @Post("/start")
-    public Payload postStartNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
+    public Payload postStartNeo4jApp() throws IOException, InterruptedException {
         // TODO: check that the user is allowed
         boolean alreadyRunning;
         try {
@@ -201,7 +192,6 @@ public class Neo4jResource implements AutoCloseable {
         } catch (Neo4jAlreadyRunningError e) {
             return new Payload("application/problem+json", e).withCode(500);
         }
-        logger.info("{}", serverProcess.pid());
         return new Payload(new ServerStartResponse(alreadyRunning));
     }
 
@@ -222,8 +212,6 @@ public class Neo4jResource implements AutoCloseable {
         checkAccess(project, context);
         // TODO: this should throw a bad request when not parsed correcly...
         ImportRequest importRequest = context.extract(ImportRequest.class);
-        logger.info("importRequest.query {}", importRequest.query);
-        logger.info("importRequest {}", importRequest);
         try {
             return new Payload(this.importDocuments(project, importRequest.query)).withCode(200);
         } catch (InvalidProjectError e) {
@@ -245,13 +233,11 @@ public class Neo4jResource implements AutoCloseable {
     }
 
     private String ping() {
-        logger.info("this.serverProcess in ping {}", serverProcess);
         checkNeo4jAppStarted();
         return client.ping();
     }
 
     protected boolean isNeoAppRunning() {
-        logger.info("this.serverProcess {}", serverProcess);
         return serverProcess != null;
     }
 
@@ -261,7 +247,7 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    private boolean startNeo4jApp() throws IOException, InterruptedException, URISyntaxException {
+    private boolean startNeo4jApp() throws IOException, InterruptedException {
         boolean alreadyRunning = this.isNeoAppRunning();
         if (!alreadyRunning) {
             synchronized (this) {
@@ -270,53 +256,45 @@ public class Neo4jResource implements AutoCloseable {
                         throw new Neo4jAlreadyRunningError();
                     }
                     this.startServerProcess();
-                    // TODO: smart recovery in case of failure
-                    this.waitForServerToBeUp();
                 }
             }
         }
         return alreadyRunning;
     }
 
-    protected void startServerProcess() throws IOException, URISyntaxException {
+    protected void startServerProcess() throws IOException, InterruptedException {
         File propertiesFile = createTempFile("neo4j-", "-datashare.properties");
-        this.propertiesProvider.getProperties().store(Files.newOutputStream(propertiesFile.toPath().toAbsolutePath()), null);
-        // Let's copy the app binary somewhere accessible on the fs
-        URL resource = this.getClass().getClassLoader().getResource(NEO4J_APP_BIN);
-        logger.info("resource {}", resource);
-        logger.info("resource.path {}", resource.getPath());
-        Path check;
-        try (InputStream serverBytesStream = this.getClass().getClassLoader().getResourceAsStream(NEO4J_APP_BIN)) {
-            logger.info("serverBytesStream {}", serverBytesStream);
-            logger.info("serverBytesStream.available() {}", serverBytesStream.available());
-            Path tmpServerBinaryPath = createTempFile("neo4j-", "-app").toPath().toAbsolutePath();
-            check = tmpServerBinaryPath;
-            // TODO: log this in debug
-            logger.info("Copying neo4j app to {}", tmpServerBinaryPath);
-            try (OutputStream serverBinaryOutputStream = Files.newOutputStream(tmpServerBinaryPath)) {
-                serverBinaryOutputStream.write(serverBytesStream.readAllBytes());
-                serverBinaryOutputStream.flush();
+        logger.debug("Copying Datashare properties to temporary location {}", lazy(propertiesFile::getAbsolutePath));
+
+        this.propertiesProvider
+                .getProperties()
+                .store(Files.newOutputStream(propertiesFile.toPath().toAbsolutePath()), null);
+
+        String[] startServerCmd;
+        Optional<String> propertiesCmd = this.propertiesProvider
+                // TODO: this might allow to run arbitrary code...
+                .get("neo4jStartServerCmd");
+        if (propertiesCmd.isPresent()) {
+            startServerCmd = propertiesCmd.get().split("\\s+");
+        } else {
+            // Let's copy the app binary somewhere accessible on the fs
+            try (InputStream serverBytesStream = this.getClass().getClassLoader().getResourceAsStream(NEO4J_APP_BIN)) {
+                Path tmpServerBinaryPath = createTempFile("neo4j-", "-app").toPath().toAbsolutePath();
+                logger.debug("Copying neo4j app to {}", tmpServerBinaryPath);
+                try (OutputStream serverBinaryOutputStream = Files.newOutputStream(tmpServerBinaryPath)) {
+                    serverBinaryOutputStream.write(serverBytesStream.readAllBytes());
+                    serverBinaryOutputStream.flush();
+                    appBinaryPath = tmpServerBinaryPath;
+                }
+                (new File(tmpServerBinaryPath.toAbsolutePath().toString())).setExecutable(true);
             }
-            (new File(tmpServerBinaryPath.toAbsolutePath().toString())).setExecutable(true);
-            // TODO: DO NOT COPY IF WE USE THE COMMAND FROM THE PROPERTIES....
-
-            String[] defaultCmd = new String[]{tmpServerBinaryPath.toString(), propertiesFile.getAbsolutePath()};
-
-            logger.info("defaultCmd {}", Arrays.toString(defaultCmd));
-            String[] startServerCmd = this.propertiesProvider
-                    // TODO: this might allow to run arbitrary code...
-                    .get("neo4jStartServerCmd").map(s -> s.split("\\s+"))
-                    .orElse(defaultCmd);
-            logger.info("propertiesFile.getAbsolutePath() {}", propertiesFile.getAbsolutePath());
-            logger.info("startServerCmd {}", Arrays.toString(startServerCmd));
-            checkServerCommand(startServerCmd);
-
-            serverProcess = new ProcessBuilder(startServerCmd).start();
-            // TODO: fix this one
-//            this.cleanable = cleaner.register(this, new CleaningState(this));
+            startServerCmd = new String[]{appBinaryPath.toString(), propertiesFile.getAbsolutePath()};
         }
-        logger.info("server app still exists  {}", Files.exists(check));
-        // TODO: do some cleanup of the tmp files here...
+        this.cleanable = cleaner.register(this, new CleaningState(this));
+        checkServerCommand(startServerCmd);
+        logger.info("Starting Python app running \"{}\"", lazy(() -> String.join(" ", startServerCmd)));
+        serverProcess = new ProcessBuilder(startServerCmd).start();
+        this.waitForServerToBeUp();
     }
 
     protected void checkServerCommand(String[] startServerCmd) {

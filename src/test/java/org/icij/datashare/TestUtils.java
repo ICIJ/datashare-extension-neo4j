@@ -28,6 +28,6 @@ public class TestUtils {
     }
 
     public static String makeJsonHttpError(String title, String detail, String trace) {
-        return "{\"title\": \"" + title + "\", " + "\"detail\": " + detail + "\", \"trace\": "+ trace + "\"}";
+        return "{\"title\": \"" + title + "\", " + "\"detail\": " + detail + "\", \"trace\": \""+ trace + "\"}";
     }
 }
