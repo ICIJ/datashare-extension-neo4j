@@ -13,7 +13,7 @@ def get_global_config_dep() -> AppConfig:
 
 async def neo4j_driver_dep(
     config: AppConfig = Depends(get_global_config_dep),
-) -> AsyncGenerator[neo4j.AsyncSession, None]:
+) -> AsyncGenerator[neo4j.AsyncDriver, None]:
     driver = config.to_neo4j_driver()
     try:
         yield driver
