@@ -114,10 +114,11 @@ function _commands() {
         if _should_run_project "neo4j_app"; then
             _build_neo4j_app
         elif _should_run_project "neo4j_extension"; then
-            _print_step "Building the java extension"
+            _print_step "Building the Python app first"
             _build_neo4j_app
+            _print_step "Compiling the java extension"
             cd $ROOT_DIR
-            mvn package -Dmaven.test.skip=true >$ROOT_DIR/bins/mvn.out
+            mvn validate package -Dmaven.test.skip=true
         else
             exit_with_message "Can't build project $PROJECT"
         fi
