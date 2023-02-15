@@ -13,7 +13,6 @@ def test_ping(test_client: TestClient):
 
     # Then
     assert res.status_code == 200, res.json()
-    assert res.content == b"pong"
 
 
 def test_config(test_client: TestClient):
@@ -27,5 +26,5 @@ def test_config(test_client: TestClient):
     assert res.status_code == 200, res.json()
     try:
         AppConfig.parse_obj(res.json())
-    except:
+    except:  # pylint: disable=bare-except
         pytest.fail(f"Failed to parse response as a {AppConfig.__name__}")

@@ -38,7 +38,7 @@ async def _index_entities(es_test_client: ESClient):
         ),
         # Term query, let's check that only the right doc is inserted
         (
-            {"term": {"documentId": "document-0"}},
+            {"term": {"_id": "doc-0"}},
             "type",
             DocumentImportResponse(n_docs_to_insert=1, n_inserted_docs=1),
         ),

@@ -64,9 +64,9 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     def es_host(self) -> str:
         try:
             host = self._es_address_match.group("host")
-        except IndexError:
+        except IndexError as e:
             msg = f"Couldn't find host name in {self.elasticsearch_address}"
-            raise ValueError(msg)
+            raise ValueError(msg) from e
         if isinstance(host, tuple):
             msg = f"Found several potential hosts in {self.elasticsearch_address}"
             raise ValueError(msg)
@@ -76,9 +76,9 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     def es_port(self) -> int:
         try:
             port = self._es_address_match.group("port")
-        except IndexError:
+        except IndexError as e:
             msg = f"Couldn't find port name in {self.elasticsearch_address}"
-            raise ValueError(msg)
+            raise ValueError(msg) from e
         if isinstance(port, tuple):
             msg = f"Found several potential ports in {self.elasticsearch_address}"
             raise ValueError(msg)
