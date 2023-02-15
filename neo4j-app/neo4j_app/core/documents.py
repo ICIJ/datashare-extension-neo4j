@@ -1,3 +1,5 @@
+import os
+import stat
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -20,6 +22,7 @@ async def import_documents(
     neo4j_session: neo4j.AsyncSession,
     es_client: ESClient,
     neo4j_import_dir: Path,
+    neo4j_import_prefix: Optional[str] = None,
     query: Optional[Dict],
     scroll: str,
     scroll_size: int,
@@ -43,11 +46,15 @@ async def import_documents(
             query=query, scroll=scroll, scroll_size=scroll_size
         )
     )
-    with make_neo4j_import_file(neo4j_import_dir) as (f, neo4j_import_path):
+    with make_neo4j_import_file(
+        neo4j_import_dir=neo4j_import_dir, neo4j_import_prefix=neo4j_import_prefix
+    ) as (f, neo4j_import_path):
         n_docs_to_insert = await write_neo4j_csv(
             f, rows=to_document_csv(docs), header=sorted(DOC_COLUMNS)
         )
         f.flush()
+        # Make import file accessible to neo4j
+        os.chmod(f.name, stat.S_IROTH | stat.S_IWOTH)
         # Here we might need to use a autocommit transaction in case we use periodic
         # commits ?
         summary: neo4j.ResultSummary = await neo4j_session.execute_write(

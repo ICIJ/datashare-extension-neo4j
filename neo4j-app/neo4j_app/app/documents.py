@@ -73,6 +73,7 @@ def documents_router() -> APIRouter:
             neo4j_session=neo4j_sess,
             es_client=es_client,
             neo4j_import_dir=Path(config.neo4j_import_dir),
+            neo4j_import_prefix=config.neo4j_import_prefix,
             scroll=config.es_scroll,
             scroll_size=config.es_scroll_size,
             doc_type_field=config.es_doc_type_field,

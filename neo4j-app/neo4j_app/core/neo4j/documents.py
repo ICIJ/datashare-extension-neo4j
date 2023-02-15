@@ -1,8 +1,9 @@
 import csv
+import os
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from typing import AsyncIterable, Dict, List, TextIO, Tuple
+from typing import AsyncIterable, Dict, List, Optional, TextIO, Tuple
 
 import neo4j
 
@@ -84,10 +85,18 @@ async def write_neo4j_csv(
 
 @contextmanager
 def make_neo4j_import_file(
-    neo4j_import_dir: Path,
+    *, neo4j_import_dir: Path, neo4j_import_prefix: Optional[str]
 ) -> Tuple[tempfile.NamedTemporaryFile, Path]:
-    with tempfile.NamedTemporaryFile(
-        "w", dir=str(neo4j_import_dir), suffix=".csv"
-    ) as import_file:
-        neo4j_import_path = Path(import_file.name).name
-        yield import_file, neo4j_import_path
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", dir=str(neo4j_import_dir), suffix=".csv"
+        ) as import_file:
+            neo4j_import_path = Path(import_file.name).name
+            if neo4j_import_prefix is not None:
+                neo4j_import_path = Path(neo4j_import_prefix).joinpath(
+                    neo4j_import_path
+                )
+            yield import_file, neo4j_import_path
+    finally:
+        if Path(import_file.name).exists():
+            os.remove(import_file.name)
