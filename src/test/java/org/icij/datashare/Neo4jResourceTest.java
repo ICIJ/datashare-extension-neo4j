@@ -12,8 +12,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
-import java.lang.ref.Cleaner;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 
 import static org.fest.assertions.Assertions.assertThat;
@@ -25,8 +23,6 @@ public class Neo4jResourceTest {
     private static int port;
     private static int neo4jAppPort;
     private static ProdWebServerRuleExtension neo4jApp;
-
-    private static final Cleaner testCleaner = Cleaner.create();
 
     private static PropertiesProvider propertyProvider;
 
@@ -62,8 +58,7 @@ public class Neo4jResourceTest {
     public static class BindNeo4jResource extends ProdWebServerRuleExtension implements BeforeAllCallback, AfterEachCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
-            client = new Neo4jClient(neo4jAppPort);
-            neo4jAppResource = new Neo4jResource(propertyProvider, client, testCleaner);
+            neo4jAppResource = new Neo4jResource(propertyProvider);
             this.configure(
                     routes -> routes
                             .add(neo4jAppResource)
@@ -133,7 +128,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_ping() throws IOException, URISyntaxException {
+        public void test_get_ping() throws IOException, InterruptedException {
             // When
             neo4jAppResource.startServerProcess();
             neo4jApp.configure(routes -> routes.get("/ping", (context) -> "pong"));
@@ -179,10 +174,9 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_ping_should_return_200() throws IOException, InterruptedException, URISyntaxException {
+        public void test_get_ping_should_return_200() throws IOException, InterruptedException {
             // When
             neo4jAppResource.startServerProcess();
-            neo4jAppResource.waitForServerToBeUp();
             Response response = get("/api/neo4j/ping").withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(200);
@@ -204,10 +198,9 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_status_when_running() throws IOException, InterruptedException, URISyntaxException {
+        public void test_get_status_when_running() throws IOException, InterruptedException {
             // When
             neo4jAppResource.startServerProcess();
-            neo4jAppResource.waitForServerToBeUp();
             Response response = get("/api/neo4j/status").withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(200);
@@ -232,7 +225,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_start_should_return_200_when_already_started() throws IOException, URISyntaxException {
+        public void test_post_start_should_return_200_when_already_started() throws IOException, InterruptedException {
             // When
             neo4jAppResource.startServerProcess();
             Response response = post("/api/neo4j/start").withPreemptiveAuthentication("foo", "null").response();
@@ -259,7 +252,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_stop_should_return_200_when_already_started() throws IOException, URISyntaxException {
+        public void test_post_stop_should_return_200_when_already_started() throws IOException, InterruptedException {
             // When
             neo4jAppResource.startServerProcess();
             Response response = post("/api/neo4j/stop").withPreemptiveAuthentication("foo", "null").response();
@@ -334,7 +327,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_import_documents_should_return_200() throws IOException, URISyntaxException {
+        public void test_post_import_documents_should_return_200() throws IOException, InterruptedException {
             // Given
             neo4jAppResource.startServerProcess();
             neo4jApp.configure(
@@ -344,7 +337,7 @@ public class Neo4jResourceTest {
                     )
             );
             // When
-            Response response = post("/api/neo4j/projects/foo-datashare/documents", "{}")
+            Response response = post("/api/neo4j/documents?project=foo-datashare", "{}")
                     .withPreemptiveAuthentication("foo", "null")
                     .response();
             // Then
@@ -362,7 +355,7 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_import_should_return_401_for_invalid_project() {
             // When
-            Response response = post("/api/neo4j/projects/unknownproject/documents").withPreemptiveAuthentication("foo", "null").response();
+            Response response = post("/api/neo4j/documents?project=unknownproject").withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(401);
         }
@@ -370,7 +363,7 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_import_should_return_401_for_unauthorized_user() {
             // When
-            Response response = post("/api/neo4j/projects/foo-datashare/documents").withPreemptiveAuthentication("unauthorized", "null").response();
+            Response response = post("/api/neo4j/documents?project=foo-datashare").withPreemptiveAuthentication("unauthorized", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(401);
         }

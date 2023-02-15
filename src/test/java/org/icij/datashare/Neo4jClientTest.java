@@ -90,7 +90,7 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents",
                     (context) -> {
-                        String jsonError = TestUtils.makeJsonHttpError("someTile", "someErrorDetail");
+                        String jsonError = TestUtils.makeJsonHttpError("someTitle", "someErrorDetail");
                         return new Payload("application/json", jsonError).withCode(500);
                     })
             );
@@ -98,7 +98,9 @@ public class Neo4jClientTest {
             assertThrows(
                     Neo4jClient.Neo4jAppError.class,
                     () -> client.importDocuments(null),
-                    () -> { throw new Neo4jClient.Neo4jAppError("someTile", "someErrorDetail");}
+                    () -> {
+                        throw new Neo4jClient.Neo4jAppError("someTitle", "someErrorDetail");
+                    }
             );
         }
 
@@ -107,7 +109,7 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents",
                     (context) -> {
-                        String jsonError = TestUtils.makeJsonHttpError("someTile", "someErrorDetail", "sometrace here");
+                        String jsonError = TestUtils.makeJsonHttpError("someTitle", "someErrorDetail", "sometrace here");
                         return new Payload("application/json", jsonError).withCode(500);
                     })
             );
@@ -115,7 +117,9 @@ public class Neo4jClientTest {
             assertThrows(
                     Neo4jClient.Neo4jAppError.class,
                     () -> client.importDocuments(null),
-                    () -> { throw new Neo4jClient.Neo4jAppError(new HttpUtils.HttpError("someTile", "someErrorDetail", "sometrace here"));}
+                    () -> {
+                        throw new Neo4jClient.Neo4jAppError(new HttpUtils.HttpError("someTitle", "someErrorDetail", "sometrace here"));
+                    }
             );
         }
     }
