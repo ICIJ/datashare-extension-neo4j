@@ -40,13 +40,12 @@ async def test_write_neo4j_csv():
     csv = f.getvalue()
 
     # Then
-    # pylint: disable=line-too-long
-    expected_csv = """documentId,rootId,dirname,contentType,contentLength,extractionDate,path
-document-0,,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,dirname-0
-document-1,,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1
-document-2,,dirname-2,content-type-2,4,2023-02-06T13:48:22.3866,dirname-2
+    expected_csv = """documentId,rootId,dirname,contentType,contentLength,\
+extractionDate,path
+doc-0,,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,dirname-0
+doc-1,,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1
+doc-2,,dirname-2,content-type-2,4,2023-02-06T13:48:22.3866,dirname-2
 """
-    # pylint: enable=line-too-long
     assert csv == expected_csv
 
 
@@ -71,7 +70,9 @@ async def test_import_documents_from_empty_db(
     # When
     n_created_first = 0
     if n_existing:
-        with make_neo4j_import_file(neo4j_import_dir=NEO4J_TEST_IMPORT_DIR) as (
+        with make_neo4j_import_file(
+            neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+        ) as (
             f,
             neo4j_path,
         ):
@@ -82,7 +83,9 @@ async def test_import_documents_from_empty_db(
                 import_documents_from_csv_tx, neo4j_import_path=neo4j_path
             )
             n_created_first = summary.counters.nodes_created
-    with make_neo4j_import_file(neo4j_import_dir=NEO4J_TEST_IMPORT_DIR) as (
+    with make_neo4j_import_file(
+        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+    ) as (
         f,
         neo4j_path,
     ):
@@ -114,7 +117,7 @@ async def test_import_documents_should_update_document(
     num_docs = 1
     docs = list(make_docs(n=num_docs))
     query = """
-CREATE (n:Document {documentId: 'document-0', contentType: 'someContentType'})
+CREATE (n:Document {documentId: 'doc-0', contentType: 'someContentType'})
 """
     await neo4j_test_session.run(query)
 
@@ -128,7 +131,9 @@ CREATE (n:Document {documentId: 'document-0', contentType: 'someContentType'})
         "extractionDate",
         "path",
     ]
-    with make_neo4j_import_file(NEO4J_TEST_IMPORT_DIR) as (
+    with make_neo4j_import_file(
+        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+    ) as (
         f,
         neo4j_path,
     ):
@@ -150,9 +155,12 @@ RETURN doc, count(*) as numDocs"""
     assert count == 1
     doc = dict(doc["doc"])
     expected_doc = docs[0]
-    num_expected_properties = sum(1 for v in expected_doc.values() if v is not None)
+    num_expected_properties = len(expected_doc["_source"]) - 1  # for the type
     assert len(doc) == num_expected_properties
-    for k, v in expected_doc.items():
+    assert doc["documentId"] == expected_doc["_id"]
+    for k, v in expected_doc["_source"].items():
+        if k == "type":
+            continue
         if v is None:
             assert k not in doc
             continue

@@ -12,8 +12,8 @@ services:
 
   test-neo4j:
     container_name: test-neo4j
-    platform: linux/x86_64
-    image: "neo4j:${NEO4J_VERSION}"
+    # TODO: fix this platform thing...
+    image: "arm64v8/neo4j:${NEO4J_VERSION}"
     environment:
       NEO4J_AUTH: none
       NEO4JLABS_PLUGINS: '["apoc"]'
@@ -23,4 +23,4 @@ services:
       - 7474:7474
       - 7687:7687
     volumes:
-      - .data/neo4j/import:/import:rw
+      - .data/neo4j/import:/var/lib/neo4j/import:rw

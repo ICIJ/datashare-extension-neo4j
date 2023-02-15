@@ -92,10 +92,9 @@ def make_neo4j_import_file(
             "w", dir=str(neo4j_import_dir), suffix=".csv"
         ) as import_file:
             neo4j_import_path = Path(import_file.name).name
-            if neo4j_import_prefix is not None:
-                neo4j_import_path = Path(neo4j_import_prefix).joinpath(
-                    neo4j_import_path
-                )
+            if neo4j_import_prefix is None:
+                neo4j_import_prefix = Path(".")
+            neo4j_import_path = Path(neo4j_import_prefix).joinpath(neo4j_import_path)
             yield import_file, neo4j_import_path
     finally:
         if Path(import_file.name).exists():

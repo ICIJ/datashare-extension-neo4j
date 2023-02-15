@@ -42,7 +42,7 @@ def test_client_session() -> TestClient:
         neo4j_project="test-datashare-project",
         neo4j_import_dir=str(NEO4J_TEST_IMPORT_DIR),
         neo4j_app_host="127.0.0.1",
-        neo4j_app_port=NEO4J_TEST_PORT,
+        neo4j_port=NEO4J_TEST_PORT,
     )
     app = create_app(config)
     # Add a router which generates error in order to test error handling
@@ -144,7 +144,7 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
 
 
 def index_docs_ops(*, index_name: str, n: int) -> Generator[Dict, None, None]:
-    for i, doc in enumerate(make_docs(n)):
+    for doc in make_docs(n):
         op = {
             "_op_type": "index",
             "_index": index_name,

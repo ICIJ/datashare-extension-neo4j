@@ -38,7 +38,7 @@ neo4jImportDir=import-dir
 neo4jImportDir=import-dir
 neo4jAppHost=this-the-neo4j-app
 neo4jAppPort=3333
-elasticSearchAddress=http://elasticsearch:9222
+elasticsearchAddress=http://elasticsearch:9222
 someExtraInfo=useless
 """,
             AppConfig(
@@ -67,20 +67,20 @@ def test_should_load_from_java(config: str, expected_config: AppConfig):
     [
         (
             AppConfig(
-                neo4j_app_host="127.0.0.3",
+                neo4j_app_host="127.0.0.1",
                 neo4j_app_port=8888,
                 neo4j_import_dir="import-dir",
                 neo4j_project="test-project",
             ),
-            UviCornModel(host="127.0.0.3", port=8888, log_level="INFO"),
+            UviCornModel(host="127.0.0.1", port=8888, log_level="info"),
         ),
         (
             AppConfig(
-                neo4j_app_log_level="DEBUG",
+                neo4j_app_log_level="debug",
                 neo4j_import_dir="import-dir",
                 neo4j_project="test-project",
             ),
-            UviCornModel(host="127.0.0.1", port=8080, log_level="DEBUG"),
+            UviCornModel(host="127.0.0.1", port=8080, log_level="debug"),
         ),
     ],
 )

@@ -24,7 +24,7 @@ async def _index_samples_docs(es_test_client: ESClient):
         (None, DocumentImportResponse(n_docs_to_insert=10, n_inserted_docs=10)),
         # With query
         (
-            {"term": {"documentId": "document-2"}},
+            {"term": {"_id": "doc-2"}},
             DocumentImportResponse(n_docs_to_insert=1, n_inserted_docs=1),
         ),
     ],

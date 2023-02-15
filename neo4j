@@ -12,7 +12,7 @@ function _export_global_variables() {
     else
         export ELASTICSEARCH_PORT=$_ELASTICSEARCH_PORT
     fi
-    export NEO4J_VERSION=4.2.11
+    export NEO4J_VERSION=4.4.17
     export TEST_APP_PORT=8002
 }
 
