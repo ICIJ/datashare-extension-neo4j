@@ -2,14 +2,13 @@ package org.icij.datashare;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import kong.unirest.BasicResponse;
 import kong.unirest.HttpRequest;
 import kong.unirest.HttpResponse;
 import kong.unirest.Unirest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Optional;
+import java.util.HashMap;
 
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
@@ -29,7 +28,7 @@ public class Neo4jClient {
         }
 
         Neo4jAppError(HttpUtils.HttpError error) {
-            super(error.title, error.detail);
+            super(error.title, error.detail, error.trace);
         }
     }
 
@@ -48,19 +47,22 @@ public class Neo4jClient {
     }
 
     protected static class DocumentImportRequest {
-        public final String query;
+        public final HashMap<String, Object> query;
 
         @JsonCreator
-        DocumentImportRequest(@JsonProperty("query") String query) {
-            this.query = Optional.ofNullable(query).orElse("{}");
+        DocumentImportRequest(@JsonProperty("query") HashMap<String, Object> query) {
+            this.query = query;
         }
     }
 
-    public DocumentImportResponse importDocuments(String jsonQuery) {
+    public DocumentImportResponse importDocuments(HashMap<String, Object> jsonQuery) {
         DocumentImportRequest body = new DocumentImportRequest(jsonQuery);
         String url = buildNeo4jUrl("/documents");
         logger.debug("Importing neo4j documents with request: {}", lazy(() -> MAPPER.writeValueAsString(body)));
-        return doHttpRequest(Unirest.post(url).body(body), DocumentImportResponse.class);
+        return doHttpRequest(
+                Unirest.post(url).body(body).header("Content-Type", "application/json"),
+                DocumentImportResponse.class
+        );
     }
 
     public String ping() {
@@ -76,14 +78,14 @@ public class Neo4jClient {
         HttpResponse<T> res = request
                 .asObject(clazz)
                 .ifFailure(HttpUtils.HttpError.class, r -> {
-                    if (r instanceof BasicResponse) {
-                        String detail = r.getStatusText();
+                    HttpUtils.HttpError error;
+                    try {
+                        error = r.getBody();
+                    } catch (Exception ignore) {
                         String title = r.getStatusText();
-                        throw new Neo4jAppError(title, detail);
-                    } else {
-                        HttpUtils.HttpError error = r.getBody();
-                        throw new Neo4jAppError(error);
+                        throw new Neo4jAppError(title, title);
                     }
+                    throw new Neo4jAppError(error);
                 });
         return res.getBody();
     }

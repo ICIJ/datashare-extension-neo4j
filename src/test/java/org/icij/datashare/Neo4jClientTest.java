@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Objects;
 
 import static org.fest.assertions.Assertions.assertThat;
@@ -74,15 +75,18 @@ public class Neo4jClientTest {
         public void test_should_import_documents_with_query() {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents", ClientTest::mockDocumentsImport));
+            HashMap<String, Object> jsonQuery = new HashMap<>() {{
+                put("key1", "value1");
+            }};
             // When
-            Neo4jClient.DocumentImportResponse res = client.importDocuments("{\"someQuery\": \"here\"}");
+            Neo4jClient.DocumentImportResponse res = client.importDocuments(jsonQuery);
             // Then
             assertThat(res.nDocsToInsert).isEqualTo(3);
             assertThat(res.nInsertedDocs).isEqualTo(1);
         }
 
         @Test
-        public void test_import_documents_should_throw() {
+        public void test_import_documents_should_parse_app_error() {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents",
                     (context) -> {
@@ -91,7 +95,28 @@ public class Neo4jClientTest {
                     })
             );
             // When/Then
-            assertThrows(Neo4jClient.Neo4jAppError.class, () -> client.importDocuments(null), "someErrorDetail");
+            assertThrows(
+                    Neo4jClient.Neo4jAppError.class,
+                    () -> client.importDocuments(null),
+                    () -> { throw new Neo4jClient.Neo4jAppError("someTile", "someErrorDetail");}
+            );
+        }
+
+        @Test
+        public void test_import_documents_should_parse_app_error_with_trace() {
+            // Given
+            neo4jApp.configure(routes -> routes.post("/documents",
+                    (context) -> {
+                        String jsonError = TestUtils.makeJsonHttpError("someTile", "someErrorDetail", "sometrace here");
+                        return new Payload("application/json", jsonError).withCode(500);
+                    })
+            );
+            // When/Then
+            assertThrows(
+                    Neo4jClient.Neo4jAppError.class,
+                    () -> client.importDocuments(null),
+                    () -> { throw new Neo4jClient.Neo4jAppError(new HttpUtils.HttpError("someTile", "someErrorDetail", "sometrace here"));}
+            );
         }
     }
 }

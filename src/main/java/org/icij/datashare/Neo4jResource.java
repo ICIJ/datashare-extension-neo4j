@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import kong.unirest.Unirest;
 import kong.unirest.apache.ApacheClient;
 import net.codestory.http.Context;
-import net.codestory.http.Request;
 import net.codestory.http.annotations.Get;
 import net.codestory.http.annotations.Post;
 import net.codestory.http.annotations.Prefix;
@@ -20,20 +19,24 @@ import org.slf4j.LoggerFactory;
 import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.ref.Cleaner;
 import java.lang.reflect.Array;
 import java.net.Socket;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.Optional;
 
+import static java.io.File.createTempFile;
+
 @Prefix("/api/neo4j")
 public class Neo4jResource implements AutoCloseable {
-    // TODO: add some logging ?
-    // TODO: can we do better than harding this name ?
     private static final String NEO4J_APP_BIN = "neo4j_app";
 
     private final PropertiesProvider propertiesProvider;
@@ -43,7 +46,7 @@ public class Neo4jResource implements AutoCloseable {
     private final String projectId;
 
     protected final Neo4jClient client;
-    protected volatile Process serverProcess;
+    protected static volatile Process serverProcess;
 
     private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
 
@@ -52,15 +55,33 @@ public class Neo4jResource implements AutoCloseable {
     private final Cleaner cleaner;
     private Cleaner.Cleanable cleanable;
 
+
     @Inject
+    public Neo4jResource(PropertiesProvider propertiesProvider) {
+        this.propertiesProvider = propertiesProvider;
+        this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
+        logger.info("Loading the neo4j extension which will run on port " + this.port);
+        this.client = new Neo4jClient(this.port);
+        this.cleaner = null;
+        // TODO: for now we support a single project for the extension, we'll figure out later
+        //  how to support multiple ones
+        projectId = propertiesProvider
+                .get("neo4jProject")
+                .orElseThrow((() -> new IllegalArgumentException("neo4jProject is missing from properties")));
+        Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
+    }
+
     public Neo4jResource(PropertiesProvider propertiesProvider, Neo4jClient client, Cleaner cleaner) {
         this.propertiesProvider = propertiesProvider;
         this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
+        logger.info("Loading the neo4j extension which will run on port " + this.port);
         this.client = client;
         this.cleaner = cleaner;
         // TODO: for now we support a single project for the extension, we'll figure out later
         //  how to support multiple ones
-        projectId = propertiesProvider.get("neo4jProject").orElseThrow((() -> new IllegalArgumentException("neo4jProject is missing from properties")));
+        projectId = propertiesProvider
+                .get("neo4jProject")
+                .orElseThrow((() -> new IllegalArgumentException("neo4jProject is missing from properties")));
         Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
     }
 
@@ -114,14 +135,16 @@ public class Neo4jResource implements AutoCloseable {
         public static final String title = "neo4j app not running";
         public static final String detail = "neo4j Python app is not running, please start it before calling the extension";
 
-        public Neo4jNotRunningError() {super(title, detail);}
+        public Neo4jNotRunningError() {
+            super(title, detail);
+        }
     }
 
     protected static class ImportRequest {
-        public String query;
+        public HashMap<String, Object> query;
 
         @JsonCreator
-        ImportRequest(@JsonProperty("query") String query) {
+        ImportRequest(@JsonProperty("query") HashMap<String, Object> query) {
             this.query = query;
         }
     }
@@ -178,6 +201,7 @@ public class Neo4jResource implements AutoCloseable {
         } catch (Neo4jAlreadyRunningError e) {
             return new Payload("application/problem+json", e).withCode(500);
         }
+        logger.info("{}", serverProcess.pid());
         return new Payload(new ServerStartResponse(alreadyRunning));
     }
 
@@ -193,17 +217,21 @@ public class Neo4jResource implements AutoCloseable {
         return new Neo4jAppStatus(this.isNeoAppRunning());
     }
 
-    @Post("/projects/:project/documents")
+    @Post("/documents?project=:project")
     public Payload postImport(String project, Context context) throws IOException {
         checkAccess(project, context);
-        // TODO: find an elegant way not to repeat this piece on each route
+        // TODO: this should throw a bad request when not parsed correcly...
         ImportRequest importRequest = context.extract(ImportRequest.class);
+        logger.info("importRequest.query {}", importRequest.query);
+        logger.info("importRequest {}", importRequest);
         try {
             return new Payload(this.importDocuments(project, importRequest.query)).withCode(200);
         } catch (InvalidProjectError e) {
             return new Payload("application/problem+json", e).withCode(401);
         } catch (Neo4jNotRunningError e) {
             return new Payload("application/problem+json", e).withCode(503);
+        } catch (Neo4jClient.Neo4jAppError e) { // TODO: this should be done automatically...
+            return new Payload("application/problem+json", e).withCode(500);
         }
     }
 
@@ -217,12 +245,14 @@ public class Neo4jResource implements AutoCloseable {
     }
 
     private String ping() {
+        logger.info("this.serverProcess in ping {}", serverProcess);
         checkNeo4jAppStarted();
         return client.ping();
     }
 
     protected boolean isNeoAppRunning() {
-        return this.serverProcess != null;
+        logger.info("this.serverProcess {}", serverProcess);
+        return serverProcess != null;
     }
 
     private void checkNeo4jAppStarted() {
@@ -249,28 +279,54 @@ public class Neo4jResource implements AutoCloseable {
     }
 
     protected void startServerProcess() throws IOException, URISyntaxException {
-        // TODO: should I handle the potential nullpointer exception thrown by getPath
-        Path propertiesPath = Paths.get(Neo4jResource.class.getResource("").getPath(), "datashare.properties");
-        this.propertiesProvider.getProperties().store(Files.newOutputStream(propertiesPath), "Datashare properties");
-        Path serverBinaryPath = Paths.get(ClassLoader.getSystemResource(NEO4J_APP_BIN).toURI());
+        File propertiesFile = createTempFile("neo4j-", "-datashare.properties");
+        this.propertiesProvider.getProperties().store(Files.newOutputStream(propertiesFile.toPath().toAbsolutePath()), null);
+        // Let's copy the app binary somewhere accessible on the fs
+        URL resource = this.getClass().getClassLoader().getResource(NEO4J_APP_BIN);
+        logger.info("resource {}", resource);
+        logger.info("resource.path {}", resource.getPath());
+        Path check;
+        try (InputStream serverBytesStream = this.getClass().getClassLoader().getResourceAsStream(NEO4J_APP_BIN)) {
+            logger.info("serverBytesStream {}", serverBytesStream);
+            logger.info("serverBytesStream.available() {}", serverBytesStream.available());
+            Path tmpServerBinaryPath = createTempFile("neo4j-", "-app").toPath().toAbsolutePath();
+            check = tmpServerBinaryPath;
+            // TODO: log this in debug
+            logger.info("Copying neo4j app to {}", tmpServerBinaryPath);
+            try (OutputStream serverBinaryOutputStream = Files.newOutputStream(tmpServerBinaryPath)) {
+                serverBinaryOutputStream.write(serverBytesStream.readAllBytes());
+                serverBinaryOutputStream.flush();
+            }
+            (new File(tmpServerBinaryPath.toAbsolutePath().toString())).setExecutable(true);
+            // TODO: DO NOT COPY IF WE USE THE COMMAND FROM THE PROPERTIES....
 
-        String[] startServerCmd = this.propertiesProvider
-                // TODO: this might allow to run arbitrary code...
-                .get("neo4jStartServerCmd").map(s -> s.split("\\s+"))
-                // TODO: fix this mess when we can afford calling getServerBinaryPath -> replace with orElse
-                .orElse(new String[]{serverBinaryPath.toAbsolutePath().toString(), propertiesPath.toAbsolutePath().toString()});
+            String[] defaultCmd = new String[]{tmpServerBinaryPath.toString(), propertiesFile.getAbsolutePath()};
 
-        checkServerCommand(startServerCmd);
+            logger.info("defaultCmd {}", Arrays.toString(defaultCmd));
+            String[] startServerCmd = this.propertiesProvider
+                    // TODO: this might allow to run arbitrary code...
+                    .get("neo4jStartServerCmd").map(s -> s.split("\\s+"))
+                    .orElse(defaultCmd);
+            logger.info("propertiesFile.getAbsolutePath() {}", propertiesFile.getAbsolutePath());
+            logger.info("startServerCmd {}", Arrays.toString(startServerCmd));
+            checkServerCommand(startServerCmd);
 
-        this.serverProcess = new ProcessBuilder(startServerCmd).start();
-        this.cleanable = cleaner.register(this, new CleaningState(this));
+            serverProcess = new ProcessBuilder(startServerCmd).start();
+            // TODO: fix this one
+//            this.cleanable = cleaner.register(this, new CleaningState(this));
+        }
+        logger.info("server app still exists  {}", Files.exists(check));
+        // TODO: do some cleanup of the tmp files here...
     }
 
     protected void checkServerCommand(String[] startServerCmd) {
         String mainCommand = (String) Optional.ofNullable(Array.get(startServerCmd, 0)).orElseThrow(() -> new InvalidNeo4jCommandError("Empty neo4j server command"));
         File maybeFile = new File(mainCommand);
-        if (!maybeFile.isFile() || !maybeFile.canExecute()) {
-            String msg = mainCommand + " does not seem to be an executable file found on the filesystem";
+        if (!maybeFile.isFile()) {
+            String msg = maybeFile + " is not a file";
+            throw new InvalidNeo4jCommandError(msg);
+        } else if (!maybeFile.canExecute()) {
+            String msg = maybeFile.getAbsolutePath() + " is not executable";
             throw new InvalidNeo4jCommandError(msg);
         }
     }
@@ -281,16 +337,16 @@ public class Neo4jResource implements AutoCloseable {
             synchronized (this) {
                 if (isNeoAppRunning()) {
                     // TODO: check if we want to force destroyForcibly
-                    this.serverProcess.toHandle().descendants().forEach(ProcessHandle::destroy);
-                    this.serverProcess.destroy();
-                    this.serverProcess = null;
+                    serverProcess.toHandle().descendants().forEach(ProcessHandle::destroy);
+                    serverProcess.destroy();
+                    serverProcess = null;
                 }
             }
         }
         return alreadyStopped;
     }
 
-    protected Neo4jClient.DocumentImportResponse importDocuments(String projectId, String query) {
+    protected Neo4jClient.DocumentImportResponse importDocuments(String projectId, HashMap<String, Object> query) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         return client.importDocuments(query);
