@@ -130,8 +130,8 @@ async def neo4j_test_session(
 def make_docs(n: int) -> Generator[Dict, None, None]:
     for i in range(n):
         yield {
+            "_id": f"doc-{i}",
             "_source": {
-                "documentId": f"document-{i}",
                 "rootId": None,
                 "dirname": f"dirname-{i}",
                 "contentType": f"content-type-{i}",
@@ -139,7 +139,7 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
                 "extractionDate": "2023-02-06T13:48:22.3866",
                 "path": f"dirname-{i}",
                 "type": "Document",
-            }
+            },
         }
 
 
@@ -148,7 +148,6 @@ def index_docs_ops(*, index_name: str, n: int) -> Generator[Dict, None, None]:
         op = {
             "_op_type": "index",
             "_index": index_name,
-            "_id": f"doc-{i}",
         }
         op.update(doc)
         yield op
