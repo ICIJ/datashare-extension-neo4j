@@ -24,12 +24,12 @@ import java.io.OutputStream;
 import java.lang.ref.Cleaner;
 import java.lang.reflect.Array;
 import java.net.Socket;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 
 import static java.io.File.createTempFile;
 import static org.icij.datashare.LoggingUtils.lazy;
@@ -37,6 +37,16 @@ import static org.icij.datashare.LoggingUtils.lazy;
 @Prefix("/api/neo4j")
 public class Neo4jResource implements AutoCloseable {
     private static final String NEO4J_APP_BIN = "neo4j_app";
+
+    // All these properties have to start with "neo4j" in order to be properly filtered
+    private static final HashMap<String, String> DEFAULT_NEO4J_PROPERTIES = new HashMap<>() {{
+        put("neo4jAppPort", "8008");
+        put("neo4jHost", "neo4j");
+        put("neo4jImportDir", "/home/dev/.neo4j/import");
+        put("neo4jImportPrefix", "/.neo4j/import");
+        put("neo4jPort", "7687");
+        put("neo4jProject", "local-datashare");
+    }};
 
     private final PropertiesProvider propertiesProvider;
     private final int port;
@@ -58,8 +68,12 @@ public class Neo4jResource implements AutoCloseable {
 
 
     @Inject
-    public Neo4jResource(PropertiesProvider propertiesProvider) {
+    public Neo4jResource(PropertiesProvider propertiesProvider) throws IOException {
         this.propertiesProvider = propertiesProvider;
+        Properties neo4jDefaultProps = new Properties();
+        neo4jDefaultProps.putAll(DEFAULT_NEO4J_PROPERTIES);
+        this.propertiesProvider.mergeWith(neo4jDefaultProps);
+        this.propertiesProvider.save();
         this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
         logger.info("Loading the neo4j extension which will run on port " + this.port);
         this.client = new Neo4jClient(this.port);
