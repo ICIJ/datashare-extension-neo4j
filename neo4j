@@ -14,6 +14,13 @@ function _export_global_variables() {
     fi
     export NEO4J_VERSION=4.4.17
     export TEST_APP_PORT=8002
+    if [ "$(arch)" == "aarch64" ]; then
+        export DOCKER_PLATFORM="linux/amd64"
+    elif [ "$(arch)" == "arm64" ]; then
+        export DOCKER_PLATFORM="linux/arm64"
+    else
+        exit_with_message "Unsupported architecture $(arch)"
+    fi
 }
 
 function _helpers() {

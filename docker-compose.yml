@@ -4,6 +4,7 @@ services:
   test-elasticsearch:
     container_name: test-elasticsearch
     image: "docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION}"
+    platform: ${DOCKER_PLATFORM:+$DOCKER_PLATFORM}
     environment:
       - discovery.type=single-node
       - "http.port=${ELASTICSEARCH_PORT}"
@@ -12,8 +13,8 @@ services:
 
   test-neo4j:
     container_name: test-neo4j
-    # TODO: fix this platform thing...
-    image: "arm64v8/neo4j:${NEO4J_VERSION}"
+    image: "neo4j:${NEO4J_VERSION}"
+    platform: ${DOCKER_PLATFORM:+$DOCKER_PLATFORM}
     environment:
       NEO4J_AUTH: none
       NEO4JLABS_PLUGINS: '["apoc"]'
