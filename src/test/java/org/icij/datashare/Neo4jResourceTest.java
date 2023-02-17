@@ -69,7 +69,7 @@ public class Neo4jResourceTest {
 
         @Override
         public void afterEach(ExtensionContext extensionContext) {
-            neo4jAppResource.stopServerProcess();
+            neo4jAppResource.close();
         }
     }
 
@@ -92,7 +92,7 @@ public class Neo4jResourceTest {
 
         @Override
         public void afterEach(ExtensionContext extensionContext) {
-            neo4jAppResource.stopServerProcess();
+            neo4jAppResource.close();
         }
     }
 
@@ -104,7 +104,7 @@ public class Neo4jResourceTest {
 
         @Override
         public void afterEach(ExtensionContext extensionContext) {
-            neo4jAppResource.stopServerProcess();
+            neo4jAppResource.close();
         }
     }
 
