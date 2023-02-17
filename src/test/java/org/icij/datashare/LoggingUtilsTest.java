@@ -3,43 +3,33 @@ package org.icij.datashare;
 import ch.qos.logback.classic.Level;
 import org.graylog2.syslog4j.Syslog;
 import org.graylog2.syslog4j.SyslogIF;
-import org.graylog2.syslog4j.server.SyslogServer;
-import org.graylog2.syslog4j.server.SyslogServerIF;
-import org.graylog2.syslog4j.server.impl.net.udp.UDPNetSyslogServerConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.AfterEachCallback;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.*;
 
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.TestUtils.delayedAssert;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
 public class LoggingUtilsTest {
-    private static Thread syslogServerThread;
     private static final SyslogIF syslogClient = Syslog.getInstance("udp");
-    private static final SyslogServerIF syslogServer = SyslogServer.getInstance("udp");
+    private static final LoggingUtils.SyslogServerSingleton syslogServer = LoggingUtils.SyslogServerSingleton.getInstance();
 
-    protected static void startServer(LoggingUtils.SyslogMessageHandler handler) {
-        UDPNetSyslogServerConfig config = new UDPNetSyslogServerConfig();
-        config.addEventHandler(handler);
-        config.setUseStructuredData(true);
-        syslogServer.initialize("udp", config);
-        syslogServerThread = new Thread(syslogServer);
-        syslogServerThread.start();
-    }
-
-    public static class SyslogExtension implements AfterEachCallback {
+    public static class SyslogExtension implements BeforeAllCallback, AfterAllCallback, BeforeEachCallback {
         @Override
-        public void afterEach(ExtensionContext extensionContext) {
-            if (syslogServer != null) {
-                syslogServer.getConfig().removeAllEventHandlers();
-                syslogServer.shutdown();
-            }
-            if (syslogServerThread != null) {
-                syslogServerThread.interrupt();
-            }
+        public void beforeAll(ExtensionContext extensionContext) {
+            syslogServer.run();
+        }
+
+        @Override
+        public void afterAll(ExtensionContext extensionContext) {
+            // This will disable logging everywhere...
+            syslogServer.close();
+        }
+
+        @Override
+        public void beforeEach(ExtensionContext extensionContext) {
+            syslogServer.removeAllEventHandlers();
         }
     }
 
@@ -55,8 +45,7 @@ public class LoggingUtilsTest {
             String facility = "LOCAL7";
             syslogClient.getConfig().setFacility(facility);
             String splitChar = ">";
-            LoggingUtils.SyslogMessageHandler handler = new LoggingUtils.SyslogMessageHandler(facility, splitChar);
-            startServer(handler);
+            syslogServer.addHandler(new LoggingUtils.SyslogMessageHandler(Neo4jResource.class.getName(), facility, splitChar));
 
             // When
             syslogClient.info("neo4j_app.module_0>Log number one");
@@ -90,8 +79,7 @@ public class LoggingUtilsTest {
             String facility = "LOCAL7";
             syslogClient.getConfig().setFacility(facility);
             String splitChar = ">";
-            LoggingUtils.SyslogMessageHandler handler = new LoggingUtils.SyslogMessageHandler(facility, splitChar);
-            startServer(handler);
+            syslogServer.addHandler(new LoggingUtils.SyslogMessageHandler(Neo4jResource.class.getName(), facility, splitChar));
 
             // When
             syslogClient.info("neo4j_app.module_0Logwithoutsplitchar");
@@ -106,8 +94,7 @@ public class LoggingUtilsTest {
             String facility0 = "LOCAL6";
             String facility1 = "LOCAL7";
             String splitChar = ">";
-            LoggingUtils.SyslogMessageHandler handler = new LoggingUtils.SyslogMessageHandler(facility0, splitChar);
-            startServer(handler);
+            syslogServer.addHandler(new LoggingUtils.SyslogMessageHandler(Neo4jResource.class.getName(), facility0, splitChar));
 
             // When
             syslogClient.getConfig().setFacility(facility0);
@@ -134,13 +121,26 @@ public class LoggingUtilsTest {
         // When/Then
         assertThrowsExactly(
                 IllegalArgumentException.class,
-                () -> new LoggingUtils.SyslogMessageHandler(facility, splitChar),
+                () -> new LoggingUtils.SyslogMessageHandler(Neo4jResource.class.getName(), facility, splitChar),
                 "Invalid facility \"thisistotalyunknown\""
         );
     }
 
     @Test
-    public void test_syslog_handler_should_for_invalid_split_char() {
+    public void test_syslog_handler_should_for_non_local_facility() {
+        String facility = "USER";
+        String splitChar = ">";
+
+        // When/Then
+        assertThrowsExactly(
+                IllegalArgumentException.class,
+                () -> new LoggingUtils.SyslogMessageHandler(Neo4jResource.class.getName(), facility, splitChar),
+                "Expected local facility, found \"USER\""
+        );
+    }
+
+    @Test
+    public void test_syslog_handler_should_raise_for_invalid_split_char() {
         // Given
         String facility = "LOCAL7";
         String splitChar = ">>";
@@ -148,7 +148,7 @@ public class LoggingUtilsTest {
         // When/Then
         assertThrowsExactly(
                 IllegalArgumentException.class,
-                () -> new LoggingUtils.SyslogMessageHandler(facility, splitChar),
+                () -> new LoggingUtils.SyslogMessageHandler(Neo4jResource.class.getName(), facility, splitChar),
                 "Expected splitChar to be of length 1 in order to reduce overhead, found \">>\""
         );
     }

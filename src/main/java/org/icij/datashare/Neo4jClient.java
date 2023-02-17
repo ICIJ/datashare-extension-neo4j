@@ -80,7 +80,7 @@ public class Neo4jClient {
                 .ifFailure(HttpUtils.HttpError.class, r -> {
                     HttpUtils.HttpError error;
                     try {
-                            error = r.getBody();
+                        error = r.getBody();
                     } catch (Exception ignore) {
                         String title = r.getStatusText();
                         throw new Neo4jAppError(title, title);
