@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Objects;
 
 import static org.fest.assertions.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
 public class Neo4jClientTest {
 
@@ -95,7 +95,7 @@ public class Neo4jClientTest {
                     })
             );
             // When/Then
-            assertThrows(
+            assertThrowsExactly(
                     Neo4jClient.Neo4jAppError.class,
                     () -> client.importDocuments(null),
                     () -> {
@@ -114,7 +114,7 @@ public class Neo4jClientTest {
                     })
             );
             // When/Then
-            assertThrows(
+            assertThrowsExactly(
                     Neo4jClient.Neo4jAppError.class,
                     () -> client.importDocuments(null),
                     () -> {
