@@ -10,7 +10,6 @@ Users are expected to have the following dependencies on their file system:
 - [poetry](https://python-poetry.org/) (see `./neo4j install_peotry`)
 - JDK `>= 11`
 
-
 ### Dev, test and build
 
 - Docker
@@ -52,14 +51,17 @@ only the Python app:
 ### Display the Python app documentation
 
 After building the app:
+
 ```bash
 ./neo4j run -p neo4j_app
 ```
+
 and then navigate to [http://localhost/8080/docs]`http://localhost/8080/docs`
 
 ### Start/stop test services
 
 #### All services
+
 ```bash
 ./neo4j start_all_test_services
 ./neo4j stop_all_test_services

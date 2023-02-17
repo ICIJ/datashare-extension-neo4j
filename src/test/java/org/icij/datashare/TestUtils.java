@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 
 import static ch.qos.logback.classic.Level.toLocationAwareLoggerInteger;
 import static org.fest.assertions.Fail.fail;
-import static org.icij.datashare.LoggingUtils.PACKAGE_NAME;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 public class TestUtils {
@@ -51,7 +50,7 @@ public class TestUtils {
             // TODO: improve this to retrieve the parent capture in case of nested tests
             LogCapture clsCapture = (LogCapture) extensionContext.getRequiredTestClass().getField("logCapture").get(null);
             clsCapture.clear();
-            Logger logger = (Logger) LoggerFactory.getLogger(PACKAGE_NAME);
+            Logger logger = (Logger) LoggerFactory.getLogger(Neo4jResource.class.getName());
             clsCapture.setContext((LoggerContext) LoggerFactory.getILoggerFactory());
             logger.setLevel(Level.DEBUG);
             logger.addAppender(clsCapture);

@@ -37,6 +37,7 @@ import static org.icij.datashare.LoggingUtils.lazy;
 @Prefix("/api/neo4j")
 public class Neo4jResource implements AutoCloseable {
     private static final String NEO4J_APP_BIN = "neo4j_app";
+    private static final String SYSLOG_SPLIT_CHAR = "@";
 
     // All these properties have to start with "neo4j" in order to be properly filtered
     private static final HashMap<String, String> DEFAULT_NEO4J_PROPERTIES = new HashMap<>() {{
@@ -46,12 +47,12 @@ public class Neo4jResource implements AutoCloseable {
         put("neo4jImportPrefix", "/.neo4j/import");
         put("neo4jPort", "7687");
         put("neo4jProject", "local-datashare");
+        put("neo4jAppSyslogFacility", "LOCAL7");
     }};
 
     private final PropertiesProvider propertiesProvider;
     private final int port;
     private final String host = "127.0.0.1";
-    // TODO: should we use a Project object instead ?
     private final String projectId;
 
     protected final Neo4jClient client;
@@ -64,7 +65,7 @@ public class Neo4jResource implements AutoCloseable {
     // TODO: not sure that we want to delete the process when this deleted...
     // Cleaner which will ensure the Python server will be close when the resource is deleted
     private static Cleaner cleaner;
-    private Cleaner.Cleanable cleanable;
+    private Cleaner.Cleanable cleanPythonProcess;
 
 
     @Inject
@@ -89,10 +90,10 @@ public class Neo4jResource implements AutoCloseable {
     }
 
 
-    static class CleaningState implements Runnable {
+    static class KillPythonProcess implements Runnable {
         private final Neo4jResource resource;
 
-        CleaningState(Neo4jResource resource) {
+        KillPythonProcess(Neo4jResource resource) {
             this.resource = resource;
         }
 
@@ -269,6 +270,8 @@ public class Neo4jResource implements AutoCloseable {
                     if (isOpen(host, port)) {
                         throw new Neo4jAlreadyRunningError();
                     }
+                    // TODO: since the process is static, if we instance the extension with a different
+                    //  config, the new process with an updated config won't launch... (might be acceptable)
                     this.startServerProcess();
                 }
             }
@@ -304,7 +307,21 @@ public class Neo4jResource implements AutoCloseable {
             }
             startServerCmd = new String[]{appBinaryPath.toString(), propertiesFile.getAbsolutePath()};
         }
-        this.cleanable = cleaner.register(this, new CleaningState(this));
+        // Bind syslog
+        cleaner.register(this.getClass(), () -> {
+            logger.info("Closing syslog server...");
+            LoggingUtils.SyslogServerSingleton.getInstance().close();
+        });
+        LoggingUtils.SyslogServerSingleton syslogServer = LoggingUtils.SyslogServerSingleton.getInstance();
+        String syslogFacility = this.propertiesProvider
+                .get("neo4jAppSyslogFacility")
+                .orElseThrow(() -> new IllegalArgumentException("neo4jAppSyslogFacility is missing from properties"));
+        syslogServer.addHandler(new LoggingUtils.SyslogMessageHandler(
+                Neo4jResource.class.getName(), syslogFacility, SYSLOG_SPLIT_CHAR));
+        logger.info("Starting syslog server...");
+        syslogServer.run();
+
+        this.cleanPythonProcess = cleaner.register(this, new KillPythonProcess(this));
         checkServerCommand(startServerCmd);
         logger.info("Starting Python app running \"{}\"", lazy(() -> String.join(" ", startServerCmd)));
         serverProcess = new ProcessBuilder(startServerCmd).start();
@@ -346,7 +363,7 @@ public class Neo4jResource implements AutoCloseable {
 
     @Override
     public void close() {
-        this.cleanable.clean();
+        this.cleanPythonProcess.clean();
     }
 
     private void checkAccess(String project, Context context) {
