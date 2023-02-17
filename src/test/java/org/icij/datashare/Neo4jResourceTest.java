@@ -57,7 +57,7 @@ public class Neo4jResourceTest {
 
     public static class BindNeo4jResource extends ProdWebServerRuleExtension implements BeforeAllCallback, AfterEachCallback {
         @Override
-        public void beforeAll(ExtensionContext extensionContext) {
+        public void beforeAll(ExtensionContext extensionContext) throws IOException {
             neo4jAppResource = new Neo4jResource(propertyProvider);
             this.configure(
                     routes -> routes
