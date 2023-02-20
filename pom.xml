@@ -148,7 +148,6 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <!-- TODO: resolve this conflicting version -->
             <version>1.4.5</version>
             <scope>test</scope>
         </dependency>
