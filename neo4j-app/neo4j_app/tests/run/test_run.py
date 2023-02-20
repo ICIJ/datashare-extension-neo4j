@@ -24,5 +24,5 @@ def test_should_read_java_properties(tmpdir: Path):
 
     # Then
     assert exception.returncode == 1
-    assert "FileNotFoundError" in exception.stderr
+    assert "Provided config path does not exists" in exception.stderr
     assert str(missing_config_file_path) in exception.stderr

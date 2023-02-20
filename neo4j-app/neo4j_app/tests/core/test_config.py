@@ -72,15 +72,15 @@ def test_should_load_from_java(config: str, expected_config: AppConfig):
                 neo4j_import_dir="import-dir",
                 neo4j_project="test-project",
             ),
-            UviCornModel(host="127.0.0.1", port=8888, log_level="info"),
+            UviCornModel(host="127.0.0.1", port=8888),
         ),
         (
             AppConfig(
-                neo4j_app_log_level="debug",
+                neo4j_app_log_level="DEBUG",
                 neo4j_import_dir="import-dir",
                 neo4j_project="test-project",
             ),
-            UviCornModel(host="127.0.0.1", port=8080, log_level="debug"),
+            UviCornModel(host="127.0.0.1", port=8080),
         ),
     ],
 )
