@@ -92,6 +92,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, internal_exception_handler)
+    app.add_event_handler("startup", app.state.config.setup_loggers)
     app.include_router(main_router())
     app.include_router(documents_router())
     return app

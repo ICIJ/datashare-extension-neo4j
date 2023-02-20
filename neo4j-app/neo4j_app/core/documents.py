@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from typing import Dict, Optional
@@ -14,18 +15,22 @@ from neo4j_app.core.neo4j.documents import (
     write_neo4j_csv,
 )
 from neo4j_app.core.objects import DocumentImportResponse
+from neo4j_app.core.utils.logging import log_elapsed_time
+
+logger = logging.getLogger(__name__)
 
 
+@log_elapsed_time(logger, logging.INFO, "Imported documents in {elapsed_time} !")
 async def import_documents(
-        *,
-        neo4j_session: neo4j.AsyncSession,
-        es_client: ESClient,
-        neo4j_import_dir: Path,
-        neo4j_import_prefix: Optional[str] = None,
-        query: Optional[Dict],
-        scroll: str,
-        scroll_size: int,
-        doc_type_field: str,
+    *,
+    neo4j_session: neo4j.AsyncSession,
+    es_client: ESClient,
+    neo4j_import_dir: Path,
+    neo4j_import_prefix: Optional[str] = None,
+    query: Optional[Dict],
+    scroll: str,
+    scroll_size: int,
+    doc_type_field: str,
 ) -> DocumentImportResponse:
     # Let's restrict the search to documents, the type is a keyword property
     # we can safely use a term query
@@ -42,11 +47,11 @@ async def import_documents(
     docs = (
         d
         async for d in es_client.async_scan(
-        query=query, scroll=scroll, scroll_size=scroll_size
-    )
+            query=query, scroll=scroll, scroll_size=scroll_size
+        )
     )
     with make_neo4j_import_file(
-            neo4j_import_dir=neo4j_import_dir, neo4j_import_prefix=neo4j_import_prefix
+        neo4j_import_dir=neo4j_import_dir, neo4j_import_prefix=neo4j_import_prefix
     ) as (f, neo4j_import_path):
         n_docs_to_insert = await write_neo4j_csv(
             f, rows=to_document_csv(docs), header=sorted(DOC_COLUMNS)

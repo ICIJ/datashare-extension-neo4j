@@ -43,6 +43,7 @@ def test_client_session() -> TestClient:
         neo4j_import_dir=str(NEO4J_TEST_IMPORT_DIR),
         neo4j_app_host="127.0.0.1",
         neo4j_port=NEO4J_TEST_PORT,
+        debug=True,
     )
     app = create_app(config)
     # Add a router which generates error in order to test error handling

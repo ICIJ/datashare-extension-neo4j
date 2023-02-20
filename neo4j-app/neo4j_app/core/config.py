@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import configparser
 import functools
+import logging
 import re
+import sys
 from configparser import ConfigParser
+from logging.handlers import SysLogHandler
 from typing import Dict, List, Optional, TextIO
 
 import neo4j
@@ -16,6 +19,11 @@ from neo4j_app.core.utils.pydantic import (
     LowerCamelCaseModel,
 )
 
+_SYSLOG_MODEL_SPLIT_CHAR = "@"
+_SYSLOG_FMT = f"%(name)s{_SYSLOG_MODEL_SPLIT_CHAR}%(message)s"
+_STREAM_HANDLER_FMT = "[%(levelname)s][%(asctime)s.%(msecs)03d][%(name)s]: %(message)s"
+_DATE_FMT = "%H:%M:%S"
+
 
 class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     doc_app_name: str = "🕸 neo4j app"
@@ -24,7 +32,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_scroll: str = "1m"
     es_scroll_size: int = 1e4
     neo4j_app_host: str = "127.0.0.1"
-    neo4j_app_log_level: str = "info"
+    neo4j_app_log_level: str = "INFO"
     neo4j_app_name: str = "neo4j app"
     neo4j_app_port: int = 8080
     neo4j_host: str = "127.0.0.1"
@@ -32,10 +40,34 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_import_prefix: Optional[str] = None
     neo4j_port: int = 7687
     neo4j_project: str
+    neo4j_app_syslog_facility: str = "LOCAL7"
+    debug: bool = False
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
     # per request basis using FastApi dependencies...
     _global: Optional[AppConfig] = None
+
+    @classmethod
+    def from_java_properties(cls, file: TextIO) -> AppConfig:
+        parser = ConfigParser(
+            allow_no_value=True,
+            strict=True,
+            # TODO: check this one
+            empty_lines_in_values=True,
+            interpolation=None,
+        )
+        # Let's avoid lower-casing the keys
+        parser.optionxform = str
+        # Config need a section, let's fake one
+        section_name = configparser.DEFAULTSECT
+        section_str = f"""[{section_name}]
+    {file.read()}
+    """
+        parser.read_string(section_str)
+        config_dict = dict(parser[section_name].items())
+        config_dict = _sanitize_values(config_dict)
+        config = AppConfig.parse_obj(config_dict.items())
+        return config
 
     @classmethod
     @functools.lru_cache
@@ -51,10 +83,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         cls._global = value
 
     def to_uvicorn(self) -> UviCornModel:
-        return UviCornModel(
-            port=self.neo4j_app_port,
-            log_level=self.neo4j_app_log_level,
-        )
+        return UviCornModel(port=self.neo4j_app_port)
 
     @property
     def neo4j_uri(self) -> str:
@@ -102,27 +131,50 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         )
         return client
 
-    @classmethod
-    def from_java_properties(cls, file: TextIO) -> AppConfig:
-        parser = ConfigParser(
-            allow_no_value=True,
-            strict=True,
-            # TODO: check this one
-            empty_lines_in_values=True,
-            interpolation=None,
-        )
-        # Let's avoid lower-casing the keys
-        parser.optionxform = str
-        # Config need a section, let's fake one
-        section_name = configparser.DEFAULTSECT
-        section_str = f"""[{section_name}]
-{file.read()}
-"""
-        parser.read_string(section_str)
-        config_dict = dict(parser[section_name].items())
-        config_dict = _sanitize_values(config_dict)
-        config = AppConfig.parse_obj(config_dict.items())
-        return config
+    def setup_loggers(self):
+        import neo4j_app
+        import uvicorn
+        import elasticsearch
+
+        loggers = [
+            neo4j_app.__name__,
+            uvicorn.__name__,
+            elasticsearch.__name__,
+            neo4j.__name__,
+        ]
+
+        for handler in self._handlers:
+            handler.setLevel(self.neo4j_app_log_level)
+
+        for logger in loggers:
+            logger = logging.getLogger(logger)
+            logger.setLevel(self.neo4j_app_log_level)
+            logger.handlers = []
+            for handler in self._handlers:
+                logger.addHandler(handler)
+
+    @functools.cached_property
+    def _handlers(self) -> List[logging.Handler]:
+        stream_handler = logging.StreamHandler(sys.stderr)
+        stream_handler.setFormatter(logging.Formatter(_STREAM_HANDLER_FMT, _DATE_FMT))
+        handlers = [stream_handler]
+        if not self.debug:
+            syslog_handler = SysLogHandler(
+                facility=self._neo4j_app_syslog_facility_int,
+            )
+            syslog_handler.setFormatter(logging.Formatter(_SYSLOG_FMT))
+            handlers.append(syslog_handler)
+        return handlers
+
+    @functools.cached_property
+    def _neo4j_app_syslog_facility_int(self) -> int:
+        try:
+            return getattr(
+                SysLogHandler, f"LOG_{self.neo4j_app_syslog_facility.upper()}"
+            )
+        except AttributeError as e:
+            msg = f"Invalid syslog facility {self.neo4j_app_syslog_facility}"
+            raise ValueError(msg) from e
 
     @functools.cached_property
     def _es_address_match(self) -> re.Match:
@@ -140,7 +192,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
 class UviCornModel(BaseICIJModel):
     host: str = Field(default="127.0.0.1", const=True)
     port: int
-    log_level: str = "INFO"
 
 
 def _sanitize_values(java_config: Dict[str, str]) -> Dict[str, str]:
