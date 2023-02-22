@@ -33,35 +33,35 @@ public class Neo4jClient {
     }
 
 
-    protected static class DocumentImportResponse {
+    protected static class IncrementalImportResponse {
 
-        public final long nDocsToInsert;
-        public final long nInsertedDocs;
+        public final long nToInsert;
+        public final long nInserted;
 
         @JsonCreator
-        DocumentImportResponse(@JsonProperty("nDocsToInsert") long nDocsToInsert, @JsonProperty("nInsertedDocs") long nInsertedDocs) {
-            this.nDocsToInsert = nDocsToInsert;
-            this.nInsertedDocs = nInsertedDocs;
+        IncrementalImportResponse(@JsonProperty("nToInsert") long nToInsert, @JsonProperty("nInserted") long nInserted) {
+            this.nToInsert = nToInsert;
+            this.nInserted = nInserted;
         }
 
     }
 
-    protected static class DocumentImportRequest {
+    protected static class IncrementalImportRequest {
         public final HashMap<String, Object> query;
 
         @JsonCreator
-        DocumentImportRequest(@JsonProperty("query") HashMap<String, Object> query) {
+        IncrementalImportRequest(@JsonProperty("query") HashMap<String, Object> query) {
             this.query = query;
         }
     }
 
-    public DocumentImportResponse importDocuments(HashMap<String, Object> jsonQuery) {
-        DocumentImportRequest body = new DocumentImportRequest(jsonQuery);
+    public IncrementalImportResponse importDocuments(HashMap<String, Object> jsonQuery) {
+        IncrementalImportRequest body = new IncrementalImportRequest(jsonQuery);
         String url = buildNeo4jUrl("/documents");
         logger.debug("Importing neo4j documents with request: {}", lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
                 Unirest.post(url).body(body).header("Content-Type", "application/json"),
-                DocumentImportResponse.class
+                IncrementalImportResponse.class
         );
     }
 

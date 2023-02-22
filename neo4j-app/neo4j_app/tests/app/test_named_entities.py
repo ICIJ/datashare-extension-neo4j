@@ -7,15 +7,19 @@ from starlette.testclient import TestClient
 
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.objects import IncrementalImportResponse
-from neo4j_app.tests.conftest import index_docs
+from neo4j_app.tests.conftest import index_docs, index_named_entities
 
 
 @pytest_asyncio.fixture(scope="module")
 async def _populate_es(es_test_client_module: ESClient):
     es_client = es_test_client_module
     index_name = es_client.project_index
-    n_docs = 10
-    async for _ in index_docs(es_client, index_name=index_name, n=n_docs):
+    n = 10
+    # Index some Documents
+    async for _ in index_docs(es_client, index_name=index_name, n=n):
+        pass
+    # Index entities
+    async for _ in index_named_entities(es_client, index_name=index_name, n=n):
         pass
 
 
@@ -26,15 +30,14 @@ async def _populate_es(es_test_client_module: ESClient):
         (None, IncrementalImportResponse(n_to_insert=10, n_inserted=10)),
         # With query
         (
-            {"term": {"_id": "doc-2"}},
+            {"term": {"_id": "named-entity-2"}},
             IncrementalImportResponse(n_to_insert=1, n_inserted=1),
         ),
     ],
 )
 def test_post_documents_import_should_return_200(
     test_client_module: TestClient,
-    # Wipe the docs after each test
-    neo4j_test_session: neo4j.AsyncSession,
+    insert_docs_in_neo4j: neo4j.AsyncSession,
     _populate_es,
     query: Optional[Dict],
     expected_response: IncrementalImportResponse,
@@ -42,7 +45,7 @@ def test_post_documents_import_should_return_200(
     # pylint: disable=invalid-name,unused-argument
     # Given
     test_client = test_client_module
-    url = "/documents"
+    url = "/named-entities"
     payload = {}
     if query is not None:
         payload["query"] = query

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from neo4j_app.core.utils.asyncio import run_concurrently
+from neo4j_app.core.utils.asyncio import run_with_concurrency
 
 
 @pytest.mark.asyncio
@@ -20,7 +20,9 @@ async def test_run_concurrently():
     max_concurrency = 3
 
     # When
-    res = [r async for r in run_concurrently(tasks, max_concurrency=max_concurrency)]
+    res = [
+        r async for r in run_with_concurrency(tasks, max_concurrency=max_concurrency)
+    ]
 
     # Then
     expected_res = [short, short, short, short, long, long]

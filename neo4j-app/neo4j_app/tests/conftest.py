@@ -1,7 +1,7 @@
 # pylint: disable=redefined-outer-name
 import asyncio
 from pathlib import Path
-from typing import AsyncGenerator, Dict, Generator
+from typing import Any, AsyncGenerator, Dict, Generator, Tuple
 
 import neo4j
 import pytest
@@ -16,12 +16,20 @@ from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.app.utils import create_app
 from neo4j_app.core.utils.pydantic import BaseICIJModel
 
+# TODO: at a high level it's a waste to have to repeat code for each fixture level,
+#  let's try to find a way to define the scope dynamically:
+#  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
+
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
 NEO4J_TEST_IMPORT_DIR = DATA_DIR.joinpath("neo4j", "import")
 NEO4J_TEST_PORT = 7687
 _INDEX_BODY = {
     "mappings": {
-        "properties": {"type": {"type": "keyword"}, "documentId": {"type": "keyword"}}
+        "properties": {
+            "type": {"type": "keyword"},
+            "documentId": {"type": "keyword"},
+            "join": {"type": "join", "relations": {"Document": "NamedEntity"}},
+        }
     }
 }
 
@@ -37,19 +45,36 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-def test_client_session() -> TestClient:
+def test_client_session(
+    # Require ES to create indices and wipe ES
+    es_test_client_session: ESClient,
+) -> TestClient:
+    # pylint: disable=unused-argument
     config = AppConfig(
+        debug=True,
+        es_default_page_size=5,
         neo4j_project="test-datashare-project",
         neo4j_import_dir=str(NEO4J_TEST_IMPORT_DIR),
         neo4j_app_host="127.0.0.1",
         neo4j_port=NEO4J_TEST_PORT,
-        debug=True,
     )
     app = create_app(config)
     # Add a router which generates error in order to test error handling
     app.include_router(_error_router())
     with TestClient(app) as client:
         yield client
+
+
+@pytest.fixture(scope="module")
+def test_client_module(
+    test_client_session: TestClient,
+    # Wipe ES by requiring the "module" level es client
+    es_test_client_module: ESClient,
+    # Same for neo4j
+    neo4j_test_session_module: neo4j.AsyncSession,
+) -> TestClient:
+    # pylint: disable=unused-argument
+    return test_client_session
 
 
 @pytest.fixture()
@@ -88,15 +113,39 @@ def error_test_client_session(test_client_session: TestClient) -> TestClient:
         yield client
 
 
+def _make_test_client() -> ESClient:
+    test_index = "test-datashare-project"
+    es = ESClient(
+        project_index=test_index,
+        hosts=[{"host": "localhost", "port": 9200}],
+        pagination=3,
+    )
+    return es
+
+
+@pytest_asyncio.fixture(scope="session")
+async def es_test_client_session() -> AsyncGenerator[ESClient, None]:
+    es = _make_test_client()
+    await es.indices.delete(index="_all")
+    await es.indices.create(index=es.project_index, body=_INDEX_BODY)
+    yield es
+    await es.close()
+
+
+@pytest_asyncio.fixture(scope="module")
+async def es_test_client_module() -> AsyncGenerator[ESClient, None]:
+    es = _make_test_client()
+    await es.indices.delete(index="_all")
+    await es.indices.create(index=es.project_index, body=_INDEX_BODY)
+    yield es
+    await es.close()
+
+
 @pytest_asyncio.fixture()
 async def es_test_client() -> AsyncGenerator[ESClient, None]:
-    test_index = "test_index"
-    es = ESClient(project_index=test_index, hosts=[{"host": "localhost", "port": 9200}])
+    es = _make_test_client()
     await es.indices.delete(index="_all")
-    await es.indices.create(
-        index=test_index,
-        body=_INDEX_BODY,
-    )
+    await es.indices.create(index=es.project_index, body=_INDEX_BODY)
     yield es
     await es.close()
 
@@ -117,6 +166,15 @@ async def neo4j_test_session_session(
     driver = neo4j_test_driver_session
     async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
         yield sess
+
+
+@pytest_asyncio.fixture(scope="module")
+async def neo4j_test_session_module(
+    neo4j_test_session_session: neo4j.AsyncSession,
+) -> neo4j.AsyncSession:
+    session = neo4j_test_session_session
+    await session.execute_write(_wipe_db_tx)
+    return session
 
 
 @pytest_asyncio.fixture()
@@ -140,6 +198,19 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
                 "extractionDate": "2023-02-06T13:48:22.3866",
                 "path": f"dirname-{i}",
                 "type": "Document",
+                "join": {"name": "Document"},
+            },
+        }
+
+
+def make_named_entities(n: int) -> Generator[Dict, None, None]:
+    for i in range(n):
+        yield {
+            "_id": f"named-entity-{i}",
+            "_source": {
+                "join": {"name": "NamedEntity", "parent": f"doc-{i}"},
+                "type": "NamedEntity",
+                "offsets": list(range(1, max(i, 1, 2))),
             },
         }
 
@@ -160,8 +231,19 @@ def index_noise_ops(*, index_name: str, n: int) -> Generator[Dict, None, None]:
             "_op_type": "index",
             "_index": index_name,
             "_id": f"noise-{i}",
-            "_source": {"this": f"noise number {i}"},
+            "_source": {"someAttribute": f"noise number {i} attribute"},
         }
+        yield op
+
+
+def index_named_entities_ops(*, index_name: str, n: int) -> Generator[Dict, None, None]:
+    for ent in make_named_entities(n):
+        op = {
+            "_op_type": "index",
+            "_index": index_name,
+            "_routing": "DocumentNamedEntityRoute",
+        }
+        op.update(ent)
         yield op
 
 
@@ -183,6 +265,59 @@ async def index_noise(
     refresh = "wait_for"
     async for res in async_streaming_bulk(client, actions=ops, refresh=refresh):
         yield res
+
+
+async def index_named_entities(
+    client: ESClient, *, index_name: str, n: int
+) -> AsyncGenerator[Dict, None]:
+    ops = index_named_entities_ops(index_name=index_name, n=n)
+    # Let's wait to make this operation visible to the search
+    refresh = "wait_for"
+    async for res in async_streaming_bulk(client, actions=ops, refresh=refresh):
+        yield res
+
+
+# TODO: make the num_docs_in_neo4j configurable to that it can be called dynamically
+@pytest_asyncio.fixture(scope="module")
+async def insert_docs_in_neo4j_module(
+    neo4j_test_session_module: neo4j.AsyncSession,
+) -> neo4j.AsyncSession:
+    neo4j_session = neo4j_test_session_module
+    query, docs = await _make_create_docs_query()
+    await neo4j_session.run(query, docs)
+    return neo4j_session
+
+
+@pytest_asyncio.fixture(scope="function")
+async def insert_docs_in_neo4j(
+    neo4j_test_session: neo4j.AsyncSession,
+) -> neo4j.AsyncSession:
+    neo4j_session = neo4j_test_session
+    query, docs = await _make_create_docs_query()
+    await neo4j_session.run(query, docs)
+    return neo4j_session
+
+
+async def _make_create_docs_query() -> Tuple[str, Dict[str, Any]]:
+    num_docs_in_neo4j = 10  # Should be < to the number of docs in ES
+    docs = {"docs": [{"id": f"doc-{i}"} for i in range(num_docs_in_neo4j)]}
+    query = """UNWIND $docs as docProps
+CREATE (n:Document {})
+SET n = docProps
+"""
+    return query, docs
+
+
+@pytest_asyncio.fixture(scope="function")
+async def wipe_named_entities(
+    neo4j_test_session_module: neo4j.AsyncSession,
+) -> neo4j.AsyncSession:
+    neo4j_session = neo4j_test_session_module
+    query = """MATCH (ent:NamedEntity)
+DETACH DELETE ent
+"""
+    await neo4j_session.run(query)
+    return neo4j_session
 
 
 async def _wipe_db_tx(tx: neo4j.AsyncTransaction):

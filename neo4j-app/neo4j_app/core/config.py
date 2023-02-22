@@ -27,10 +27,10 @@ _DATE_FMT = "%H:%M:%S"
 
 class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     doc_app_name: str = "🕸 neo4j app"
-    es_doc_type_field: str = Field(alias="docTypeField", default="type")
     elasticsearch_address: str = "http://127.0.0.1:9200"
-    es_scroll: str = "1m"
-    es_scroll_size: int = 1e4
+    es_doc_type_field: str = Field(alias="docTypeField", default="type")
+    es_default_page_size: int = 1000
+    es_keep_alive: str = "1m"
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
     neo4j_app_name: str = "neo4j app"
@@ -128,6 +128,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             project_index=self.neo4j_project,
             hosts=[self.es_host],
             port=self.es_port,
+            pagination=self.es_default_page_size,
         )
         return client
 

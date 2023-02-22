@@ -6,7 +6,7 @@ function _export_global_variables() {
     export ES_VERSION
     export PYTHON_APP_DIR="$ROOT_DIR/neo4j-app"
     export NEO4J_APP_BIN="neo4j_app"
-    export ELASTICSEARCH_VERSION=7.9.1
+    export ELASTICSEARCH_VERSION=7.17.9
     if [ -z "$_ELASTICSEARCH_PORT" ]; then
         export ELASTICSEARCH_PORT="9200"
     else

@@ -3,10 +3,11 @@ from typing import Dict, Optional
 from neo4j_app.core.utils.pydantic import LowerCamelCaseModel
 
 
-class DocumentImportRequest(LowerCamelCaseModel):
+class IncrementalImportRequest(LowerCamelCaseModel):
     query: Optional[Dict] = None
+    # TODO: add all other parameters such as concurrency etc etc...
 
 
-class DocumentImportResponse(LowerCamelCaseModel):
-    n_docs_to_insert: int
-    n_inserted_docs: int
+class IncrementalImportResponse(LowerCamelCaseModel):
+    n_to_insert: int
+    n_inserted: int
