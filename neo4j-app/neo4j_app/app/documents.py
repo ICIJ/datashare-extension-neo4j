@@ -74,7 +74,6 @@ def documents_router() -> APIRouter:
             es_client=es_client,
             neo4j_import_dir=Path(config.neo4j_import_dir),
             neo4j_import_prefix=config.neo4j_import_prefix,
-            # TODO: take this one from the payload
             keep_alive=config.es_keep_alive,
             doc_type_field=config.es_doc_type_field,
             # TODO: take this one from the payload
