@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 
 from neo4j_app.app.dependencies import es_client_dep, neo4j_session_dep
 from neo4j_app.core import AppConfig
-from neo4j_app.core.documents import import_documents
+from neo4j_app.core.imports import import_documents
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.objects import IncrementalImportRequest, IncrementalImportResponse
 
@@ -74,9 +74,11 @@ def documents_router() -> APIRouter:
             es_client=es_client,
             neo4j_import_dir=Path(config.neo4j_import_dir),
             neo4j_import_prefix=config.neo4j_import_prefix,
-            scroll=config.es_keep_alive,
-            scroll_size=config.es_default_page_size,
+            # TODO: take this one from the payload
+            keep_alive=config.es_keep_alive,
             doc_type_field=config.es_doc_type_field,
+            # TODO: take this one from the payload
+            concurrency=es_client.max_concurrency,
         )
 
     return router

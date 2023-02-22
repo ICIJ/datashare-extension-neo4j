@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from neo4j_app.app.dependencies import es_client_dep, neo4j_session_dep
 from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClient
-from neo4j_app.core.named_entities import import_named_entities
+from neo4j_app.core.imports import import_named_entities
 from neo4j_app.core.objects import IncrementalImportRequest, IncrementalImportResponse
 
 NE_TAG = "Named entities"
