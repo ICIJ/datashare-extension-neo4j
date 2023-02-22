@@ -40,7 +40,7 @@ public class Neo4jClientTest {
     @DisplayName("Neo4j client test")
     public static class ClientTest {
 
-        private static Payload mockDocumentsImport(Context context) throws IOException {
+        private static Payload mockImport(Context context) throws IOException {
             String body;
             if (Objects.equals(context.request().content(), "{}")) {
                 body = "{\"nToInsert\": 3,\"nInserted\": 3}";
@@ -63,9 +63,10 @@ public class Neo4jClientTest {
         @Test
         public void test_should_import_documents() {
             // Given
-            neo4jApp.configure(routes -> routes.post("/documents", ClientTest::mockDocumentsImport));
+            neo4jApp.configure(routes -> routes.post("/documents", ClientTest::mockImport));
             // When
-            Neo4jClient.IncrementalImportResponse res = client.importDocuments(null);
+            org.icij.datashare.Objects.IncrementalImportRequest body =new org.icij.datashare.Objects.IncrementalImportRequest(null);
+            org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
             // Then
             assertThat(res.nToInsert).isEqualTo(3);
             assertThat(res.nInserted).isEqualTo(3);
@@ -74,12 +75,13 @@ public class Neo4jClientTest {
         @Test
         public void test_should_import_documents_with_query() {
             // Given
-            neo4jApp.configure(routes -> routes.post("/documents", ClientTest::mockDocumentsImport));
-            HashMap<String, Object> jsonQuery = new HashMap<>() {{
+            neo4jApp.configure(routes -> routes.post("/documents", ClientTest::mockImport));
+            HashMap<String, Object> query = new HashMap<>() {{
                 put("key1", "value1");
             }};
+            org.icij.datashare.Objects.IncrementalImportRequest body = new org.icij.datashare.Objects.IncrementalImportRequest(query);
             // When
-            Neo4jClient.IncrementalImportResponse res = client.importDocuments(jsonQuery);
+            org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
             // Then
             assertThat(res.nToInsert).isEqualTo(3);
             assertThat(res.nInserted).isEqualTo(1);
@@ -121,6 +123,34 @@ public class Neo4jClientTest {
                         throw new Neo4jClient.Neo4jAppError(new HttpUtils.HttpError("someTitle", "someErrorDetail", "sometrace here"));
                     }
             );
+        }
+
+
+        @Test
+        public void test_should_import_named_entities() {
+            // Given
+            neo4jApp.configure(routes -> routes.post("/named-entities", ClientTest::mockImport));
+            // When
+            org.icij.datashare.Objects.IncrementalImportRequest body =new org.icij.datashare.Objects.IncrementalImportRequest(null);
+            org.icij.datashare.Objects.IncrementalImportResponse res = client.importNamedEntities(body);
+            // Then
+            assertThat(res.nToInsert).isEqualTo(3);
+            assertThat(res.nInserted).isEqualTo(3);
+        }
+
+        @Test
+        public void test_should_import_named_entities_with_query() {
+            // Given
+            neo4jApp.configure(routes -> routes.post("/named-entities", ClientTest::mockImport));
+            HashMap<String, Object> query = new HashMap<>() {{
+                put("key1", "value1");
+            }};
+            org.icij.datashare.Objects.IncrementalImportRequest body = new org.icij.datashare.Objects.IncrementalImportRequest(query);
+            // When
+            org.icij.datashare.Objects.IncrementalImportResponse res = client.importNamedEntities(body);
+            // Then
+            assertThat(res.nToInsert).isEqualTo(3);
+            assertThat(res.nInserted).isEqualTo(1);
         }
     }
 }
