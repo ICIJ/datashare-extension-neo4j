@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse, Response
 
 from neo4j_app.app.documents import DOCUMENT_TAG, documents_router
 from neo4j_app.app.main import OTHER_TAG, main_router
-from neo4j_app.app.named_entities import named_entities_router
+from neo4j_app.app.named_entities import NE_TAG, named_entities_router
 from neo4j_app.core import AppConfig
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
@@ -81,7 +81,7 @@ def _make_open_api_tags(tags: Iterable[str]) -> List[Dict]:
 def create_app(config: AppConfig) -> FastAPI:
     app = FastAPI(
         title=config.doc_app_name,
-        openapi_tags=_make_open_api_tags([DOCUMENT_TAG, OTHER_TAG]),
+        openapi_tags=_make_open_api_tags([DOCUMENT_TAG, NE_TAG, OTHER_TAG]),
     )
     # Important note: we only put the config in the global state, we provide all
     # persistent DB connection pool, clients and so on through dependency injection.
