@@ -1,14 +1,10 @@
 package org.icij.datashare;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import kong.unirest.HttpRequest;
 import kong.unirest.HttpResponse;
 import kong.unirest.Unirest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.HashMap;
 
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
@@ -33,35 +29,21 @@ public class Neo4jClient {
     }
 
 
-    protected static class IncrementalImportResponse {
-
-        public final long nToInsert;
-        public final long nInserted;
-
-        @JsonCreator
-        IncrementalImportResponse(@JsonProperty("nToInsert") long nToInsert, @JsonProperty("nInserted") long nInserted) {
-            this.nToInsert = nToInsert;
-            this.nInserted = nInserted;
-        }
-
-    }
-
-    protected static class IncrementalImportRequest {
-        public final HashMap<String, Object> query;
-
-        @JsonCreator
-        IncrementalImportRequest(@JsonProperty("query") HashMap<String, Object> query) {
-            this.query = query;
-        }
-    }
-
-    public IncrementalImportResponse importDocuments(HashMap<String, Object> jsonQuery) {
-        IncrementalImportRequest body = new IncrementalImportRequest(jsonQuery);
+    public Objects.IncrementalImportResponse importDocuments(Objects.IncrementalImportRequest body) {
         String url = buildNeo4jUrl("/documents");
-        logger.debug("Importing neo4j documents with request: {}", lazy(() -> MAPPER.writeValueAsString(body)));
+        logger.debug("Importing documents to neo4j with request: {}", lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
                 Unirest.post(url).body(body).header("Content-Type", "application/json"),
-                IncrementalImportResponse.class
+                Objects.IncrementalImportResponse.class
+        );
+    }
+
+    public Objects.IncrementalImportResponse importNamedEntities(Objects.IncrementalImportRequest body) {
+        String url = buildNeo4jUrl("/named-entities");
+        logger.debug("Importing named entities to neo4j with request: {}", lazy(() -> MAPPER.writeValueAsString(body)));
+        return doHttpRequest(
+                Unirest.post(url).body(body).header("Content-Type", "application/json"),
+                Objects.IncrementalImportResponse.class
         );
     }
 

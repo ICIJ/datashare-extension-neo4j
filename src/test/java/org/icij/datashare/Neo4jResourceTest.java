@@ -316,18 +316,18 @@ public class Neo4jResourceTest {
         }
     }
 
-    @DisplayName("test documents import")
+    @DisplayName("test import")
     @ExtendWith(MockNeo4jApp.class)
     @ExtendWith(MockAppProperties.class)
     @ExtendWith(BindNeo4jResource.class)
-    public static class Neo4jResourceDocumentImportTest implements FluentRestTest {
+    public static class Neo4jResourceImportTest implements FluentRestTest {
         @Override
         public int port() {
             return port;
         }
 
         @Test
-        public void test_post_import_documents_should_return_200() throws IOException, InterruptedException {
+        public void test_post_documents_import_should_return_200() throws IOException, InterruptedException {
             // Given
             neo4jAppResource.startServerProcess();
             neo4jApp.configure(
@@ -344,7 +344,7 @@ public class Neo4jResourceTest {
             assertThat(response.code()).isEqualTo(200);
             assertJson(
                     response.content(),
-                    Neo4jClient.IncrementalImportResponse.class,
+                    Objects.IncrementalImportResponse.class,
                     res -> {
                         assertThat(res.nToInsert).isEqualTo(10);
                         assertThat(res.nInserted).isEqualTo(8);
@@ -353,7 +353,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_import_should_return_401_for_invalid_project() {
+        public void test_post_documents_import_should_return_401_for_invalid_project() {
             // When
             Response response = post("/api/neo4j/documents?project=unknownproject").withPreemptiveAuthentication("foo", "null").response();
             // Then
@@ -361,9 +361,51 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_import_should_return_401_for_unauthorized_user() {
+        public void test_post_documents_import_should_return_401_for_unauthorized_user() {
             // When
             Response response = post("/api/neo4j/documents?project=foo-datashare").withPreemptiveAuthentication("unauthorized", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_named_entities_import_should_return_200() throws IOException, InterruptedException {
+            // Given
+            neo4jAppResource.startServerProcess();
+            neo4jApp.configure(
+                    routes -> routes.post(
+                            "/named-entities",
+                            context -> new Payload("application/json", "{\"nToInsert\": 10,\"nInserted\": 8}")
+                    )
+            );
+            // When
+            Response response = post("/api/neo4j/named-entities?project=foo-datashare", "{}")
+                    .withPreemptiveAuthentication("foo", "null")
+                    .response();
+            // Then
+            assertThat(response.code()).isEqualTo(200);
+            assertJson(
+                    response.content(),
+                    Objects.IncrementalImportResponse.class,
+                    res -> {
+                        assertThat(res.nToInsert).isEqualTo(10);
+                        assertThat(res.nInserted).isEqualTo(8);
+                    }
+            );
+        }
+
+        @Test
+        public void test_post_named_entities_import_should_return_401_for_invalid_project() {
+            // When
+            Response response = post("/api/neo4j/named-entities?project=unknownproject").withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_named_entities_import_should_return_401_for_unauthorized_user() {
+            // When
+            Response response = post("/api/neo4j/named-entities?project=foo-datashare").withPreemptiveAuthentication("unauthorized", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(401);
         }

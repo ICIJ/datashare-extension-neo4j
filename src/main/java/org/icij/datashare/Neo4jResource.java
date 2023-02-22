@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,12 +70,11 @@ public class Neo4jResource implements AutoCloseable {
 
 
     @Inject
-    public Neo4jResource(PropertiesProvider propertiesProvider) throws IOException {
+    public Neo4jResource(PropertiesProvider propertiesProvider) {
         this.propertiesProvider = propertiesProvider;
         Properties neo4jDefaultProps = new Properties();
         neo4jDefaultProps.putAll(DEFAULT_NEO4J_PROPERTIES);
         this.propertiesProvider.mergeWith(neo4jDefaultProps);
-        this.propertiesProvider.save();
         this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
         logger.info("Loading the neo4j extension which will run on port " + this.port);
         this.client = new Neo4jClient(this.port);
@@ -146,15 +146,6 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    protected static class ImportRequest {
-        public HashMap<String, Object> query;
-
-        @JsonCreator
-        ImportRequest(@JsonProperty("query") HashMap<String, Object> query) {
-            this.query = query;
-        }
-    }
-
     static class Neo4jAlreadyRunningError extends HttpUtils.HttpError {
         public static final String title = "neo4j app already running";
         public static final String detail = "neo4j Python app is already running in likely in another phantom process";
@@ -223,19 +214,19 @@ public class Neo4jResource implements AutoCloseable {
     }
 
     @Post("/documents?project=:project")
-    public Payload postImport(String project, Context context) throws IOException {
+    public Payload postDocuments(String project, Context context) throws IOException {
         checkAccess(project, context);
         // TODO: this should throw a bad request when not parsed correcly...
-        ImportRequest importRequest = context.extract(ImportRequest.class);
-        try {
-            return new Payload(this.importDocuments(project, importRequest.query)).withCode(200);
-        } catch (InvalidProjectError e) {
-            return new Payload("application/problem+json", e).withCode(401);
-        } catch (Neo4jNotRunningError e) {
-            return new Payload("application/problem+json", e).withCode(503);
-        } catch (Neo4jClient.Neo4jAppError e) { // TODO: this should be done automatically...
-            return new Payload("application/problem+json", e).withCode(500);
-        }
+        org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest = context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
+        return doImport(() -> this.importDocuments(project, incrementalImportRequest));
+    }
+
+    @Post("/named-entities?project=:project")
+    public Payload postNamedEntities(String project, Context context) throws IOException {
+        checkAccess(project, context);
+        // TODO: this should throw a bad request when not parsed correcly...
+        org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest = context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
+        return doImport(() -> this.importNamedEntities(project, incrementalImportRequest));
     }
 
     @Get("/ping")
@@ -355,16 +346,36 @@ public class Neo4jResource implements AutoCloseable {
         return alreadyStopped;
     }
 
-    protected Neo4jClient.IncrementalImportResponse importDocuments(String projectId, HashMap<String, Object> query) {
+    protected org.icij.datashare.Objects.IncrementalImportResponse importDocuments(String projectId, org.icij.datashare.Objects.IncrementalImportRequest request) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        return client.importDocuments(query);
+        return client.importDocuments(request);
+    }
+
+    protected org.icij.datashare.Objects.IncrementalImportResponse importNamedEntities(String projectId, org.icij.datashare.Objects.IncrementalImportRequest request) {
+        checkExtensionProject(projectId);
+        checkNeo4jAppStarted();
+        return client.importNamedEntities(request);
     }
 
     @Override
     public void close() {
-        this.cleanPythonProcess.clean();
+        if (this.cleanPythonProcess != null)
+            this.cleanPythonProcess.clean();
     }
+
+    private Payload doImport(Provider<org.icij.datashare.Objects.IncrementalImportResponse> importProvider) {
+        try {
+            return new Payload(importProvider.get()).withCode(200);
+        } catch (InvalidProjectError e) {
+            return new Payload("application/problem+json", e).withCode(401);
+        } catch (Neo4jNotRunningError e) {
+            return new Payload("application/problem+json", e).withCode(503);
+        } catch (Neo4jClient.Neo4jAppError e) { // TODO: this should be done automatically...
+            return new Payload("application/problem+json", e).withCode(500);
+        }
+    }
+
 
     private void checkAccess(String project, Context context) {
         if (!((User) context.currentUser()).isGranted(project)) {
