@@ -355,7 +355,7 @@ public class Neo4jResource implements AutoCloseable {
         return alreadyStopped;
     }
 
-    protected Neo4jClient.DocumentImportResponse importDocuments(String projectId, HashMap<String, Object> query) {
+    protected Neo4jClient.IncrementalImportResponse importDocuments(String projectId, HashMap<String, Object> query) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         return client.importDocuments(query);

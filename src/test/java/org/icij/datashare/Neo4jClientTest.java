@@ -43,9 +43,9 @@ public class Neo4jClientTest {
         private static Payload mockDocumentsImport(Context context) throws IOException {
             String body;
             if (Objects.equals(context.request().content(), "{}")) {
-                body = "{\"nDocsToInsert\": 3,\"nInsertedDocs\": 3}";
+                body = "{\"nToInsert\": 3,\"nInserted\": 3}";
             } else {
-                body = "{\"nDocsToInsert\": 3,\"nInsertedDocs\": 1}";
+                body = "{\"nToInsert\": 3,\"nInserted\": 1}";
             }
             return new Payload("application/json", body);
         }
@@ -65,10 +65,10 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents", ClientTest::mockDocumentsImport));
             // When
-            Neo4jClient.DocumentImportResponse res = client.importDocuments(null);
+            Neo4jClient.IncrementalImportResponse res = client.importDocuments(null);
             // Then
-            assertThat(res.nDocsToInsert).isEqualTo(3);
-            assertThat(res.nInsertedDocs).isEqualTo(3);
+            assertThat(res.nToInsert).isEqualTo(3);
+            assertThat(res.nInserted).isEqualTo(3);
         }
 
         @Test
@@ -79,10 +79,10 @@ public class Neo4jClientTest {
                 put("key1", "value1");
             }};
             // When
-            Neo4jClient.DocumentImportResponse res = client.importDocuments(jsonQuery);
+            Neo4jClient.IncrementalImportResponse res = client.importDocuments(jsonQuery);
             // Then
-            assertThat(res.nDocsToInsert).isEqualTo(3);
-            assertThat(res.nInsertedDocs).isEqualTo(1);
+            assertThat(res.nToInsert).isEqualTo(3);
+            assertThat(res.nInserted).isEqualTo(1);
         }
 
         @Test

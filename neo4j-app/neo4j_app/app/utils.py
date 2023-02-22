@@ -12,6 +12,7 @@ from starlette.responses import JSONResponse, Response
 
 from neo4j_app.app.documents import DOCUMENT_TAG, documents_router
 from neo4j_app.app.main import OTHER_TAG, main_router
+from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.core import AppConfig
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
@@ -95,6 +96,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.add_event_handler("startup", app.state.config.setup_loggers)
     app.include_router(main_router())
     app.include_router(documents_router())
+    app.include_router(named_entities_router())
     return app
 
 
