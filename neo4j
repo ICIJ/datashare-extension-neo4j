@@ -33,6 +33,11 @@ function _helpers() {
         python -m pip install "$@"
     )
 
+    function _install_black() (
+        _poetry_shell
+        _pip_install install black==23.1.0
+    )
+
     function _poetry_shell() {
         command -v poetry 1>/dev/null 2>&1 || fail "Poetry is not installed"
 
@@ -104,6 +109,25 @@ function _helpers() {
 
 function _commands() {
 
+    function format() {
+        # Black
+        cd "$PYTHON_APP_DIR"
+        _install_black
+        black --config pyproject.toml .
+        # TODO: add a formatter for the java extension
+    }
+
+    function format_test() {
+        # Black
+        cd "$PYTHON_APP_DIR"
+        _install_black
+        if ! black --config pyproject.toml --check . ; then
+            exit_with_message "Python project is not properly formatted.
+Please run ./neo4j format";
+        fi
+        # TODO: add a formatter for the java extension
+    }
+
     function setup() {
         if _should_run_project "neo4j_app"; then
             _print_step "Setting up neo4j_app"
@@ -124,7 +148,7 @@ function _commands() {
             _print_step "Building the Python app first"
             _build_neo4j_app
             _print_step "Compiling the java extension"
-            cd $ROOT_DIR
+            cd "$ROOT_DIR"
             mvn validate package -Dmaven.test.skip=true
         else
             exit_with_message "Can't build project $PROJECT"
