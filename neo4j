@@ -125,7 +125,10 @@ function _commands() {
             exit_with_message "Python project is not properly formatted.
 Please run ./neo4j format";
         fi
-        # TODO: add a formatter for the java extension
+        if ! mvn checkstyle:check ; then
+            exit_with_message "Java source code does not comply with style guidelines.
+Please check the README.md to see how to automatically format the code and fix";
+        fi
     }
 
     function setup() {

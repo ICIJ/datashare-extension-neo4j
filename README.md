@@ -48,6 +48,27 @@ only the Python app:
 ./neo4j build -p neo4j_app
 ```
 
+### Format and code styles
+To run code formatting use ():
+```bash
+./neo4j format
+```
+it will run Python code base formatting.
+
+The Java code style guides are located in [checkstyle.xml](qa/java/checkstyle.xml).
+You can then use the [Checkstyle Intellij plugin](https://plugins.jetbrains.com/plugin/1065-checkstyle-idea) to
+highlight code style warnings and errors.
+
+Additionally once the plugin has been installed you can import the [checkstyle.xml](qa/java/checkstyle.xml) as a 
+Java Code Style template ` Settings|Editor|Code Style|Manage...|Import..`.
+This will allow you to automatically format you code according to the style guide when running the `Reformat Code`
+action in Intellij.
+
+Be aware that reformatting code will only solve formatting style issues and other issues might be left.
+
+`Checkstyle` is also available for other IDEs and you should be able to integrate it in your preferred IDE.
+
+
 ### Display the Python app documentation
 
 After building the app:
@@ -56,7 +77,7 @@ After building the app:
 ./neo4j run -p neo4j_app
 ```
 
-and then navigate to [http://localhost/8080/docs]`http://localhost/8080/docs`
+and then navigate to [http://localhost/8080/docs](http://localhost/8080/docs)
 
 ### Start/stop test services
 
