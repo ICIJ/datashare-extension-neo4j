@@ -9,7 +9,7 @@ from pylint.lint import Run
 _NO_ERROR_STATUS = 0
 
 _ROOT_PATH = Path(__file__).parent
-_RCFILEPATH = _ROOT_PATH / "qa" / "pylintrc"
+_RCFILEPATH = _ROOT_PATH.parent / "qa" / "pylintrc"
 _NEO4J_APP = "neo4j_app"
 
 
