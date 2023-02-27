@@ -1,0 +1,12 @@
+# Ignore everything to leverage caching at its best
+*
+!.data/neo4j/import/.gitignore
+!docker-compose.yml
+!pom.xml
+!neo4j
+!neo4j-app/neo4j_app
+!neo4j-app/linting_test.py
+!neo4j-app/poetry.lock
+!neo4j-app/pyproject.toml
+!qa
+!src
