@@ -49,7 +49,7 @@ only the Python app:
 ```
 
 ### Format and code styles
-To run code formatting use ():
+To run code formatting use:
 ```bash
 ./neo4j format
 ```
@@ -108,4 +108,24 @@ or
 ```bash
 ./neo4j start_test_neo4j
 ./neo4j stop_test_neo4j
+```
+
+### Run test
+#### Local test
+To run all tests locally run:
+```bash
+./neo4j test
+```
+
+To run a specify test  run:
+```bash
+./neo4j test -p neo4j_app
+```
+available tests are `neo4j_app`, `neo4j_app_format`, `neo4j_extension` and `neo4j_extension_format` 
+
+#### Docker tests
+**Docker tests require you to launch tests services first using `./neo4j start_all_test_services`**, then you can use
+any of the above test commands replacing `test` by `docker_test`, for instance:
+```bash
+./neo4j docker_test -p neo4j_app
 ```
