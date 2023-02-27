@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level;
 import org.graylog2.syslog4j.Syslog;
 import org.graylog2.syslog4j.SyslogIF;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.*;
 
@@ -36,8 +37,9 @@ public class LoggingUtilsTest {
     @ExtendWith(SyslogExtension.class)
     @ExtendWith(TestUtils.LogCaptureExtension.class)
     @DisplayName("SyslogMessageHandler server test")
-    public static class SyslogMessageHandlerTest {
-        public final static TestUtils.LogCapture logCapture = new TestUtils.LogCapture();
+    @Nested
+    class SyslogMessageHandlerTest implements TestUtils.TestWithLogCapture {
+        public final  TestUtils.LogCapture logCapture = new TestUtils.LogCapture();
 
         @Test
         public void test_syslog_handler_should_log() throws InterruptedException {
@@ -109,6 +111,11 @@ public class LoggingUtilsTest {
                         "org.icij.datashare.neo4j_app.module", Level.INFO, "notfiltered")
                 );
             });
+        }
+
+        @Override
+        public TestUtils.LogCapture logCapture() {
+            return logCapture;
         }
     }
 

@@ -44,17 +44,21 @@ public class TestUtils {
         void doAssert(T obj) throws AssertionError;
     }
 
+    public interface TestWithLogCapture {
+        LogCapture logCapture();
+    }
+
     public static class LogCaptureExtension implements BeforeEachCallback {
         @Override
-        public void beforeEach(ExtensionContext extensionContext) throws NoSuchFieldException, IllegalAccessException {
+        public void beforeEach(ExtensionContext extensionContext) {
             // TODO: improve this to retrieve the parent capture in case of nested tests
-            LogCapture clsCapture = (LogCapture) extensionContext.getRequiredTestClass().getField("logCapture").get(null);
-            clsCapture.clear();
+            LogCapture capture = extensionContext.getTestInstance().map(test -> ((TestWithLogCapture) test).logCapture()).orElseThrow();
+            capture.clear();
             Logger logger = (Logger) LoggerFactory.getLogger(Neo4jResource.class.getName());
-            clsCapture.setContext((LoggerContext) LoggerFactory.getILoggerFactory());
+            capture.setContext((LoggerContext) LoggerFactory.getILoggerFactory());
             logger.setLevel(Level.DEBUG);
-            logger.addAppender(clsCapture);
-            clsCapture.start();
+            logger.addAppender(capture);
+            capture.start();
         }
     }
 
@@ -79,11 +83,11 @@ public class TestUtils {
 
 
     public static String makeJsonHttpError(String title, String detail) {
-        return "{\"title\": \"" + title + "\", " + "\"detail\": " + detail + "\"}";
+        return "{\"title\": \"" + title + "\", " + "\"detail\": \"" + detail + "\"}";
     }
 
     public static String makeJsonHttpError(String title, String detail, String trace) {
-        return "{\"title\": \"" + title + "\", " + "\"detail\": " + detail + "\", \"trace\": \"" + trace + "\"}";
+        return "{\"title\": \"" + title + "\", " + "\"detail\": \"" + detail + "\", \"trace\": \"" + trace + "\"}";
     }
 
 }

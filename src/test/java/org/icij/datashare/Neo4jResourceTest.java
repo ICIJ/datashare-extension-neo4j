@@ -5,6 +5,7 @@ import net.codestory.http.payload.Payload;
 import net.codestory.rest.FluentRestTest;
 import net.codestory.rest.Response;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -57,7 +58,7 @@ public class Neo4jResourceTest {
 
     public static class BindNeo4jResource extends ProdWebServerRuleExtension implements BeforeAllCallback, AfterEachCallback {
         @Override
-        public void beforeAll(ExtensionContext extensionContext) throws IOException {
+        public void beforeAll(ExtensionContext extensionContext) {
             neo4jAppResource = new Neo4jResource(propertyProvider);
             this.configure(
                     routes -> routes
@@ -112,7 +113,8 @@ public class Neo4jResourceTest {
     @ExtendWith(MockAppProperties.class)
     @ExtendWith(BindNeo4jResource.class)
     @DisplayName("Neo4jResource tests with HTTP server mock")
-    public static class Neo4jResourceTestWithMockNeo4jTest implements FluentRestTest {
+    @Nested
+    class Neo4jResourceTestWithMockNeo4jTest implements FluentRestTest {
 
         @Override
         public int port() {
@@ -167,7 +169,8 @@ public class Neo4jResourceTest {
     @ExtendWith(PythonAppProperties.class)
     @ExtendWith(BindNeo4jResource.class)
     @DisplayName("Neo4jResource tests with Python server running in a process")
-    public static class Neo4jResourceTestWithPythonServerTest implements FluentRestTest {
+    @Nested
+    class Neo4jResourceTestWithPythonServerTest implements FluentRestTest {
         @Override
         public int port() {
             return port;
@@ -270,24 +273,26 @@ public class Neo4jResourceTest {
     @ExtendWith(MockAppProperties.class)
     @ExtendWith(BindNeo4jResource.class)
     @DisplayName("Neo4jResource test without mock")
-    public static class Neo4jResourceLifecycleTest implements FluentRestTest {
+    @Nested
+    class Neo4jResourceLifecycleTest implements FluentRestTest {
         @Override
         public int port() {
             return port;
         }
 
-        static class PhantomPythonServerMock implements AutoCloseable {
+        class PhantomPythonServerMock implements AutoCloseable {
             private final Process process;
 
-            public PhantomPythonServerMock() throws IOException {
+            public PhantomPythonServerMock() throws IOException, InterruptedException {
                 this.process = new ProcessBuilder(
-                        "python",
+                        "python3",
                         "-m",
                         "http.server",
                         "-d",
                         "src/test/resources/python_mock",
                         "8080"
                 ).start();
+                neo4jAppResource.waitForServerToBeUp();
             }
 
             @Override
@@ -297,7 +302,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_start_should_return_500_for_phantom_process() {
+        public void test_post_start_should_return_500_for_phantom_process() throws InterruptedException{
             // Given
             try (PhantomPythonServerMock ignored = new PhantomPythonServerMock()) {
                 // When
@@ -308,7 +313,7 @@ public class Neo4jResourceTest {
                         response.content(),
                         HttpUtils.HttpError.class,
                         status -> assertThat(status.detail)
-                                .isEqualTo("neo4j Python app is already running in likely in another phantom process")
+                                .isEqualTo("neo4j Python app is already running likely in another phantom process")
                 );
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -320,7 +325,8 @@ public class Neo4jResourceTest {
     @ExtendWith(MockNeo4jApp.class)
     @ExtendWith(MockAppProperties.class)
     @ExtendWith(BindNeo4jResource.class)
-    public static class Neo4jResourceImportTest implements FluentRestTest {
+    @Nested
+    class Neo4jResourceImportTest implements FluentRestTest {
         @Override
         public int port() {
             return port;
@@ -355,7 +361,9 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_documents_import_should_return_401_for_invalid_project() {
             // When
-            Response response = post("/api/neo4j/documents?project=unknownproject").withPreemptiveAuthentication("foo", "null").response();
+            Response response = post("/api/neo4j/documents?project=unknownproject")
+                .withPreemptiveAuthentication("foo", "null")
+                .response();
             // Then
             assertThat(response.code()).isEqualTo(401);
         }
@@ -363,7 +371,9 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_documents_import_should_return_401_for_unauthorized_user() {
             // When
-            Response response = post("/api/neo4j/documents?project=foo-datashare").withPreemptiveAuthentication("unauthorized", "null").response();
+            Response response = post("/api/neo4j/documents?project=foo-datashare")
+                .withPreemptiveAuthentication("unauthorized", "null")
+                .response();
             // Then
             assertThat(response.code()).isEqualTo(401);
         }

@@ -4,6 +4,7 @@ import net.codestory.http.Configuration;
 import net.codestory.http.Context;
 import net.codestory.http.payload.Payload;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -38,9 +39,10 @@ public class Neo4jClientTest {
 
     @ExtendWith(Neo4jAppMock.class)
     @DisplayName("Neo4j client test")
-    public static class ClientTest {
+    @Nested
+    class ClientTest {
 
-        private static Payload mockImport(Context context) throws IOException {
+        private Payload mockImport(Context context) throws IOException {
             String body;
             if (Objects.equals(context.request().content(), "{}")) {
                 body = "{\"nToInsert\": 3,\"nInserted\": 3}";
@@ -63,7 +65,7 @@ public class Neo4jClientTest {
         @Test
         public void test_should_import_documents() {
             // Given
-            neo4jApp.configure(routes -> routes.post("/documents", ClientTest::mockImport));
+            neo4jApp.configure(routes -> routes.post("/documents", this::mockImport));
             // When
             org.icij.datashare.Objects.IncrementalImportRequest body =new org.icij.datashare.Objects.IncrementalImportRequest(null);
             org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
@@ -75,7 +77,7 @@ public class Neo4jClientTest {
         @Test
         public void test_should_import_documents_with_query() {
             // Given
-            neo4jApp.configure(routes -> routes.post("/documents", ClientTest::mockImport));
+            neo4jApp.configure(routes -> routes.post("/documents", this::mockImport));
             HashMap<String, Object> query = new HashMap<>() {{
                 put("key1", "value1");
             }};
@@ -97,13 +99,11 @@ public class Neo4jClientTest {
                     })
             );
             // When/Then
-            assertThrowsExactly(
+            String expectedMsg = (new Neo4jClient.Neo4jAppError("someTitle", "someErrorDetail")).getMessage();
+            assertThat(assertThrowsExactly(
                     Neo4jClient.Neo4jAppError.class,
-                    () -> client.importDocuments(null),
-                    () -> {
-                        throw new Neo4jClient.Neo4jAppError("someTitle", "someErrorDetail");
-                    }
-            );
+                    () -> client.importDocuments(null)
+            ).getMessage()).isEqualTo(expectedMsg);
         }
 
         @Test
@@ -116,20 +116,20 @@ public class Neo4jClientTest {
                     })
             );
             // When/Then
-            assertThrowsExactly(
+
+            String expectedMsg = new Neo4jClient.Neo4jAppError(
+                new HttpUtils.HttpError("someTitle", "someErrorDetail", "sometrace here")).getMessage();
+            assertThat(assertThrowsExactly(
                     Neo4jClient.Neo4jAppError.class,
-                    () -> client.importDocuments(null),
-                    () -> {
-                        throw new Neo4jClient.Neo4jAppError(new HttpUtils.HttpError("someTitle", "someErrorDetail", "sometrace here"));
-                    }
-            );
+                    () -> client.importDocuments(null)
+            ).getMessage()).isEqualTo(expectedMsg);
         }
 
 
         @Test
         public void test_should_import_named_entities() {
             // Given
-            neo4jApp.configure(routes -> routes.post("/named-entities", ClientTest::mockImport));
+            neo4jApp.configure(routes -> routes.post("/named-entities", this::mockImport));
             // When
             org.icij.datashare.Objects.IncrementalImportRequest body =new org.icij.datashare.Objects.IncrementalImportRequest(null);
             org.icij.datashare.Objects.IncrementalImportResponse res = client.importNamedEntities(body);
@@ -141,7 +141,7 @@ public class Neo4jClientTest {
         @Test
         public void test_should_import_named_entities_with_query() {
             // Given
-            neo4jApp.configure(routes -> routes.post("/named-entities", ClientTest::mockImport));
+            neo4jApp.configure(routes -> routes.post("/named-entities", this::mockImport));
             HashMap<String, Object> query = new HashMap<>() {{
                 put("key1", "value1");
             }};

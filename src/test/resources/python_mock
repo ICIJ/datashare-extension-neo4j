@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 ROOT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-python -m http.server -d "$ROOT_DIR"/http_server "$1"
+python3 -m http.server -d "$ROOT_DIR"/http_server "$1"
 # Let's wait in order to be able to close this process and its child process
 wait

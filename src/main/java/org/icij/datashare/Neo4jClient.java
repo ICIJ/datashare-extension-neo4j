@@ -60,14 +60,8 @@ public class Neo4jClient {
         HttpResponse<T> res = request
                 .asObject(clazz)
                 .ifFailure(HttpUtils.HttpError.class, r -> {
-                    HttpUtils.HttpError error;
-                    try {
-                        error = r.getBody();
-                    } catch (Exception ignore) {
-                        String title = r.getStatusText();
-                        throw new Neo4jAppError(title, title);
-                    }
-                    throw new Neo4jAppError(error);
+                        HttpUtils.HttpError error = r.getBody();
+                        throw new Neo4jAppError(error);
                 });
         return res.getBody();
     }
