@@ -199,7 +199,6 @@
                 <version>3.0.0-M3</version>
                 <configuration>
                     <trimStackTrace>false</trimStackTrace>
-                    <!--TODO: understand why this is needed                    -->
                     <argLine>--add-opens=java.base/java.lang=ALL-UNNAMED</argLine>
                 </configuration>
             </plugin>
