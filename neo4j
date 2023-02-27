@@ -208,7 +208,8 @@ Please check the README.md to see how to automatically format the code and fix";
             _pytest neo4j_app
 
         elif _should_run_project "neo4j_extension"; then
-            mvn test
+            mvn -X test
+
         else
             exit_with_message "Can't test project $PROJECT"
         fi
@@ -227,8 +228,7 @@ Please check the README.md to see how to automatically format the code and fix";
         elif _should_run_project "neo4j_extension"; then
             _docker_build base-java
             # TODO: not really sure the target dir should be mounted since it might contain os specific bins
-            _docker_run --mount type=bind,source="$ROOT_DIR"/target,target=/home/dev/target \
-                base-java \
+            _docker_run base-java \
                 ./neo4j test -p neo4j_extension
         elif _should_run_project "neo4j_extension_format"; then
             _docker_build base-java

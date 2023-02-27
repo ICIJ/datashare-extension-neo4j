@@ -148,7 +148,7 @@ public class Neo4jResource implements AutoCloseable {
 
     static class Neo4jAlreadyRunningError extends HttpUtils.HttpError {
         public static final String title = "neo4j app already running";
-        public static final String detail = "neo4j Python app is already running in likely in another phantom process";
+        public static final String detail = "neo4j Python app is already running likely in another phantom process";
 
         Neo4jAlreadyRunningError() {
             super(title, detail);
