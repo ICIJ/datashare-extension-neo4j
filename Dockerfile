@@ -1,5 +1,9 @@
+# Global build args with placeholders in case they are not specified from outside
+ARG NEO4J_VERSION=4.4.17
+ARG NEO4J_IMAGE=neo4j
+
 # Base image
-FROM --platform=$BUILDPLATFORM phusion/baseimage:jammy-1.0.1 as base
+FROM phusion/baseimage:jammy-1.0.1 as base
 
 RUN add-apt-repository --yes ppa:deadsnakes/ppa
 
@@ -47,3 +51,8 @@ FROM base as base-java
 ADD pom.xml $HOME
 ADD qa/java $HOME/qa/java
 ADD src $HOME/src
+
+# We use placeholders here
+FROM ${NEO4J_IMAGE}:${NEO4J_VERSION} as neo4j
+ADD scripts/neo4j_healthcheck /var/lib/neo4j
+RUN sed -i -- 's/dbms.directories.import=import/#dbms.directories.import=import/g' conf/neo4j.conf

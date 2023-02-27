@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+if [[ $(./bin/neo4j status) == "Neo4j is running at pid"* ]]; then
+    exit 0
+else
+    exit 1
+fi
