@@ -39,7 +39,7 @@ function _helpers() {
     )
 
     function _poetry_shell() {
-        command -v poetry 1>/dev/null 2>&1 || fail "Poetry is not installed"
+        command -v poetry 1>/dev/null 2>&1 || exit_with_message "Poetry is not installed"
 
         local venv_path
         venv_path=$(poetry env info -p)
@@ -105,11 +105,34 @@ function _helpers() {
         echo "Copying neo4j app binary to java extension resources: $java_resources"
         cp "$app_bin" "$java_resources"
     }
+
+    function _docker_build() {
+        local target
+        target=$1
+        docker build --progress=plain --target "$target" -t "$target" "${@:2}" .
+    }
+
+    function _docker_run() {
+        local docker_tag
+        docker_tag=$1
+        docker run --network="host" -t "$docker_tag" "${@:2}"
+    }
+
+    function _pytest() {
+        poetry run python3 -m pytest --cache-clear -s "${@}"
+    }
+
 }
 
 function _commands() {
 
+    # TODO: reorder everything...
+
     function format() {
+        format_python
+    }
+
+    function format_python() {
         # Black
         cd "$PYTHON_APP_DIR"
         _install_black
@@ -118,13 +141,22 @@ function _commands() {
     }
 
     function format_test() {
-        # Black
+        format_test_python
+        format_test_java
+    }
+
+    function format_test_python() {
         cd "$PYTHON_APP_DIR"
         _install_black
-        if ! black --config pyproject.toml --check . ; then
+        if ! poetry run python3 -m black --config pyproject.toml --check . ; then
             exit_with_message "Python project is not properly formatted.
 Please run ./neo4j format";
         fi
+    }
+
+    function format_test_java() {
+        cd "$ROOT_DIR"
+        mvn validate
         if ! mvn checkstyle:check ; then
             exit_with_message "Java source code does not comply with style guidelines.
 Please check the README.md to see how to automatically format the code and fix";
@@ -164,6 +196,47 @@ Please check the README.md to see how to automatically format the code and fix";
             "$ROOT_DIR/bins/$NEO4J_APP_BIN"
         else
             exit_with_message "Can't run project $PROJECT"
+        fi
+    }
+
+    function test() {
+        if _should_run_project "neo4j_app"; then
+            cd $ROOT_DIR/neo4j-app
+            # TODO: parallelize pytest...
+            _pytest linting_test.py
+            # Here we expect the docker test images to be launched either by the user or the CI
+            _pytest neo4j_app
+
+        elif _should_run_project "neo4j_extension"; then
+            mvn test
+        else
+            exit_with_message "Can't test project $PROJECT"
+        fi
+    }
+
+    function docker_test() {
+        if _should_run_project "neo4j_app"; then
+            _docker_build base-python
+            _docker_run --mount type=bind,source="$ROOT_DIR"/.data,target=/home/dev/.data \
+                base-python \
+                ./neo4j test -p neo4j_app
+        elif _should_run_project "neo4j_app_format"; then
+            _docker_build base-python
+            _docker_run base-python \
+                ./neo4j format_test_python
+        elif _should_run_project "neo4j_extension"; then
+            _docker_build base-java
+            # TODO: not really sure the target dir should be mounted since it might contain os specific bins
+            _docker_run --mount type=bind,source="$ROOT_DIR"/target,target=/home/dev/target \
+                base-java \
+                ./neo4j test -p neo4j_extension
+        elif _should_run_project "neo4j_extension_format"; then
+            _docker_build base-java
+            _docker_run --mount type=bind,source="$ROOT_DIR"/target,target=/home/dev/target \
+                base-java \
+                ./neo4j format_test_java
+        else
+            exit_with_message "Can't test project $PROJECT"
         fi
     }
 
@@ -216,7 +289,9 @@ function _main() {
     # Define sub projects here
     PROJECTS=(
         neo4j_app
+        neo4j_app_format
         neo4j_extension
+        neo4j_extension_format
     )
 
     function exit_with_message() {
