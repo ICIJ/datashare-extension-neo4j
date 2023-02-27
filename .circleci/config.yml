@@ -1,0 +1,59 @@
+version: 2.1
+
+executors:
+  docker-machine:
+    machine:
+      image: ubuntu-2204:2023.02.1
+      docker_layer_caching: true
+
+jobs:
+  build:
+    executor: docker-machine
+    steps:
+      - checkout
+      # TODO: restore the cache by sharing maven and pypi cache between the machine and the docker
+      - run:
+          name: Build
+          command: ./neo4j docker_build
+      # TODO: save the cache
+
+  test-java:
+    executor: docker-machine
+    steps:
+      - checkout
+      # TODO: restore the cache by sharing maven and pypi cache between the machine and the docker
+      - run:
+          name: Java format tests
+          command: ./neo4j docker_test -p neo4j_extension_format
+      - run:
+          name: Java tests
+          command: ./neo4j docker_test -p neo4j_extension
+
+  test-python:
+    executor: docker-machine
+    steps:
+      - checkout
+      # TODO: restore the cache by sharing maven and pypi cache between the machine and the docker
+      - run:
+          name: Python format tests
+          command: ./neo4j docker_test -p neo4j_app_format
+      # TODO: this step is long....
+      - run:
+          name: Starting tests services
+          command: ./neo4j start_all_test_services
+      - run:
+          name: Python tests
+          command: ./neo4j docker_test -p neo4j_app
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - test-java:
+          requires:
+            - build
+
+      - test-python:
+          requires:
+            - build

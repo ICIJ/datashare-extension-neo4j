@@ -9,4 +9,5 @@
 !neo4j-app/poetry.lock
 !neo4j-app/pyproject.toml
 !qa
+!scripts
 !src

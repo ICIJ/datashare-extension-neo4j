@@ -14,10 +14,14 @@ function _export_global_variables() {
     fi
     export NEO4J_VERSION=4.4.17
     export TEST_APP_PORT=8002
-    if [ "$(arch)" == "aarch64" ]; then
+    local archi
+    archi="$(arch)"
+    if [ "$archi" == "aarch64" ] || [ "$archi" == "x86_64" ]; then
         export DOCKER_PLATFORM="linux/amd64"
-    elif [ "$(arch)" == "arm64" ]; then
+        export NEO4J_IMAGE="neo4j"
+    elif [ "$archi" == "arm64" ]; then
         export DOCKER_PLATFORM="linux/arm64"
+        export NEO4J_IMAGE="arm64v8/neo4j"
     else
         exit_with_message "Unsupported architecture $(arch)"
     fi
@@ -67,13 +71,11 @@ function _helpers() {
     function _docker_build() {
         local target
         target=$1
-        docker build --progress=plain --target "$target" -t "$target" "${@:2}" .
+        docker build --progress=plain --target "$target" -t "$target":latest "${@:2}" .
     }
 
     function _docker_run() {
-        local docker_tag
-        docker_tag=$1
-        docker run --network="host" -t "$docker_tag" "${@:2}"
+        docker run --network="host" "${@}"
     }
 
     function _install_black() (
@@ -111,7 +113,7 @@ function _helpers() {
     }
 
     function _pytest() {
-        poetry run python3 -m pytest --cache-clear -s "${@}"
+        poetry run python3 -m pytest --tb=long -vv --cache-clear -s "${@}"
     }
 
     function _should_run_project() {
@@ -140,24 +142,29 @@ function _commands() {
         fi
     }
 
+    function docker_build() {
+        _print_step "Building base docker image..."
+        _docker_build base
+    }
+
     function docker_test() {
         if _should_run_project "neo4j_app"; then
             _docker_build base-python
             _docker_run --mount type=bind,source="$ROOT_DIR"/.data,target=/home/dev/.data \
-                base-python \
+                base-python:latest \
                 ./neo4j test -p neo4j_app
         elif _should_run_project "neo4j_app_format"; then
             _docker_build base-python
-            _docker_run base-python \
+            _docker_run base-python:latest \
                 ./neo4j format_test_python
         elif _should_run_project "neo4j_extension"; then
             _docker_build base-java
-            _docker_run base-java \
+            _docker_run base-java:latest \
                 ./neo4j test -p neo4j_extension
         elif _should_run_project "neo4j_extension_format"; then
             _docker_build base-java
-            _docker_run --mount type=bind,source="$ROOT_DIR"/target,target=/home/dev/target \
-                base-java \
+            # TODO: mount the target dir to do some maven caching ?
+            _docker_run base-java:latest \
                 ./neo4j format_test_java
         else
             exit_with_message "Can't test project $PROJECT"
@@ -228,8 +235,8 @@ Please run ./neo4j format"
 
     function start_all_test_services() (
         docker compose up --detach \
-            --build test-elasticsearch \
-            --build test-neo4j \
+            --wait \
+            --build \
             test-elasticsearch \
             test-neo4j
     )
@@ -241,11 +248,11 @@ Please run ./neo4j format"
     )
 
     function start_test_elasticsearch() (
-        docker compose up --build test-elasticsearch --attach test-elasticsearch
+        docker compose up --wait --build test-elasticsearch
     )
 
     function start_test_neo4j() (
-        docker compose up --build test-neo4j --attach test-neo4j
+        docker compose up --build --wait test-neo4j
     )
 
     function stop_all_test_services() (
@@ -331,6 +338,7 @@ function _main() {
     }
 
     set -e
+    set +o pipefail  # This is for CircleCI
     # Define helpers and commands
     _helpers
     _commands

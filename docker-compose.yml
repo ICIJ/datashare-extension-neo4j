@@ -4,24 +4,42 @@ services:
   test-elasticsearch:
     container_name: test-elasticsearch
     image: "docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION}"
-    platform: ${DOCKER_PLATFORM:+$DOCKER_PLATFORM}
+    platform: "${DOCKER_PLATFORM:+$DOCKER_PLATFORM}"
     environment:
       - discovery.type=single-node
       - "http.port=${ELASTICSEARCH_PORT}"
     ports:
       - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
+    healthcheck:
+      test: [ "CMD", "curl", "http://localhost:$ELASTICSEARCH_PORT" ]
+      interval: 3s
+      timeout: 1s
+      retries: 10
+      start_period: 20s
 
   test-neo4j:
+    build:
+      context: .
+      args:
+        NEO4J_IMAGE: ${NEO4J_IMAGE}
+        NEO4J_VERSION: ${NEO4J_VERSION}
+      dockerfile: Dockerfile
+      target: neo4j
     container_name: test-neo4j
-    image: "neo4j:${NEO4J_VERSION}"
-    platform: ${DOCKER_PLATFORM:+$DOCKER_PLATFORM}
     environment:
       NEO4J_AUTH: none
       NEO4JLABS_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_allow__csv__import__from__file__urls: true
-
+    healthcheck:
+      test: [ "CMD", "./neo4j_healthcheck" ]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 20s
     ports:
       - 7474:7474
       - 7687:7687
     volumes:
-      - .data/neo4j/import:/var/lib/neo4j/import:rw
+      - type: bind
+        source: .data/neo4j/import/
+        target: /.neo4j/import/
