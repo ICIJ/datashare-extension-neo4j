@@ -1,5 +1,9 @@
 package org.icij.datashare;
 
+import static ch.qos.logback.classic.Level.toLocationAwareLoggerInteger;
+import static org.fest.assertions.Fail.fail;
+import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
@@ -9,10 +13,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.LoggerFactory;
-
-import static ch.qos.logback.classic.Level.toLocationAwareLoggerInteger;
-import static org.fest.assertions.Fail.fail;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 public class TestUtils {
 
@@ -34,10 +34,27 @@ public class TestUtils {
             assertions.run();
         } catch (AssertionError e) {
             throw new AssertionError(
-                    "Assertion failed after waiting " + millis + "ms. Fix the test or wait for a little longer !",
-                    e
+                "Assertion failed after waiting "
+                    + millis
+                    + "ms. Fix the test or wait for a little longer !",
+                e
             );
         }
+    }
+
+    public static String makeJsonHttpError(String title, String detail) {
+        return "{\"title\": \"" + title + "\", " + "\"detail\": \"" + detail + "\"}";
+    }
+
+    public static String makeJsonHttpError(String title, String detail, String trace) {
+        return "{\"title\": \""
+            + title
+            + "\", "
+            + "\"detail\": \""
+            + detail
+            + "\", \"trace\": \""
+            + trace
+            + "\"}";
     }
 
     public interface AssertionChain<T> {
@@ -52,7 +69,8 @@ public class TestUtils {
         @Override
         public void beforeEach(ExtensionContext extensionContext) {
             // TODO: improve this to retrieve the parent capture in case of nested tests
-            LogCapture capture = extensionContext.getTestInstance().map(test -> ((TestWithLogCapture) test).logCapture()).orElseThrow();
+            LogCapture capture = extensionContext.getTestInstance()
+                .map(test -> ((TestWithLogCapture) test).logCapture()).orElseThrow();
             capture.clear();
             Logger logger = (Logger) LoggerFactory.getLogger(Neo4jResource.class.getName());
             capture.setContext((LoggerContext) LoggerFactory.getILoggerFactory());
@@ -65,11 +83,11 @@ public class TestUtils {
     public static class LogCapture extends ListAppender<ILoggingEvent> {
         public boolean containsLog(String loggerName, Level level, String string) {
             return this.list
-                    .stream()
-                    .anyMatch(event -> event.getLoggerName().equals(loggerName)
-                            && event.toString().equals(string)
-                            && toLocationAwareLoggerInteger(event.getLevel()) == level.toInt()
-                    );
+                .stream()
+                .anyMatch(event -> event.getLoggerName().equals(loggerName)
+                    && event.toString().equals(string)
+                    && toLocationAwareLoggerInteger(event.getLevel()) == level.toInt()
+                );
         }
 
         public int countLogs() {
@@ -79,15 +97,6 @@ public class TestUtils {
         public void clear() {
             this.list.clear();
         }
-    }
-
-
-    public static String makeJsonHttpError(String title, String detail) {
-        return "{\"title\": \"" + title + "\", " + "\"detail\": \"" + detail + "\"}";
-    }
-
-    public static String makeJsonHttpError(String title, String detail, String trace) {
-        return "{\"title\": \"" + title + "\", " + "\"detail\": \"" + detail + "\", \"trace\": \"" + trace + "\"}";
     }
 
 }

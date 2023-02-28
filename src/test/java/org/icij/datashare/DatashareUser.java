@@ -8,16 +8,6 @@ public class DatashareUser extends User implements net.codestory.http.security.U
         super(user);
     }
 
-    @Override
-    public String login() {
-        return null;
-    }
-
-    @Override
-    public String[] roles() {
-        return new String[0];
-    }
-
     static Users singleUser(String userId) {
         return new Users() {
             @Override
@@ -30,6 +20,16 @@ public class DatashareUser extends User implements net.codestory.http.security.U
                 return s.equals(userId) ? new DatashareUser(User.localUser(userId)) : null;
             }
         };
+    }
+
+    @Override
+    public String login() {
+        return null;
+    }
+
+    @Override
+    public String[] roles() {
+        return new String[0];
     }
 
 }

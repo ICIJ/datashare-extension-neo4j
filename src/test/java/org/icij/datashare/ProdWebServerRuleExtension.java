@@ -13,18 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License
  */
+
 package org.icij.datashare;
 
+import static net.codestory.http.Configuration.NO_ROUTE;
+import static net.codestory.http.misc.MemoizingSupplier.memoize;
+
+import java.util.function.Supplier;
 import net.codestory.http.Configuration;
 import net.codestory.http.WebServer;
 import net.codestory.http.misc.Env;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
-
-import java.util.function.Supplier;
-
-import static net.codestory.http.Configuration.NO_ROUTE;
-import static net.codestory.http.misc.MemoizingSupplier.memoize;
 
 public class ProdWebServerRuleExtension implements AfterAllCallback {
     protected final Supplier<WebServer> server = memoize(() -> new WebServer() {

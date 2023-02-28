@@ -1,5 +1,11 @@
 package org.icij.datashare;
 
+import static org.fest.assertions.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Objects;
 import net.codestory.http.Configuration;
 import net.codestory.http.Context;
 import net.codestory.http.payload.Payload;
@@ -11,20 +17,14 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Objects;
-
-import static org.fest.assertions.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
-
 public class Neo4jClientTest {
 
     private static Neo4jClient client;
 
     private static ProdWebServerRuleExtension neo4jApp;
 
-    public static class Neo4jAppMock extends ProdWebServerRuleExtension implements BeforeAllCallback, AfterEachCallback {
+    public static class Neo4jAppMock extends ProdWebServerRuleExtension
+        implements BeforeAllCallback, AfterEachCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             client = new Neo4jClient(this.port());
@@ -67,7 +67,8 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents", this::mockImport));
             // When
-            org.icij.datashare.Objects.IncrementalImportRequest body =new org.icij.datashare.Objects.IncrementalImportRequest(null);
+            org.icij.datashare.Objects.IncrementalImportRequest body =
+                new org.icij.datashare.Objects.IncrementalImportRequest(null);
             org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
             // Then
             assertThat(res.nToInsert).isEqualTo(3);
@@ -78,10 +79,13 @@ public class Neo4jClientTest {
         public void test_should_import_documents_with_query() {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents", this::mockImport));
-            HashMap<String, Object> query = new HashMap<>() {{
-                put("key1", "value1");
-            }};
-            org.icij.datashare.Objects.IncrementalImportRequest body = new org.icij.datashare.Objects.IncrementalImportRequest(query);
+            HashMap<String, Object> query = new HashMap<>() {
+                {
+                    put("key1", "value1");
+                }
+            };
+            org.icij.datashare.Objects.IncrementalImportRequest body =
+                new org.icij.datashare.Objects.IncrementalImportRequest(query);
             // When
             org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
             // Then
@@ -93,16 +97,17 @@ public class Neo4jClientTest {
         public void test_import_documents_should_parse_app_error() {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents",
-                    (context) -> {
-                        String jsonError = TestUtils.makeJsonHttpError("someTitle", "someErrorDetail");
-                        return new Payload("application/json", jsonError).withCode(500);
-                    })
+                (context) -> {
+                    String jsonError = TestUtils.makeJsonHttpError("someTitle", "someErrorDetail");
+                    return new Payload("application/json", jsonError).withCode(500);
+                })
             );
             // When/Then
-            String expectedMsg = (new Neo4jClient.Neo4jAppError("someTitle", "someErrorDetail")).getMessage();
+            String expectedMsg =
+                (new Neo4jClient.Neo4jAppError("someTitle", "someErrorDetail")).getMessage();
             assertThat(assertThrowsExactly(
-                    Neo4jClient.Neo4jAppError.class,
-                    () -> client.importDocuments(null)
+                Neo4jClient.Neo4jAppError.class,
+                () -> client.importDocuments(null)
             ).getMessage()).isEqualTo(expectedMsg);
         }
 
@@ -110,18 +115,20 @@ public class Neo4jClientTest {
         public void test_import_documents_should_parse_app_error_with_trace() {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents",
-                    (context) -> {
-                        String jsonError = TestUtils.makeJsonHttpError("someTitle", "someErrorDetail", "sometrace here");
-                        return new Payload("application/json", jsonError).withCode(500);
-                    })
+                (context) -> {
+                    String jsonError = TestUtils.makeJsonHttpError("someTitle", "someErrorDetail",
+                        "sometrace here");
+                    return new Payload("application/json", jsonError).withCode(500);
+                })
             );
             // When/Then
 
             String expectedMsg = new Neo4jClient.Neo4jAppError(
-                new HttpUtils.HttpError("someTitle", "someErrorDetail", "sometrace here")).getMessage();
+                new HttpUtils.HttpError("someTitle", "someErrorDetail",
+                    "sometrace here")).getMessage();
             assertThat(assertThrowsExactly(
-                    Neo4jClient.Neo4jAppError.class,
-                    () -> client.importDocuments(null)
+                Neo4jClient.Neo4jAppError.class,
+                () -> client.importDocuments(null)
             ).getMessage()).isEqualTo(expectedMsg);
         }
 
@@ -131,8 +138,10 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.post("/named-entities", this::mockImport));
             // When
-            org.icij.datashare.Objects.IncrementalImportRequest body =new org.icij.datashare.Objects.IncrementalImportRequest(null);
-            org.icij.datashare.Objects.IncrementalImportResponse res = client.importNamedEntities(body);
+            org.icij.datashare.Objects.IncrementalImportRequest body =
+                new org.icij.datashare.Objects.IncrementalImportRequest(null);
+            org.icij.datashare.Objects.IncrementalImportResponse res =
+                client.importNamedEntities(body);
             // Then
             assertThat(res.nToInsert).isEqualTo(3);
             assertThat(res.nInserted).isEqualTo(3);
@@ -142,12 +151,16 @@ public class Neo4jClientTest {
         public void test_should_import_named_entities_with_query() {
             // Given
             neo4jApp.configure(routes -> routes.post("/named-entities", this::mockImport));
-            HashMap<String, Object> query = new HashMap<>() {{
-                put("key1", "value1");
-            }};
-            org.icij.datashare.Objects.IncrementalImportRequest body = new org.icij.datashare.Objects.IncrementalImportRequest(query);
+            HashMap<String, Object> query = new HashMap<>() {
+                {
+                    put("key1", "value1");
+                }
+            };
+            org.icij.datashare.Objects.IncrementalImportRequest body =
+                new org.icij.datashare.Objects.IncrementalImportRequest(query);
             // When
-            org.icij.datashare.Objects.IncrementalImportResponse res = client.importNamedEntities(body);
+            org.icij.datashare.Objects.IncrementalImportResponse res =
+                client.importNamedEntities(body);
             // Then
             assertThat(res.nToInsert).isEqualTo(3);
             assertThat(res.nInserted).isEqualTo(1);
