@@ -2,20 +2,23 @@ package org.icij.datashare;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.HashMap;
 
 public class Objects {
     static class IncrementalImportResponse {
-
+        //CHECKSTYLE.OFF: MemberName
         public final long nToInsert;
         public final long nInserted;
+        //CHECKSTYLE.ON: MemberName
 
+        //CHECKSTYLE.OFF: ParameterName
         @JsonCreator
-        IncrementalImportResponse(@JsonProperty("nToInsert") long nToInsert, @JsonProperty("nInserted") long nInserted) {
+        IncrementalImportResponse(@JsonProperty("nToInsert") long nToInsert,
+                                  @JsonProperty("nInserted") long nInserted) {
             this.nToInsert = nToInsert;
             this.nInserted = nInserted;
         }
+        //CHECKSTYLE.ON: ParameterName
     }
 
     static class IncrementalImportRequest {

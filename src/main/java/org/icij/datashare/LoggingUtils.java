@@ -1,5 +1,11 @@
 package org.icij.datashare;
 
+import java.net.SocketAddress;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.concurrent.Callable;
 import org.graylog2.syslog4j.server.SyslogServer;
 import org.graylog2.syslog4j.server.SyslogServerEventIF;
 import org.graylog2.syslog4j.server.SyslogServerIF;
@@ -10,17 +16,27 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 
-import java.net.SocketAddress;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.concurrent.Callable;
-
 public class LoggingUtils {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggingUtils.class);
 
+    static Object lazy(Callable<?> callable) {
+        return new Object() {
+            @Override
+            public String toString() {
+                try {
+                    Object result = callable.call();
+                    if (result == null) {
+                        return "null";
+                    }
+
+                    return result.toString();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
 
     public enum SyslogServerSingleton implements AutoCloseable {
         SERVER_INSTANCE;
@@ -69,7 +85,8 @@ public class LoggingUtils {
 
         @Override
         public void close() {
-            // Note: this will close the server for all clients... this method is meant to be called when the app closes
+            // Note: this will close the server for all clients... this method is meant to be
+            // called when the app closes
             syslogServer.getThread().interrupt();
             syslogServer.shutdown();
         }
@@ -81,19 +98,10 @@ public class LoggingUtils {
         private final String splitChar;
         private final String baseLoggerName;
 
-        private static class SyslogMessage {
-            public String loggerName;
-            public String content;
-
-            public SyslogMessage(String loggerName, String content) {
-                this.loggerName = loggerName;
-                this.content = content;
-            }
-        }
-
         public SyslogMessageHandler(String baseLoggerName, String facility, String splitChar) {
             if (!facility.toLowerCase().startsWith("local")) {
-                throw new IllegalArgumentException("Expected local facility, found \"" + facility + "\"");
+                throw new IllegalArgumentException(
+                    "Expected local facility, found \"" + facility + "\"");
             }
             int facilityAsInt = SyslogUtility.getFacility(facility);
             if (facilityAsInt < 0) {
@@ -101,25 +109,31 @@ public class LoggingUtils {
             }
             this.facility = facilityAsInt;
             if (splitChar.length() > 1) {
-                throw new IllegalArgumentException("Expected splitChar to be of length 1 in order to reduce overhead, found \"" + splitChar + "\"");
+                throw new IllegalArgumentException(
+                    "Expected splitChar to be of length 1 in order to reduce overhead, found \""
+                        + splitChar
+                        + "\"");
             }
-            this.baseLoggerName  = baseLoggerName;
+            this.baseLoggerName = baseLoggerName;
             this.splitChar = splitChar;
         }
 
         @Override
-        public void event(Object session, SyslogServerIF syslogServer, SocketAddress socketAddress, SyslogServerEventIF event) {
+        public void event(Object session, SyslogServerIF syslogServer, SocketAddress socketAddress,
+                          SyslogServerEventIF event) {
             this.parseMessage(event).ifPresent(syslogMsg -> {
                 String loggerName = baseLoggerName + "." + syslogMsg.loggerName;
                 LoggerFactory.getLogger(loggerName)
-                        .atLevel(Level.valueOf(SyslogUtility.getLevelString(event.getLevel())))
-                        .log(syslogMsg.content);
+                    .atLevel(Level.valueOf(SyslogUtility.getLevelString(event.getLevel())))
+                    .log(syslogMsg.content);
             });
         }
 
         @Override
-        public void exception(Object session, SyslogServerIF syslogServer, SocketAddress socketAddress, Exception exception) {
-            LOGGER.error("Exception thrown while reading from syslog handler: {}", lazy(exception::getMessage));
+        public void exception(Object session, SyslogServerIF syslogServer,
+                              SocketAddress socketAddress, Exception exception) {
+            LOGGER.error("Exception thrown while reading from syslog handler: {}",
+                lazy(exception::getMessage));
         }
 
         @Override
@@ -129,7 +143,8 @@ public class LoggingUtils {
         }
 
         @Override
-        public void sessionClosed(Object session, SyslogServerIF syslogServer, SocketAddress socketAddress, boolean timeout) {
+        public void sessionClosed(Object session, SyslogServerIF syslogServer,
+                                  SocketAddress socketAddress, boolean timeout) {
             LOGGER.trace("Closing syslog handler session {}", session);
         }
 
@@ -162,27 +177,24 @@ public class LoggingUtils {
         }
 
         @Override
-        public String toString(){
-            return  this.getClass().getName() + "(facility=" + this.facility + ", splitChar=\"" + this.splitChar + "\")";
+        public String toString() {
+            return this.getClass().getName()
+                + "(facility="
+                + this.facility
+                + ", splitChar=\""
+                + this.splitChar
+                + "\")";
         }
 
-    }
+        private static class SyslogMessage {
+            public String loggerName;
+            public String content;
 
-    static Object lazy(Callable<?> callable) {
-        return new Object() {
-            @Override
-            public String toString() {
-                try {
-                    Object result = callable.call();
-                    if (result == null) {
-                        return "null";
-                    }
-
-                    return result.toString();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
+            public SyslogMessage(String loggerName, String content) {
+                this.loggerName = loggerName;
+                this.content = content;
             }
-        };
+        }
+
     }
 }

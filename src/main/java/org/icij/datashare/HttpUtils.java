@@ -15,9 +15,9 @@ public class HttpUtils {
 
         @JsonCreator
         HttpError(
-                @JsonProperty("title") String title,
-                @JsonProperty("detail") String detail,
-                @JsonProperty("trace") String trace
+            @JsonProperty("title") String title,
+            @JsonProperty("detail") String detail,
+            @JsonProperty("trace") String trace
         ) {
             super(title + "\nDetail: " + detail);
             this.title = title;
