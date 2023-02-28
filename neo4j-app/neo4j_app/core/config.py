@@ -35,6 +35,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_log_level: str = "INFO"
     neo4j_app_name: str = "neo4j app"
     neo4j_app_port: int = 8080
+    neo4j_connection_timeout: float = 5.0
     neo4j_host: str = "127.0.0.1"
     neo4j_import_dir: str
     neo4j_import_prefix: Optional[str] = None
@@ -119,7 +120,9 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
 
     def to_neo4j_driver(self) -> neo4j.AsyncDriver:
         # TODO: forward the creds and the rest of the config...
-        driver = neo4j.AsyncGraphDatabase.driver(self.neo4j_uri)
+        driver = neo4j.AsyncGraphDatabase.driver(
+            self.neo4j_uri, connection_timeout=self.neo4j_connection_timeout
+        )
         return driver
 
     def to_es_client(self) -> ESClient:

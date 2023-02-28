@@ -8,6 +8,7 @@ from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.imports import import_documents, import_named_entities
 from neo4j_app.core.objects import IncrementalImportResponse
 from neo4j_app.tests.conftest import (
+    NEO4J_IMPORT_PREFIX,
     NEO4J_TEST_IMPORT_DIR,
     index_docs,
     index_named_entities,
@@ -77,6 +78,7 @@ async def test_import_documents(
         neo4j_session=neo4j_session,
         es_client=es_client,
         neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
+        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
         query=query,
         doc_type_field=doc_type_field,
         keep_alive="10s",
@@ -135,6 +137,7 @@ async def test_import_named_entities(
         neo4j_session=neo4j_session,
         es_client=es_client,
         neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
+        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
         query=query,
         doc_type_field=doc_type_field,
         keep_alive="10s",

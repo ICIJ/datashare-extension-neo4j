@@ -1,5 +1,6 @@
 # pylint: disable=redefined-outer-name
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, Tuple
 
@@ -22,6 +23,7 @@ from neo4j_app.core.utils.pydantic import BaseICIJModel
 
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
 NEO4J_TEST_IMPORT_DIR = DATA_DIR.joinpath("neo4j", "import")
+NEO4J_IMPORT_PREFIX = Path(os.sep).joinpath(".neo4j", "import")
 NEO4J_TEST_PORT = 7687
 _INDEX_BODY = {
     "mappings": {
@@ -55,6 +57,7 @@ def test_client_session(
         es_default_page_size=5,
         neo4j_project="test-datashare-project",
         neo4j_import_dir=str(NEO4J_TEST_IMPORT_DIR),
+        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
         neo4j_app_host="127.0.0.1",
         neo4j_port=NEO4J_TEST_PORT,
     )

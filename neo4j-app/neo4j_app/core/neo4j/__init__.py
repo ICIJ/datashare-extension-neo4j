@@ -56,6 +56,8 @@ def make_neo4j_import_file(
             if neo4j_import_prefix is None:
                 neo4j_import_prefix = Path(".")
             neo4j_import_path = Path(neo4j_import_prefix).joinpath(neo4j_import_path)
+            # Make import file accessible to neo4j
+            os.chmod(import_file.name, 0o777)
             yield import_file, neo4j_import_path
     finally:
         if import_file is not None:
