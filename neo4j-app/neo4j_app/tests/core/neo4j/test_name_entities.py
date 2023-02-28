@@ -7,6 +7,7 @@ from neo4j_app.core.elasticsearch.to_neo4j import (
 from neo4j_app.core.neo4j import make_neo4j_import_file, write_neo4j_csv
 from neo4j_app.core.neo4j.named_entities import import_named_entities_from_csv_tx
 from neo4j_app.tests.conftest import (
+    NEO4J_IMPORT_PREFIX,
     NEO4J_TEST_IMPORT_DIR,
     make_named_entities,
 )
@@ -30,7 +31,8 @@ async def test_import_named_entities(
     n_created_first = 0
     if n_existing:
         with make_neo4j_import_file(
-            neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+            neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
+            neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
         ) as (
             f,
             neo4j_path,
@@ -43,7 +45,8 @@ async def test_import_named_entities(
             )
             n_created_first = summary.counters.nodes_created
     with make_neo4j_import_file(
-        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
+        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
     ) as (
         f,
         neo4j_path,
@@ -91,7 +94,8 @@ CREATE (n:NamedEntity {id: 'named-entity-0', offsets: [1, 2], documentId: 'doc-0
         "offsets",
     ]
     with make_neo4j_import_file(
-        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
+        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
     ) as (
         f,
         neo4j_path,

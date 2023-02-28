@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol
 
@@ -138,8 +137,6 @@ async def _es_to_neo4j_import(
     with make_neo4j_import_file(
         neo4j_import_dir=neo4j_import_dir, neo4j_import_prefix=neo4j_import_prefix
     ) as (f, neo4j_import_path):
-        # Make import file accessible to neo4j
-        os.chmod(f.name, 0o777)
         writer = get_neo4j_csv_writer(f, header=header)
         writer.writeheader()
         f.flush()

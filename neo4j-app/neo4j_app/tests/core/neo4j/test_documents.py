@@ -5,11 +5,15 @@ import pytest
 from neo4j.time import DateTime
 
 from neo4j_app.core.elasticsearch.to_neo4j import es_to_neo4j_doc
+from neo4j_app.core.neo4j import make_neo4j_import_file, write_neo4j_csv
 from neo4j_app.core.neo4j.documents import (
     import_documents_from_csv_tx,
 )
-from neo4j_app.core.neo4j import make_neo4j_import_file, write_neo4j_csv
-from neo4j_app.tests.conftest import NEO4J_TEST_IMPORT_DIR, make_docs
+from neo4j_app.tests.conftest import (
+    NEO4J_IMPORT_PREFIX,
+    NEO4J_TEST_IMPORT_DIR,
+    make_docs,
+)
 
 
 @pytest.mark.asyncio
@@ -65,7 +69,8 @@ async def test_import_documents(
     n_created_first = 0
     if n_existing:
         with make_neo4j_import_file(
-            neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+            neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
+            neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
         ) as (
             f,
             neo4j_path,
@@ -78,7 +83,8 @@ async def test_import_documents(
             )
             n_created_first = summary.counters.nodes_created
     with make_neo4j_import_file(
-        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
+        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
     ) as (
         f,
         neo4j_path,
@@ -126,7 +132,8 @@ CREATE (n:Document {id: 'doc-0', contentType: 'someContentType'})
         "path",
     ]
     with make_neo4j_import_file(
-        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR, neo4j_import_prefix=None
+        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
+        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
     ) as (
         f,
         neo4j_path,
