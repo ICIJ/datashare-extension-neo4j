@@ -11,11 +11,18 @@ jobs:
     executor: docker-machine
     steps:
       - checkout
-      # TODO: restore the cache by sharing maven and pypi cache between the machine and the docker
       - run:
           name: Build
           command: ./neo4j docker_build
-      # TODO: save the cache
+
+  # We build test services to benefit from caching, using docker-compose up directly doesn't seem to benefit from it
+  build-test-services:
+    executor: docker-machine
+    steps:
+      - checkout
+      - run:
+          name: Build external services
+          command: ./neo4j docker_build_test_services
 
   test-java:
     executor: docker-machine
@@ -37,7 +44,6 @@ jobs:
       - run:
           name: Python format tests
           command: ./neo4j docker_test -p neo4j_app_format
-      # TODO: this step is long....
       - run:
           name: Starting tests services
           command: ./neo4j start_all_test_services
@@ -50,10 +56,11 @@ workflows:
   build_and_test:
     jobs:
       - build
+      - build-test-services
       - test-java:
           requires:
             - build
-
       - test-python:
           requires:
             - build
+            - build-test-services

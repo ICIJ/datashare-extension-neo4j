@@ -147,6 +147,12 @@ function _commands() {
         _docker_build base
     }
 
+    function docker_build_test_services() {
+        _print_step "Building test services images..."
+        _docker_build neo4j
+        _docker_build elasticsearch
+    }
+
     function docker_test() {
         if _should_run_project "neo4j_app"; then
             _docker_build base-python
