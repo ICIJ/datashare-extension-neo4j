@@ -3,13 +3,18 @@ services:
 
   test-elasticsearch:
     container_name: test-elasticsearch
-    image: "docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION}"
-    platform: "${DOCKER_PLATFORM:+$DOCKER_PLATFORM}"
+    build:
+      context: .
+      args:
+        DOCKER_PLATFORM: $DOCKER_PLATFORM
+        ELASTICSEARCH_VERSION: $ELASTICSEARCH_VERSION
+      dockerfile: Dockerfile
+      target: elasticsearch
     environment:
       - discovery.type=single-node
-      - "http.port=${ELASTICSEARCH_PORT}"
+      - http.port=${ELASTICSEARCH_PORT}
     ports:
-      - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
+      - ${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}
     healthcheck:
       test: [ "CMD", "curl", "http://localhost:$ELASTICSEARCH_PORT" ]
       interval: 3s
@@ -18,6 +23,7 @@ services:
       start_period: 20s
 
   test-neo4j:
+    container_name: test-neo4j
     build:
       context: .
       args:
@@ -25,7 +31,6 @@ services:
         NEO4J_VERSION: ${NEO4J_VERSION}
       dockerfile: Dockerfile
       target: neo4j
-    container_name: test-neo4j
     environment:
       NEO4J_AUTH: none
       NEO4JLABS_PLUGINS: '["apoc"]'

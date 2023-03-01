@@ -1,6 +1,8 @@
-# Global build args with placeholders in case they are not specified from outside
+# Global build args with placeholders in case they are not specified from outside (value don't matter much)
+ARG ELASTICSEARCH_VERSION=7.17.9
 ARG NEO4J_VERSION=4.4.17
 ARG NEO4J_IMAGE=neo4j
+ARG DOCKER_PLATFORM="linux/amd64"
 
 # Base image
 FROM phusion/baseimage:jammy-1.0.1 as base
@@ -56,3 +58,5 @@ ADD src $HOME/src
 FROM ${NEO4J_IMAGE}:${NEO4J_VERSION} as neo4j
 ADD scripts/neo4j_healthcheck /var/lib/neo4j
 RUN sed -i -- 's/dbms.directories.import=import/#dbms.directories.import=import/g' conf/neo4j.conf
+
+FROM --platform=$DOCKER_PLATFORM docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION} AS elasticsearch
