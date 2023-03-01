@@ -4,14 +4,14 @@ from fastapi import APIRouter, Depends, Request
 
 from neo4j_app.app.dependencies import es_client_dep, neo4j_session_dep
 from neo4j_app.core import AppConfig
-from neo4j_app.core.imports import import_documents
 from neo4j_app.core.elasticsearch import ESClient
+from neo4j_app.core.imports import import_documents
 from neo4j_app.core.objects import IncrementalImportRequest, IncrementalImportResponse
 
 DOCUMENT_TAG = "Documents"
 _DOC_IMPORT_SUM = "Import documents from elasticsearch to neo4j"
 _DOC_IMPORT_DESC = """Documents are searched for in `elasticsearch` potentially using \
-the provided query they are then upserted into the `neo4j` database.
+the provided query they are then upserted into the `neo4j` database. 
 
 They query must be an content of the `query` field of an elasticsearch query. When \
 provided it will combined into `bool` query in order to restrict the provided query to \

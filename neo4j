@@ -3,10 +3,14 @@
 function _export_global_variables() {
     export ROOT_DIR
     ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
-    export ES_VERSION
+    export DOCKER_HOME=/home/dev
     export PYTHON_APP_DIR="$ROOT_DIR/neo4j-app"
     export NEO4J_APP_BIN="neo4j_app"
     export ELASTICSEARCH_VERSION=7.17.9
+    DOCKER_UID="$(id -u)"
+    export DOCKER_UID
+    DOCKER_GID="$(id -g)"
+    export DOCKER_GID
     if [ -z "$_ELASTICSEARCH_PORT" ]; then
         export ELASTICSEARCH_PORT="9200"
     else
@@ -71,16 +75,21 @@ function _helpers() {
     function _docker_build() {
         local target
         target=$1
-        docker build --progress=plain --target "$target" -t "$target":latest "${@:2}" .
+        DOCKER_BUILDKIT=1 docker build --progress=plain \
+            --target "$target" \
+            -t "$target":latest \
+            "${@:2}" \
+            .
     }
 
     function _docker_run() {
-        docker run --network="host" "${@}"
+        docker run --mount type=bind,source="$ROOT_DIR"/.data/.cache,target="$DOCKER_HOME"/.cache \
+            --mount type=bind,source="$ROOT_DIR"/.data/.m2,target="$DOCKER_HOME"/.m2 \
+            --network="host" "${@}"
     }
 
     function _install_black() (
-        _poetry_shell
-        _pip_install install black==23.1.0
+        _pip_install black==23.1.0
     )
 
     function _install_pyinstaller() (
@@ -96,7 +105,7 @@ function _helpers() {
     }
 
     function _pip_install() (
-        python -m pip install "$@"
+        poetry run python3 -m pip install "$@"
     )
 
     function _poetry_shell() {
@@ -113,7 +122,7 @@ function _helpers() {
     }
 
     function _pytest() {
-        poetry run python3 -m pytest --tb=long -vv --cache-clear -s "${@}"
+        poetry run python3 -m pytest --cache-clear -s "${@}"
     }
 
     function _should_run_project() {
@@ -156,11 +165,15 @@ function _commands() {
     function docker_test() {
         if _should_run_project "neo4j_app"; then
             _docker_build base-python
-            _docker_run --mount type=bind,source="$ROOT_DIR"/.data,target=/home/dev/.data \
+            _docker_run base-python:latest \
+                ./neo4j setup -p neo4j_app
+            _docker_run --mount type=bind,source="$ROOT_DIR"/.data/neo4j,target="$DOCKER_HOME"/.data/neo4j \
                 base-python:latest \
                 ./neo4j test -p neo4j_app
         elif _should_run_project "neo4j_app_format"; then
             _docker_build base-python
+            _docker_run base-python:latest \
+                ./neo4j setup -p neo4j_app
             _docker_run base-python:latest \
                 ./neo4j format_test_python
         elif _should_run_project "neo4j_extension"; then
@@ -194,6 +207,7 @@ function _commands() {
     }
 
     function format_test_java() {
+        _print_step "Testing java formatting..."
         cd "$ROOT_DIR"
         mvn validate
         if ! mvn checkstyle:check; then
@@ -203,12 +217,14 @@ Please check the README.md to see how to automatically format the code and fix"
     }
 
     function format_test_python() {
+        _print_step "Testing python formatting..."
         cd "$PYTHON_APP_DIR"
         _install_black
         if ! poetry run python3 -m black --config pyproject.toml --check .; then
             exit_with_message "Python project is not properly formatted.
 Please run ./neo4j format"
         fi
+        echo "Python format test succeeded !"
     }
 
     function install_poetry() (
@@ -234,6 +250,7 @@ Please run ./neo4j format"
 
             cd "$PYTHON_APP_DIR"
             poetry install --with dev
+            echo "Python setup succeeded !"
         else
             exit_with_message "Can't setup project $PROJECT"
         fi

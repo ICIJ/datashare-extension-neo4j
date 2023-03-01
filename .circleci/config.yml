@@ -28,19 +28,27 @@ jobs:
     executor: docker-machine
     steps:
       - checkout
-      # TODO: restore the cache by sharing maven and pypi cache between the machine and the docker
+      - restore_cache:
+          key: v1-deps-java-{{ checksum "pom.xml" }}
       - run:
           name: Java format tests
           command: ./neo4j docker_test -p neo4j_extension_format
       - run:
           name: Java tests
           command: ./neo4j docker_test -p neo4j_extension
+      - save_cache:
+          key: v1-deps-java-{{ checksum "pom.xml" }}
+          when: always
+          paths:
+            .data/.m2
 
   test-python:
     executor: docker-machine
     steps:
       - checkout
-      # TODO: restore the cache by sharing maven and pypi cache between the machine and the docker
+      # On the Python side reusing the older virtualenv will speedup the build
+      - restore_cache:
+          key: v1-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
       - run:
           name: Python format tests
           command: ./neo4j docker_test -p neo4j_app_format
@@ -50,6 +58,11 @@ jobs:
       - run:
           name: Python tests
           command: ./neo4j docker_test -p neo4j_app
+      - save_cache:
+          key: v1-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
+          when: always
+          paths:
+            .data/.cache
 
 workflows:
   version: 2
