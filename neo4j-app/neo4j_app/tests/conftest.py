@@ -12,9 +12,9 @@ from fastapi import APIRouter
 from neo4j import AsyncGraphDatabase
 from starlette.testclient import TestClient
 
+from neo4j_app.app.utils import create_app
 from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClient
-from neo4j_app.app.utils import create_app
 from neo4j_app.core.utils.pydantic import BaseICIJModel
 
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
