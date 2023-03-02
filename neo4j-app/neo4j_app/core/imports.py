@@ -29,7 +29,7 @@ from neo4j_app.core.neo4j.documents import (
 )
 from neo4j_app.core.neo4j.named_entities import import_named_entities_from_csv_tx
 from neo4j_app.core.objects import IncrementalImportResponse
-from neo4j_app.core.utils.logging import log_elapsed_time, log_elapsed_time_cm
+from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,6 @@ class ImportTransactionFunction(Protocol):
         ...
 
 
-@log_elapsed_time(logger, logging.INFO, "Imported documents in {elapsed_time} !")
 async def import_documents(
     *,
     query: Optional[Dict],
@@ -78,7 +77,6 @@ async def import_documents(
     return response
 
 
-@log_elapsed_time(logger, logging.INFO, "Imported named entities in {elapsed_time} !")
 async def import_named_entities(
     *,
     query: Optional[Dict],
@@ -140,14 +138,18 @@ async def _es_to_neo4j_import(
         writer = get_neo4j_csv_writer(f, header=header)
         writer.writeheader()
         f.flush()
-        n_to_insert = await es_client.write_concurrently_neo4j_csv(
-            query,
-            f,
-            header=header,
-            keep_alive=keep_alive,
-            concurrency=concurrency,
-            es_to_neo4j=es_to_neo4j,
-        )
+
+        with log_elapsed_time_cm(
+            logger, logging.DEBUG, "Exported ES query to neo4j csv in {elapsed_time} !"
+        ):
+            n_to_insert = await es_client.write_concurrently_neo4j_csv(
+                query,
+                f,
+                header=header,
+                keep_alive=keep_alive,
+                concurrency=concurrency,
+                es_to_neo4j=es_to_neo4j,
+            )
         with log_elapsed_time_cm(
             logger,
             logging.DEBUG,

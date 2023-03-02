@@ -26,7 +26,6 @@ from neo4j_app.core.elasticsearch.utils import (
     match_all,
 )
 from neo4j_app.core.neo4j import write_neo4j_csv
-from neo4j_app.core.utils.logging import log_elapsed_time
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +125,6 @@ class ESClient(AsyncElasticsearch):
             if pit_id is not None:
                 await self.close_point_in_time(body={ID: pit_id})
 
-    @log_elapsed_time(
-        logger, logging.DEBUG, "Exported ES query to neo4j csv in {elapsed_time} !"
-    )
     async def write_concurrently_neo4j_csv(
         self,
         query: Optional[Mapping[str, Any]],

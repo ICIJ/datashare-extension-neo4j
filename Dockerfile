@@ -9,10 +9,6 @@ FROM phusion/baseimage:jammy-1.0.1 as base
 USER $DOCKER_UID:$DOCKER_GID
 ENV HOME="/home/dev"
 RUN add-apt-repository --yes ppa:deadsnakes/ppa
-
-# TODO: handle user here...
-
-# TODO: reduce this to the minimum...
 RUN --mount=type=cache,target=/var/cache/apt  \
     apt-get -y update && \
     apt-get -y install \
