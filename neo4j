@@ -162,7 +162,7 @@ function _helpers() {
     function _print_step() {
         printf "\n##### -> %s\n" "$1"
     }
-    
+
     function _print_version() (
         cat "$ROOT_DIR"/version
     )
@@ -235,7 +235,7 @@ function _helpers() {
 }
 
 function _commands() {
-    
+
     function binary_name() {
         if _should_run_project "neo4j_app"; then
             _make_neoj_binary_name
@@ -377,6 +377,10 @@ Please run ./neo4j format"
         fi
     }
 
+    function print_version() (
+        cat "$ROOT_DIR"/version
+    )
+
     function run() {
         if _should_run_project "neo4j_app"; then
             # TODO: maybe we should run the binary we've copied to the java dir
@@ -396,6 +400,18 @@ Please run ./neo4j format"
         cd "$PYTHON_APP_DIR"
         _pip_install tomlkit==0.11.6
         poetry run python3 "$ROOT_DIR"/scripts/update_versions.py
+    }
+
+    function set_version() {
+        # Update root file
+        local file_version
+        file_version=$1
+        if [ -z "$file_version" ]; then exit_with_message "Empty version !"; fi
+        echo "$file_version" > "$ROOT_DIR"/version
+
+        cd "$PYTHON_APP_DIR"
+        _pip_install tomlkit==0.11.6
+        poetry run python "$ROOT_DIR"/scripts/update_versions.py
     }
 
     function setup() {
@@ -492,6 +508,29 @@ Please run ./neo4j format"
         else
             _exit_with_message "Can't update manifest for $PROJECT"
         fi
+    }
+
+    function test_release_version() {
+        local file_version
+        file_version=$(head -n 1 "$ROOT_DIR"/version)
+
+        # Source version
+        local source_version
+        source_version=$("$ROOT_DIR"/neo4j --version)
+        if ! [ "$source_version" = "$file_version" ]; then exit_with_message "Source version \"$source_version\" differs from \"$file_version\""; fi
+
+        # Java version
+        local java_version
+        java_version=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+        if ! [ "$java_version" = "$file_version" ]; then exit_with_message "Java version \"$java_version\" differs from \"$file_version\""; fi
+
+        # Python version
+        cd "$ROOT_DIR"/neo4j-app || exit
+        local python_version
+        python_version=$(poetry version -s)
+        if ! [ "$python_version" = "$file_version" ]; then exit_with_message "Python version \"$python_version\" differs from \"$file_version\""; fi
+
+        echo "All versions match !"
     }
 }
 
