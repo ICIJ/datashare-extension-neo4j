@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 @Prefix("/api/neo4j")
 public class Neo4jResource implements AutoCloseable {
-    private static final String NEO4J_APP_BIN = "neo4j_app";
+    private static final String NEO4J_APP_BIN = "neo4j-app";
     private static final String SYSLOG_SPLIT_CHAR = "@";
 
     // All these properties have to start with "neo4j" in order to be properly filtered
