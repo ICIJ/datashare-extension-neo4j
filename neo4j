@@ -53,12 +53,12 @@ function _helpers() {
         local site_packages_path
         site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 
-        pyinstaller neo4j_app/run/run.py \
+        PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
-            -F -y \
+            -F \
+            -y \
             --name $NEO4J_APP_BIN \
             --specpath "$app_dir" \
-            --log-level=DEBUG \
             -p neo4j_app \
             -p "$site_packages_path"
 
