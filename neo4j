@@ -71,6 +71,9 @@ function _helpers() {
         local app_bin
         app_bin=$(_make_neoj_binary_name)
 
+        local app_bin
+        app_bin=$(_make_binary_name $BIN_ARCHI $BIN_PLATFORM "$(print_version)")
+
         PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
             -F \
@@ -257,7 +260,8 @@ function _commands() {
             fi
         elif _should_run_project "neo4j_extension"; then
             _print_step "Building the Python app first"
-            _build_neo4j_app
+            local bin_name
+            bin_name=$(_build_neo4j_app)
 
             _print_step "Copying neo4j app binary to java extension"
             local java_resources
@@ -407,7 +411,7 @@ Please run ./neo4j format"
         local file_version
         file_version=$1
         if [ -z "$file_version" ]; then exit_with_message "Empty version !"; fi
-        echo "$file_version" > "$ROOT_DIR"/version
+        echo "$file_version" >"$ROOT_DIR"/version
 
         cd "$PYTHON_APP_DIR"
         _pip_install tomlkit==0.11.6
