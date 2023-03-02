@@ -38,8 +38,9 @@ ADD neo4j $HOME/
 
 # Python base (we don't copy java assets not to destroy the cache in case of java changes)
 FROM base as base-python
-ADD neo4j-app $HOME/neo4j-app
 ADD qa/python $HOME/qa/python
+ADD version $HOME
+ADD neo4j-app $HOME/neo4j-app
 
 # Java base (we don't copy python assets not to destroy the cache in case of python changes)
 FROM base as base-java
@@ -47,9 +48,16 @@ FROM base as base-java
 RUN mkdir $HOME/.m2 \
     &&sed -i -- "s@</settings>@<localRepository>$HOME/.m2</localRepository></settings>@g" \
         $(mvn --version | grep "Maven home" |sed "s@Maven home: *@@g")/conf/settings.xml
-ADD pom.xml $HOME
 ADD qa/java $HOME/qa/java
+ADD pom.xml $HOME
+ADD version $HOME
 ADD src $HOME/src
+
+FROM base as base-script
+ADD neo4j-app/pyproject.toml $HOME/neo4j-app/pyproject.toml
+ADD pom.xml $HOME
+ADD version $HOME
+ADD scripts $HOME/scripts
 
 # We use placeholders here
 FROM ${NEO4J_IMAGE}:${NEO4J_VERSION} as neo4j
