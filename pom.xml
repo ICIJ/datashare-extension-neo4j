@@ -1,12 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version='1.0' encoding='UTF-8'?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.icij.datashare</groupId>
     <artifactId>datashare-extension-neo4j</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.0-pre</version>
     <packaging>jar</packaging>
 
     <name>neo4j datashare extension</name>
@@ -91,7 +89,7 @@
             </exclusions>
         </dependency>
 
-        <!-- Logging -->
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
@@ -108,7 +106,7 @@
             <version>${jna.version}</version>
         </dependency>
 
-        <!-- Guice -->
+
         <dependency>
             <groupId>com.google.inject</groupId>
             <artifactId>guice</artifactId>
@@ -120,7 +118,7 @@
             <version>${guice.version}</version>
         </dependency>
 
-        <!-- Test dependencies -->
+
         <dependency>
             <groupId>com.github.CodeStory</groupId>
             <artifactId>fluent-rest-test</artifactId>
@@ -183,6 +181,10 @@
             </plugin>
             <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <artifactId>maven-help-plugin</artifactId>
+                <version>3.2.0</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

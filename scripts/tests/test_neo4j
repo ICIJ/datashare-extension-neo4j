@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+function _export_global_variables() {
+    local root
+    root="$(cd "$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")" >/dev/null && pwd)"
+    source "$root"/neo4j
+}
+
+function _tests() {
+
+    function test_update_version() {
+        _print_step "Testing ./neo4j set_version"...
+        # Given
+        local new_version
+        new_version="99999999"
+
+        # When
+        "$ROOT_DIR"/neo4j set_version $new_version
+
+        # Then
+        "$ROOT_DIR"/neo4j test -p release_version
+    }
+}
+
+function _main() {
+    set -e
+    # Export variables
+    _tests
+    _export_global_variables
+
+    local test_funcs
+    test_funcs=$(declare -f | sed -nr 's@^\s*function\s+(test_[a-zA-Z0-9_]+).*$@\1@p')
+    for f in $test_funcs; do
+        $f
+    done
+    echo "All tests succeeded !"
+}
+
+_main "$@"
