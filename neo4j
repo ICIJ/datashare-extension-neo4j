@@ -5,7 +5,7 @@ function _export_global_variables() {
     ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
     export DOCKER_HOME=/home/dev
     export PYTHON_APP_DIR="$ROOT_DIR/neo4j-app"
-    export NEO4J_APP_BIN="neo4j_app"
+    export NEO4J_APP_BIN="neo4j-app"
     export ELASTICSEARCH_VERSION=7.17.9
     DOCKER_UID="$(id -u)"
     export DOCKER_UID
@@ -18,16 +18,27 @@ function _export_global_variables() {
     fi
     export NEO4J_VERSION=4.4.17
     export TEST_APP_PORT=8002
-    local archi
-    archi="$(arch)"
-    if [ "$archi" == "aarch64" ] || [ "$archi" == "x86_64" ]; then
+    BIN_ARCHI="$(arch)"
+    if [ "$BIN_ARCHI" == "x86_64" ]; then
         export DOCKER_PLATFORM="linux/amd64"
         export NEO4J_IMAGE="neo4j"
-    elif [ "$archi" == "arm64" ]; then
+    elif [ "$BIN_ARCHI" == "aarch64" ] || [ "$BIN_ARCHI" == "arm64" ]; then
+        # Renormalize the BIN_ARCHI name
+        BIN_ARCHI="arm64"
         export DOCKER_PLATFORM="linux/arm64"
         export NEO4J_IMAGE="arm64v8/neo4j"
     else
-        exit_with_message "Unsupported architecture $(arch)"
+        exit_with_message "Unsupported architecture $BIN_ARCHI"
+    fi
+    export BIN_ARCHI
+
+    PLATFORM=$(uname)
+    if [ "$PLATFORM" == "Darwin" ]; then
+        export BIN_PLATFORM="darwin"
+    elif [ "$PLATFORM" == "Linux" ]; then
+        export BIN_PLATFORM="unknown-linux"
+    else
+        exit_with_message "Unsupported platform $PLATFORM"
     fi
 }
 
@@ -41,7 +52,6 @@ function _helpers() {
     }
 
     function _build_neo4j_app() {
-        _print_step "Building Python app executable"
         cd "$ROOT_DIR"/neo4j-app
 
         _poetry_shell
@@ -53,18 +63,20 @@ function _helpers() {
         local site_packages_path
         site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 
+        local app_bin
+        app_bin=$(_make_binary_name $BIN_ARCHI $BIN_PLATFORM "$(print_version)")
+
         PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
             -F \
             -y \
-            --name $NEO4J_APP_BIN \
+            --name "$app_bin" \
             --specpath "$app_dir" \
             -p neo4j_app \
             -p "$site_packages_path"
 
-        local app_bin
-        app_bin="$app_dir/$NEO4J_APP_BIN"
-        chmod +x "$app_bin"
+        chmod +x "$app_dir/$app_bin"
+        echo "$app_bin"
     }
 
     function _docker_build() {
@@ -92,11 +104,24 @@ function _helpers() {
         pip install pyinstaller==5.7.0
     )
 
-    function join_by {
+    function _join_by {
         local d=${1-} f=${2-}
         if shift 2; then
             printf %s "$f" "${@/#/$d}"
         fi
+    }
+
+    function _make_binary_name() {
+        local archi
+        archi=$1
+        local platform
+        platform=$2
+        local version
+        version=$3
+        if [ -z "$archi" ]; then exit_with_message "Empty architecture !"; fi
+        if [ -z "$platform" ]; then exit_with_message "Empty platform name !"; fi
+        if [ -z "$version" ]; then exit_with_message "Empty version !"; fi
+        echo "$NEO4J_APP_BIN-$archi-$platform-$version"
     }
 
     function _pip_install() (
@@ -128,21 +153,43 @@ function _helpers() {
         fi
     }
 
+    function _update_manifest() {
+        local asset_name
+        asset_name=$1
+        if [ -z "$asset_name" ]; then exit_with_message "Can't update manifest with an empty asset name !"; fi
+
+        cd "$ROOT_DIR"/bins
+        local manifest_path
+        manifest_path="$ROOT_DIR"/src/main/resources/manifest.txt
+        echo "$(shasum -a 256 "$asset_name")" >>$manifest_path
+        echo "Updated manifest for $asset_name !"
+    }
+
 }
 
 function _commands() {
 
     function build() {
         if _should_run_project "neo4j_app"; then
-            _build_neo4j_app
+            _print_step "Building Python app executable"
+            local asset_name
+            asset_name=$(_build_neo4j_app)
+            if [ -n "$MANIFEST_FLAG" ]; then
+                echo "Updating the manifest with new asset SHA-256..."
+                _update_manifest $asset_name
+            fi
         elif _should_run_project "neo4j_extension"; then
             _print_step "Building the Python app first"
-            _build_neo4j_app
+            local bin_name
+            bin_name=$(_build_neo4j_app)
 
             _print_step "Copying neo4j app binary to java extension"
             local java_resources
             java_resources=$ROOT_DIR/src/main/resources
-            cp "$app_bin" "$java_resources"
+
+            # TODO: for now we rename the platform specific binary into a generic one which loaded by the extension
+            #  later the extension will DL binaries
+            cp "$ROOT_DIR"/bins/"$bin_name" "$java_resources"/$NEO4J_APP_BIN
             echo Copied binary from "$app_bin" to "$java_resources"
 
             _print_step "Compiling the java extension"
@@ -254,7 +301,7 @@ Please run ./neo4j format"
         local file_version
         file_version=$1
         if [ -z "$file_version" ]; then exit_with_message "Empty version !"; fi
-        echo "$file_version" > "$ROOT_DIR"/version
+        echo "$file_version" >"$ROOT_DIR"/version
 
         cd "$PYTHON_APP_DIR"
         _pip_install tomlkit==0.11.6
@@ -360,6 +407,7 @@ function _main() {
     PROJECTS=
     _ELASTICSEARCH_PORT=
     PRINT_VERSION=
+    MANIFEST_FLAG=
 
     # Define sub projects here
     PROJECTS=(
@@ -384,7 +432,7 @@ function _main() {
         elif _array_contains "$project" "${PROJECTS[@]}"; then
             PROJECT=$project
         else
-            exit_with_message "Unknown project \"$project\", available projects: $(join_by "," "${PROJECTS[@]}")"
+            exit_with_message "Unknown project \"$project\", available projects: $(_join_by "," "${PROJECTS[@]}")"
         fi
     }
 
@@ -403,6 +451,8 @@ function _main() {
                     elif [[ "$TYPE_ARG" == "--elasticsearch-port" ]]; then
                         _ELASTICSEARCH_PORT=$VALUE_ARG
                         SKIP_NEXT_TYPE_ARG=true
+                    elif [[ $TYPE_ARG = "--manifest" ]]; then
+                        MANIFEST_FLAG=1
                     fi
                 else
                     unset SKIP_NEXT_TYPE_ARG
@@ -417,7 +467,7 @@ function _main() {
     }
 
     set -e
-    set +o pipefail  # This is for CircleCI
+    set +o pipefail # This is for CircleCI
     # Define helpers and commands
     _helpers
     _commands
@@ -427,8 +477,7 @@ function _main() {
 
     # Export variables
     _export_global_variables
-    if [ "${BASH_SOURCE[0]}" -ef "$0" ]
-    then
+    if [ "${BASH_SOURCE[0]}" -ef "$0" ]; then
         if [[ $# == 0 ]]; then
             printf "Error: No command specified\n\n" && exit 1
         # If we manage to find a command previously declared with _commands, run it
