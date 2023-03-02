@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
@@ -7,6 +8,9 @@ from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.imports import import_documents
 from neo4j_app.core.objects import IncrementalImportRequest, IncrementalImportResponse
+from neo4j_app.core.utils.logging import log_elapsed_time_cm
+
+logger = logging.getLogger(__name__)
 
 DOCUMENT_TAG = "Documents"
 _DOC_IMPORT_SUM = "Import documents from elasticsearch to neo4j"
@@ -68,16 +72,21 @@ def documents_router() -> APIRouter:
     ) -> IncrementalImportResponse:
         neo4j_sess = request.state.neo4j_session
         config: AppConfig = request.app.state.config
-        return await import_documents(
-            query=payload.query,
-            neo4j_session=neo4j_sess,
-            es_client=es_client,
-            neo4j_import_dir=Path(config.neo4j_import_dir),
-            neo4j_import_prefix=config.neo4j_import_prefix,
-            keep_alive=config.es_keep_alive,
-            doc_type_field=config.es_doc_type_field,
-            # TODO: take this one from the payload
-            concurrency=es_client.max_concurrency,
-        )
+
+        with log_elapsed_time_cm(
+            logger, logging.INFO, "Imported documents in {elapsed_time} !"
+        ):
+            res = await import_documents(
+                query=payload.query,
+                neo4j_session=neo4j_sess,
+                es_client=es_client,
+                neo4j_import_dir=Path(config.neo4j_import_dir),
+                neo4j_import_prefix=config.neo4j_import_prefix,
+                keep_alive=config.es_keep_alive,
+                doc_type_field=config.es_doc_type_field,
+                # TODO: take this one from the payload
+                concurrency=es_client.max_concurrency,
+            )
+        return res
 
     return router
