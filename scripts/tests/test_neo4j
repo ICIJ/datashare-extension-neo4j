@@ -8,18 +8,18 @@ function _export_global_variables() {
 
 function _tests() {
 
-    function test_is_publishable() {
-        _print_step "Testing _is_publishable"...
+    function test_is_commit_publishable() {
+        _print_step "Testing _is_commit_publishable"...
 
-        if ! _is_publishable "publish: version"; then
+        if ! _is_commit_publishable "publish: version"; then
             exit_with_message "\"publish: version\" should be publishable"
         fi
 
-        if _is_publishable "publish:"; then
+        if _is_commit_publishable "publish:"; then
             exit_with_message "\"publish:\" should not be publishable"
         fi
 
-        if _is_publishable "chore: did something"; then
+        if _is_commit_publishable "chore: did something"; then
             exit_with_message "\"chore: did something\" should not be publishable"
         fi
     }
@@ -35,6 +35,25 @@ function _tests() {
 
         # Then
         "$ROOT_DIR"/neo4j test -p release_version
+    }
+
+    function test_run_checksums() {
+        _print_step "Testing checksums checks"...
+        # Given
+        local bin_path
+        bin_path=$ROOT_DIR/bins/hello.txt
+        echo "hello" > "$bin_path"
+        new_version="99999999"
+
+        # When
+        _update_manifest "$bin_path"
+        # Then
+        _run_checksums || exit_with_message "Checksums failed after updating the manifest..."
+
+        # When
+        echo "tempering the binary" > "$bin_path"
+        # Then
+        _run_checksums && exit_with_message "Checksums succeded after tempering the binary..."
     }
 }
 
