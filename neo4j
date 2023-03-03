@@ -30,9 +30,9 @@ function _export_global_variables() {
 
     PLATFORM=$(uname)
     if [ "$PLATFORM" == "Darwin" ]; then
-        export BIN_PLATFORM="darwin"
+        export BIN_OS="darwin"
     elif [ "$PLATFORM" == "Linux" ]; then
-        export BIN_PLATFORM="unknown-linux"
+        export BIN_OS="unknown-linux"
     else
         exit_with_message "Unsupported platform $PLATFORM"
     fi
@@ -64,7 +64,7 @@ function _helpers() {
         site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 
         local app_bin
-        app_bin=$(_make_binary_name $BIN_ARCHI $BIN_PLATFORM "$(print_version)")
+        app_bin=$(_make_binary_name $BIN_OS $BIN_ARCHI "$(print_version)")
 
         PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
@@ -112,16 +112,16 @@ function _helpers() {
     }
 
     function _make_binary_name() {
+        local os
+        os=$1
         local archi
-        archi=$1
-        local platform
-        platform=$2
+        archi=$2
         local version
         version=$3
         if [ -z "$archi" ]; then exit_with_message "Empty architecture !"; fi
         if [ -z "$platform" ]; then exit_with_message "Empty platform name !"; fi
         if [ -z "$version" ]; then exit_with_message "Empty version !"; fi
-        echo "$NEO4J_APP_BIN-$archi-$platform-$version"
+        echo "$NEO4J_APP_BIN-$os-$archi-$version"
     }
 
     function _pip_install() (
