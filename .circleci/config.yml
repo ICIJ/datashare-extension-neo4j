@@ -12,19 +12,19 @@ jobs:
     steps:
       - checkout
       - when:
-          condition:
-            or:
-              - matches:
-                  pattern: "^release/.*$"
-                  value: << pipeline.git.branch >>
-              - << pipeline.git.tag >>
-          steps:
-            - run:
-                name: Test release version
-                command: ./neo4j docker_test -p release_version
+        condition:
+          or:
+            - matches:
+              pattern: "^release/.*$"
+              value: << pipeline.git.branch >>
+            - << pipeline.git.tag >>
+        steps:
+          - run:
+            name: Test release version
+            command: ./neo4j docker_test -p release_version
       - run:
-          name: Build
-          command: ./neo4j docker_build
+        name: Build
+        command: ./neo4j docker_build
 
   # We build test services to benefit from caching, using docker-compose up directly doesn't seem to benefit from it
   build-test-services:
@@ -32,34 +32,34 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Build external services
-          command: ./neo4j docker_build_test_services
+        name: Build external services
+        command: ./neo4j docker_build_test_services
 
   test-script:
     executor: docker-machine
     steps:
       - checkout
       - run:
-          name: neo4j script tests
-          command: ./neo4j docker_test -p neo4j_script
+        name: neo4j script tests
+        command: ./neo4j docker_test -p neo4j_script
 
   test-java:
     executor: docker-machine
     steps:
       - checkout
       - restore_cache:
-          key: v3-deps-java-{{ checksum "pom.xml" }}
+        key: v3-deps-java-{{ checksum "pom.xml" }}
       - run:
-          name: Java format tests
-          command: ./neo4j docker_test -p neo4j_extension_format
+        name: Java format tests
+        command: ./neo4j docker_test -p neo4j_extension_format
       - run:
-          name: Java tests
-          command: ./neo4j docker_test -p neo4j_extension
+        name: Java tests
+        command: ./neo4j docker_test -p neo4j_extension
       - save_cache:
-          key: v3-deps-java-{{ checksum "pom.xml" }}
-          when: always
-          paths:
-            .data/.m2
+        key: v3-deps-java-{{ checksum "pom.xml" }}
+        when: always
+        paths:
+          .data/.m2
 
   test-python:
     executor: docker-machine
@@ -67,21 +67,21 @@ jobs:
       - checkout
       # On the Python side reusing the older virtualenv will speed up the build
       - restore_cache:
-          key: v3-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
+        key: v3-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
       - run:
-          name: Python format tests
-          command: ./neo4j docker_test -p neo4j_app_format
+        name: Python format tests
+        command: ./neo4j docker_test -p neo4j_app_format
       - run:
-          name: Starting tests services
-          command: ./neo4j start_all_test_services
+        name: Starting tests services
+        command: ./neo4j start_all_test_services
       - run:
-          name: Python tests
-          command: ./neo4j docker_test -p neo4j_app
+        name: Python tests
+        command: ./neo4j docker_test -p neo4j_app
       - save_cache:
-          key: v3-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
-          when: always
-          paths:
-            .data/.cache
+        key: v3-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
+        when: always
+        paths:
+          .data/.cache
 
 workflows:
   version: 2
@@ -90,12 +90,12 @@ workflows:
       - build
       - build-test-services
       - test-script:
-          requires:
-            - build
+        requires:
+          - build
       - test-java:
-          requires:
-            - build
+        requires:
+          - build
       - test-python:
-          requires:
-            - build
-            - build-test-services
+        requires:
+          - build
+          - build-test-services
