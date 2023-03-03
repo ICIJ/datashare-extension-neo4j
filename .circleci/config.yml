@@ -13,9 +13,11 @@ jobs:
       - checkout
       - when:
           condition:
-            matches:
-              pattern: "^release/.*$"
-              value: << pipeline.git.branch >>
+            or:
+              - matches:
+                  pattern: "^release/.*$"
+                  value: << pipeline.git.branch >>
+              - << pipeline.git.tag >>
           steps:
             - run:
                 name: Test release version
