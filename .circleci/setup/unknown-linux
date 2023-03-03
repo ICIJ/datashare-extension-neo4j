@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+function _export_global_variables() {
+    local root
+    root="$(cd "$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")" >/dev/null && pwd)"
+    source "$root"/neo4j
+}
+
+
+function _commands() {
+    function _apt_update() {
+        apt-get -y update
+    }
+
+    function _install_jdk() {
+         command -v javac 1>/dev/null 2>&1 || apt-get -y install openjdk-11-jdk
+    }
+
+    function _install_maven() {
+         command -v mvn 1>/dev/null 2>&1 || apt-get -y install maven
+    }
+
+    function _install_poetry() {
+        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$CIRCLE_WORKING_DIRECTORY"/.poetry
+    }
+
+    function _install_python_universal2() {
+        if ! [[ $(python3 -c "import sysconfig;print(sysconfig.get_platform())") == *-universal2 ]];then
+            exit_with_message "Installation of universal2 python version is needed..."
+        fi
+    }
+}
+
+function _main() {
+    set -e
+
+    _commands
+    _export_global_variables
+
+    _apt_update
+    _install_poetry
+    _install_jdk
+    _install_maven
+}
+
+_main
