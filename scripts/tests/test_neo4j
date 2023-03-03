@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 function _export_global_variables() {
     local root
     root="$(cd "$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")" >/dev/null && pwd)"
@@ -6,6 +7,22 @@ function _export_global_variables() {
 }
 
 function _tests() {
+
+    function test_is_publishable() {
+        _print_step "Testing _is_publishable"...
+
+        if ! _is_publishable "publish: version"; then
+            exit_with_message "\"publish: version\" should be publishable"
+        fi
+
+        if _is_publishable "publish:"; then
+            exit_with_message "\"publish:\" should not be publishable"
+        fi
+
+        if _is_publishable "chore: did something"; then
+            exit_with_message "\"chore: did something\" should not be publishable"
+        fi
+    }
 
     function test_update_version() {
         _print_step "Testing ./neo4j set_version"...
