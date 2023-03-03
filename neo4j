@@ -33,6 +33,7 @@ function _export_global_variables() {
     export BIN_ARCHI
 
     PLATFORM=$(uname)
+    export PLATFORM
     if [ "$PLATFORM" == "Darwin" ]; then
         export BIN_OS="darwin"
     elif [ "$PLATFORM" == "Linux" ]; then
@@ -278,9 +279,12 @@ Please run ./neo4j format"
     }
 
     function install_poetry() (
-        echo "Installing Poetry..."
-        # TODO: restrict the python version here
-        curl -sSL https://install.python-poetry.org | python3 -
+        local poetry_home
+        poetry_home=$1
+        if [ -z $poetry_home ]; then exit_with_message "Missing poetry_home !";fi
+        echo "Installing Poetry to $poetry_home..."
+        curl -sSL https://install.python-poetry.org | POETRY_HOME=$poetry_home python3 -
+        export PATH="$poetry_home/bin:$PATH"
     )
 
     function print_version() (
@@ -309,7 +313,15 @@ Please run ./neo4j format"
     }
 
     function setup() {
-        if _should_run_project "neo4j_app"; then
+        if _should_run_project "build_env"; then
+            if [ "$PLATFORM" == "Darwin" ]; then
+                "$ROOT_DIR"/.circleci/setup/darwin
+            elif [ "$PLATFORM" == "Linux" ]; then
+                echo "N"
+            else
+                exit_with_message "Unknown platform $PLATFORM"
+            fi
+        elif _should_run_project "neo4j_app"; then
             _print_step "Setting up neo4j_app"
 
             command -v poetry 1>/dev/null 2>&1 || echo "poetry is not installed"
