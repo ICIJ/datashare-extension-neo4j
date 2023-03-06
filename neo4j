@@ -3,6 +3,7 @@
 function _export_global_variables() {
     export ROOT_DIR
     ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
+    export PROJECT_URL=https://github.com/ICIJ/datashare-extension-neo4j
     export DOCKER_HOME=/home/dev
     export PYTHON_APP_DIR="$ROOT_DIR/neo4j-app"
     export NEO4J_APP_BIN="neo4j-app"
@@ -31,9 +32,9 @@ function _export_global_variables() {
     PLATFORM=$(uname)
     export PLATFORM
     if [ "$PLATFORM" == "Darwin" ]; then
-        export BIN_OS="darwin"
+        export BIN_PLATFORM="darwin-universal2"
     elif [ "$PLATFORM" == "Linux" ]; then
-        export BIN_OS="unknown-linux"
+        export BIN_PLATFORM="unknown-linux-$BIN_ARCHI"
     else
         exit_with_message "Unsupported platform $PLATFORM"
     fi
@@ -65,7 +66,7 @@ function _helpers() {
         site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 
         local app_bin
-        app_bin=$(_make_binary_name $BIN_OS $BIN_ARCHI "$(print_version)")
+        app_bin=$(_make_binary_name "$(print_version)")
 
         PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
@@ -77,7 +78,7 @@ function _helpers() {
             -p "$site_packages_path"
 
         chmod +x "$app_dir/$app_bin"
-        echo "$app_bin"
+        echo "bins/$app_bin"
     }
 
     function _check_release_version() {
@@ -156,16 +157,10 @@ Publishable commit message follow the pattern \"$pattern\""
     }
 
     function _make_binary_name() {
-        local os
-        os=$1
-        local archi
-        archi=$2
         local version
-        version=$3
-        if [ -z "$archi" ]; then exit_with_message "Empty architecture !"; fi
-        if [ -z "$platform" ]; then exit_with_message "Empty platform name !"; fi
+        version=$1
         if [ -z "$version" ]; then exit_with_message "Empty version !"; fi
-        echo "$NEO4J_APP_BIN-$os-$archi-$version"
+        echo "$NEO4J_APP_BIN-$BIN_PLATFORM-$version"
     }
 
     function _pip_install() (
@@ -182,14 +177,14 @@ Publishable commit message follow the pattern \"$pattern\""
     }
 
     function _print_step() {
-        printf "\n##### -> $1"
+        printf "\n##### -> %s" "$1"
     }
 
     function _pytest() {
         poetry run python3 -m pytest --cache-clear -s "${@}"
     }
 
-    function _run_checksums() {
+    function _run_manifest_checksums() {
         if shasum -c "$ROOT_DIR"/src/main/resources/manifest.txt; then return 0; else return 1; fi
     }
 
@@ -202,14 +197,14 @@ Publishable commit message follow the pattern \"$pattern\""
     }
 
     function _update_manifest() {
-        local asset_name
-        asset_name=$1
-        if [ -z "$asset_name" ]; then exit_with_message "Can't update manifest with an empty asset name !"; fi
+        local bin_path
+        bin_path=$1
+        if [ -z "$bin_path" ]; then exit_with_message "Can't update manifest with an empty asset name !"; fi
 
         local manifest_path
         manifest_path="$ROOT_DIR"/src/main/resources/manifest.txt
-        shasum -a 256 "$asset_name" >>"$manifest_path"
-        echo "Updated manifest for $asset_name !"
+        shasum -a 256 "$bin_path" >>"$manifest_path"
+        echo "Updated manifest for $bin_path !"
     }
 
 }
@@ -218,12 +213,11 @@ function _commands() {
 
     function build() {
         if _should_run_project "neo4j_app"; then
-            _print_step "Building Python app executable"
-            local asset_name
-            asset_name=$(_build_neo4j_app)
-            if [ -n "$MANIFEST_FLAG" ]; then
-                echo "Updating the manifest with new asset SHA-256..."
-                _update_manifest "$asset_name"
+            if [ -z "$PRINT_SHA" ]; then _print_step "Building Python app executable";fi
+            local bin_path
+            bin_path=$(_build_neo4j_app)
+            if [ -n "$PRINT_SHA" ]; then
+                shasum -a 256 "$bin_path"
             fi
         elif _should_run_project "neo4j_extension"; then
             _print_step "Building the Python app first"
@@ -338,7 +332,7 @@ Please run ./neo4j format"
         msg=$(git log -1 --pretty=%B -n 1 "$(git rev-parse HEAD)" | cat | xargs)
 
         _is_commit_publishable "$msg"
-        _run_checksums
+        _run_manifest_checksums
     )
 
     function print_version() (
@@ -443,6 +437,27 @@ Please run ./neo4j format"
             exit_with_message "Can't test project $PROJECT"
         fi
     }
+
+    function verify_asset_publication() {
+        local target_version
+        target_version=${$(print_version)%"-pre"}
+        git fetch
+        if [ -n "$(git tag -l "$target_version")" ]; then
+            exit_with_message "Release $target_version already exists, please bump the version number using the CLI"
+        else
+            local pre_release_url
+            pre_release_url="$PROJECT_URL"/releases/tag/"$target_version"-pre
+            local status_code
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" "$pre_release_url")
+            if [[ $status_code == 200 ]]; then
+                echo "Pre-release page for $target_version exists !"
+            elif [[ $status_code == 404 ]]; then
+                exit_with_message "Assets need to be published before final release"
+            else
+                exit_with_message "Unexpected status $status_code"
+            fi
+        fi
+    }
 }
 
 function _main() {
@@ -450,7 +465,7 @@ function _main() {
     PROJECTS=
     OPENSEARCH_SUPPORT=
     PRINT_VERSION=
-    MANIFEST_FLAG=
+    PRINT_SHA=
 
     # Define sub projects here
     PROJECTS=(
@@ -493,8 +508,8 @@ function _main() {
                         SKIP_NEXT_TYPE_ARG=true
                     elif [[ "$TYPE_ARG" == "--opensearch-support" ]]; then
                         OPENSEARCH_SUPPORT=true
-                    elif [[ $TYPE_ARG = "--manifest" ]]; then
-                        MANIFEST_FLAG=1
+                    elif [[ $TYPE_ARG = "--sha" ]]; then
+                        PRINT_SHA=1
                     fi
                 else
                     unset SKIP_NEXT_TYPE_ARG

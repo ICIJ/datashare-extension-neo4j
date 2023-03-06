@@ -83,6 +83,14 @@ jobs:
         paths:
           .data/.cache
 
+  test-assets-publication:
+    executor: docker-machine
+    steps:
+      - checkout
+      - run:
+        name: Check assets publication
+        command: ./neo4j verify_asset_publication
+
 workflows:
   version: 2
   build_and_test:
@@ -99,3 +107,8 @@ workflows:
         requires:
           - build
           - build-test-services
+      - test-assets-publication:
+        - when:
+          - matches:
+            pattern: "^release/.*$"
+            value: << pipeline.git.branch >>
