@@ -37,7 +37,7 @@ function _tests() {
         "$ROOT_DIR"/neo4j test -p release_version
     }
 
-    function test_run_checksums() {
+    function test_run_manifest_checksums() {
         _print_step "Testing checksums checks"...
         # Given
         local bin_path
@@ -48,12 +48,24 @@ function _tests() {
         # When
         _update_manifest "$bin_path"
         # Then
-        _run_checksums || exit_with_message "Checksums failed after updating the manifest..."
+        _run_manifest_checksums || exit_with_message "Checksums failed after updating the manifest..."
 
         # When
         echo "tempering the binary" > "$bin_path"
         # Then
-        _run_checksums && exit_with_message "Checksums succeded after tempering the binary..."
+        _run_manifest_checksums && exit_with_message "Checksums succeded after tempering the binary..."
+    }
+
+    function test_verify_assets_should_fail_when_missing_binary() {
+        exit_with_message "TODO"
+    }
+
+    function test_verify_assets_should_succeed() {
+        exit_with_message "TODO"
+    }
+
+    function test_verify_assets_should_fail_when_assets_are_tempered() {
+        exit_with_message "TODO"
     }
 }
 
