@@ -374,7 +374,7 @@ Please run ./neo4j format"
             if [ "$PLATFORM" == "Darwin" ]; then
                 "$ROOT_DIR"/.circleci/setup/darwin
             elif [ "$PLATFORM" == "Linux" ]; then
-                echo "N"
+                "$ROOT_DIR"/.circleci/setup/unknown-linux
             else
                 exit_with_message "Unknown platform $PLATFORM"
             fi

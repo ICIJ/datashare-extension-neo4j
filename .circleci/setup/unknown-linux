@@ -21,7 +21,7 @@ function _commands() {
     }
 
     function _install_poetry() {
-        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$CIRCLE_WORKING_DIRECTORY"/.poetry
+        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$ROOT_DIR"/.poetry
     }
 
     function _install_python_universal2() {
