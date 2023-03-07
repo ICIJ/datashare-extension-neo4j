@@ -66,7 +66,7 @@ function _helpers() {
         site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 
         local app_bin
-        app_bin=$(_make_binary_name "$(_print_version)")
+        app_bin=$(_make_neoj_binary_name)
 
         PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
@@ -136,11 +136,8 @@ function _helpers() {
         fi
     }
 
-    function _make_binary_name() {
-        local version
-        version=$1
-        if [ -z "$version" ]; then exit_with_message "Empty version !"; fi
-        echo "$NEO4J_APP_BIN-$BIN_PLATFORM-$version"
+    function _make_neoj_binary_name() {
+        echo "$NEO4J_APP_BIN-$BIN_PLATFORM-$(_print_version)"
     }
 
     function _pip_install() (
@@ -214,6 +211,14 @@ function _helpers() {
 }
 
 function _commands() {
+    
+    function binary_name() {
+        if _should_run_project "neo4j_app"; then
+            _make_neoj_binary_name
+        else
+            exit_with_message "No binary available for $PROJECT"
+        fi
+    }
 
     function build() {
         if _should_run_project "neo4j_app"; then
