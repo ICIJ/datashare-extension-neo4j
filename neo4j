@@ -16,7 +16,9 @@ function _export_global_variables() {
     export NEO4J_VERSION=4.4.17
     export TEST_APP_PORT=8002
     BIN_ARCHI="$(arch)"
-    if [ "$BIN_ARCHI" == "x86_64" ]; then
+    if [ "$BIN_ARCHI" == "x86_64" ] || [ "$BIN_ARCHI" == "i386" ]; then
+        # Renormalize the BIN_ARCHI name
+        BIN_ARCHI="x86_64"
         export DOCKER_PLATFORM="linux/amd64"
         export NEO4J_IMAGE="neo4j"
     elif [ "$BIN_ARCHI" == "aarch64" ] || [ "$BIN_ARCHI" == "arm64" ]; then
@@ -125,7 +127,7 @@ function _helpers() {
     )
 
     function _install_pyinstaller() (
-        pip install pyinstaller==5.7.0
+        _pip_install pyinstaller==5.7.0
     )
 
     function _join_by {
