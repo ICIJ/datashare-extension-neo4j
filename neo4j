@@ -66,7 +66,7 @@ function _helpers() {
         site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 
         local app_bin
-        app_bin=$(_make_binary_name "$(print_version)")
+        app_bin=$(_make_binary_name "$(_print_version)")
 
         PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
@@ -120,26 +120,6 @@ function _helpers() {
             --network="host" "${@}"
     }
 
-    function _is_commit_publishable() {
-        local msg
-        msg=$1
-
-        local pattern
-        pattern=publish:'[[:space:]]+'
-
-        local revision
-        revision=$(git rev-parse HEAD)
-
-        if [[ "$msg" =~ $pattern ]]; then
-            echo "Revision $revision is publishable !"
-            return 0
-        else
-            echo "Revision $revision with commit message \"$msg\" is not publishable. \
-Publishable commit message follow the pattern \"$pattern\""
-            return 1
-        fi
-    }
-
     function _install_black() (
         _pip_install black==23.1.0
     )
@@ -179,13 +159,38 @@ Publishable commit message follow the pattern \"$pattern\""
     function _print_step() {
         printf "\n##### -> %s" "$1"
     }
+    
+    function _print_version() (
+        cat "$ROOT_DIR"/version
+    )
+
+    function _publish_neo4j_app() {
+        local version
+        version=$(_print_version)
+
+        _run_manifest_checksums
+        local binaries
+        binaries=(sed -nr "s@.*($NEO4J_APP_BIN-.+-$version).*@\1@p" "$ROOT_DIR"/src/main/resources/manifest.txt)
+        for binary in "${binaries[@]}";do
+            local filename
+            filename=$(basename -- "$binary")
+
+            curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                https://uploads.github.com/repos/ICIJ/datashare-extension-neo4j/releases/"$version"/assets?name="$filename" \
+                --data-binary "@$binary"
+        done
+    }
 
     function _pytest() {
         poetry run python3 -m pytest --cache-clear -s "${@}"
     }
 
     function _run_manifest_checksums() {
-        if shasum -c "$ROOT_DIR"/src/main/resources/manifest.txt; then return 0; else return 1; fi
+        if shasum -a 256 -c "$ROOT_DIR"/src/main/resources/manifest.txt; then return 0; else return 1; fi
     }
 
     function _should_run_project() {
@@ -204,7 +209,6 @@ Publishable commit message follow the pattern \"$pattern\""
         local manifest_path
         manifest_path="$ROOT_DIR"/src/main/resources/manifest.txt
         shasum -a 256 "$bin_path" >>"$manifest_path"
-        echo "Updated manifest for $bin_path !"
     }
 
 }
@@ -327,20 +331,20 @@ Please run ./neo4j format"
         export PATH="$poetry_home/bin:$PATH"
     )
 
-    function is_publishable() (
-        local msg
-        msg=$(git log -1 --pretty=%B -n 1 "$(git rev-parse HEAD)" | cat | xargs)
+    function is_publishable() {
+        _check_release_version
+    }
 
-        _is_commit_publishable "$msg"
-        _run_manifest_checksums
-    )
-
-    function print_version() (
-        cat "$ROOT_DIR"/version
-    )
+    function publish() {
+        if _should_run_project "neo4j_app"; then
+            _publish_neo4j_app
+        else
+            exit_with_message "Can't pre-publish project $PROJECT"
+        fi
+    }
 
     function run() {
-        if [ "$PROJECT" == neo4j_app ]; then
+        if _should_run_project "neo4j_app"; then
             # TODO: maybe we should run the binary we've copied to the java dir
             "$ROOT_DIR/bins/$NEO4J_APP_BIN"
         else
@@ -438,9 +442,23 @@ Please run ./neo4j format"
         fi
     }
 
+    function update_manifest() {
+        if _should_run_project "neo4j_app"; then
+            if ! [ $# -ne 3 ]; then exit_with_message "Expected 3 binaries found $#";fi
+            for binary in "$@";do
+                local manifest_path
+                manifest_path="$binary"-manifest.txt
+                shasum -a 256 -c "$manifest_path"
+                _update_manifest "$binary"
+            done
+        else
+            exit_with_message "Can't pre-publish project $PROJECT"
+        fi
+    }
+
     function verify_asset_publication() {
         local target_version
-        target_version=${$(print_version)%"-pre"}
+        target_version=${$(_print_version)%"-pre"}
         git fetch
         if [ -n "$(git tag -l "$target_version")" ]; then
             exit_with_message "Release $target_version already exists, please bump the version number using the CLI"
@@ -540,7 +558,7 @@ function _main() {
             printf "Error: No command specified\n\n" && exit 1
         # If we manage to find a command previously declared with _commands, run it
         elif [ -n "$PRINT_VERSION" ]; then
-            print_version
+            _print_version
         elif declare -f "$1" >/dev/null; then
             "$@"
         else
