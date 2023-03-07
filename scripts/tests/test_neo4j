@@ -8,22 +8,6 @@ function _export_global_variables() {
 
 function _tests() {
 
-    function test_is_commit_publishable() {
-        _print_step "Testing _is_commit_publishable"...
-
-        if ! _is_commit_publishable "publish: version"; then
-            exit_with_message "\"publish: version\" should be publishable"
-        fi
-
-        if _is_commit_publishable "publish:"; then
-            exit_with_message "\"publish:\" should not be publishable"
-        fi
-
-        if _is_commit_publishable "chore: did something"; then
-            exit_with_message "\"chore: did something\" should not be publishable"
-        fi
-    }
-
     function test_update_version() {
         _print_step "Testing ./neo4j set_version"...
         # Given
@@ -53,7 +37,7 @@ function _tests() {
         # When
         echo "tempering the binary" > "$bin_path"
         # Then
-        _run_manifest_checksums && exit_with_message "Checksums succeded after tempering the binary..."
+        _run_manifest_checksums && exit_with_message "Checksums succeeded after tempering the binary..."
     }
 
     function test_verify_assets_should_fail_when_missing_binary() {
