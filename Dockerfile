@@ -54,6 +54,7 @@ ADD version $HOME
 ADD src $HOME/src
 
 FROM base as base-script
+ADD bins/.gitignore $HOME/neo4j-app/bins/.gitignore
 ADD neo4j-app/pyproject.toml $HOME/neo4j-app/pyproject.toml
 ADD pom.xml $HOME
 ADD version $HOME
