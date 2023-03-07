@@ -125,7 +125,6 @@ function _helpers() {
     )
 
     function _install_pyinstaller() (
-        echo "Installing pyinstaller..."
         pip install pyinstaller==5.7.0
     )
 
@@ -453,8 +452,10 @@ Please run ./neo4j format"
 
     function update_manifest() {
         if _should_run_project "neo4j_app"; then
-            if ! [ $# -ne 3 ]; then exit_with_message "Expected 3 binaries found $#";fi
-            for binary in "$@";do
+            local args
+            args=("$@:2}")
+            if ! [ ${#args} -ne 3 ]; then exit_with_message "Expected 3 binaries found $#";fi
+            for binary in "${args[@]}";do
                 local manifest_path
                 manifest_path="$binary"-manifest.txt
                 shasum -a 256 -c "$manifest_path"
