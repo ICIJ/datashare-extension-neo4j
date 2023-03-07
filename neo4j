@@ -471,6 +471,7 @@ function _main() {
 
     # Define sub projects here
     PROJECTS=(
+        build_env
         neo4j_app
         neo4j_app_format
         neo4j_extension
