@@ -9,15 +9,15 @@ function _export_global_variables() {
 
 function _commands() {
     function _apt_update() {
-        apt-get -y update
+        sudo apt-get -y update
     }
 
     function _install_jdk() {
-         command -v javac 1>/dev/null 2>&1 || apt-get -y install openjdk-11-jdk
+         command -v javac 1>/dev/null 2>&1 || sudo apt-get -y install openjdk-11-jdk
     }
 
     function _install_maven() {
-         command -v mvn 1>/dev/null 2>&1 || apt-get -y install maven
+         command -v mvn 1>/dev/null 2>&1 || sudo apt-get -y install maven
     }
 
     function _install_poetry() {
