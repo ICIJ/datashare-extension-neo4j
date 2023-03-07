@@ -1,6 +1,7 @@
 # Ignore everything to leverage caching at its best
 *
 !.data/neo4j/import/.gitignore
+!bins/.gitignore
 !docker-compose.yml
 !pom.xml
 !neo4j
