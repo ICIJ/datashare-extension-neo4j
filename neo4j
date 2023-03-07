@@ -455,27 +455,6 @@ Please run ./neo4j format"
             exit_with_message "Can't pre-publish project $PROJECT"
         fi
     }
-
-    function verify_asset_publication() {
-        local target_version
-        target_version=${$(_print_version)%"-pre"}
-        git fetch
-        if [ -n "$(git tag -l "$target_version")" ]; then
-            exit_with_message "Release $target_version already exists, please bump the version number using the CLI"
-        else
-            local pre_release_url
-            pre_release_url="$PROJECT_URL"/releases/tag/"$target_version"-pre
-            local status_code
-            status_code=$(curl -s -o /dev/null -w "%{http_code}" "$pre_release_url")
-            if [[ $status_code == 200 ]]; then
-                echo "Pre-release page for $target_version exists !"
-            elif [[ $status_code == 404 ]]; then
-                exit_with_message "Assets need to be published before final release"
-            else
-                exit_with_message "Unexpected status $status_code"
-            fi
-        fi
-    }
 }
 
 function _main() {
