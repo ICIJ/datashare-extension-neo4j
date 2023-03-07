@@ -331,8 +331,11 @@ Please run ./neo4j format"
         local poetry_home
         poetry_home=$1
         if [ -z "$poetry_home" ]; then exit_with_message "Missing poetry_home !"; fi
+        local python_version
+        python_version=$2
+        if [ -z "$python_version" ]; then exit_with_message "Missing python_version !"; fi
         echo "Installing Poetry to $poetry_home..."
-        curl -sSL https://install.python-poetry.org | POETRY_HOME=$poetry_home python3 -
+        curl -sSL https://install.python-poetry.org | POETRY_HOME=$poetry_home $python_version -
         export PATH="$poetry_home/bin:$PATH"
     )
 
@@ -384,6 +387,7 @@ Please run ./neo4j format"
             command -v poetry 1>/dev/null 2>&1 || echo "poetry is not installed"
 
             cd "$PYTHON_APP_DIR"
+            poetry env use "$(which python3)"
             poetry install --with dev
             echo "Python setup succeeded !"
         else
