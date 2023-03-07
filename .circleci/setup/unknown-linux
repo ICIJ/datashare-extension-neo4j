@@ -12,6 +12,10 @@ function _commands() {
         sudo apt-get -y update
     }
 
+    function _upgrade_openssl() {
+        sudo apt-get install --only-upgrade libssl-dev
+    }
+
     function _install_jdk() {
          command -v javac 1>/dev/null 2>&1 || sudo apt-get -y install openjdk-11-jdk
     }
