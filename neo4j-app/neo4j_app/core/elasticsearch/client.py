@@ -21,8 +21,6 @@ from neo4j_app.core.elasticsearch.utils import (
     SEARCH_AFTER,
     SLICE,
     SORT,
-    TOTAL,
-    VALUE,
     match_all,
 )
 from neo4j_app.core.neo4j import write_neo4j_csv
@@ -30,7 +28,7 @@ from neo4j_app.core.neo4j import write_neo4j_csv
 logger = logging.getLogger(__name__)
 
 
-class ESClient(AsyncElasticsearch):
+class ESClientMixin:
     def __init__(
         self,
         project_index: str,
@@ -38,7 +36,6 @@ class ESClient(AsyncElasticsearch):
         pagination: int,
         keep_alive: str = "1m",
         max_concurrency: int = 5,
-        **kwargs,
     ):
         self._project_index = project_index
         if pagination > 10000:
@@ -46,7 +43,6 @@ class ESClient(AsyncElasticsearch):
         self._pagination_size = pagination
         self._keep_alive = keep_alive
         self._max_concurrency = max_concurrency
-        super().__init__(**kwargs)
 
     @cached_property
     def project_index(self) -> str:
@@ -113,17 +109,21 @@ class ESClient(AsyncElasticsearch):
     @asynccontextmanager
     async def pit(self, *, keep_alive: str, **kwargs) -> AsyncGenerator[Dict, None]:
         pit_id = None
+        if isinstance(self, AsyncElasticsearch):
+            open_fn = self.open_point_in_time
+        else:
+            open_fn = self.create_point_in_time
         try:
-            pit = (
-                await self.open_point_in_time(  # pylint: disable=unexpected-keyword-arg
-                    index=self.project_index, keep_alive=keep_alive, **kwargs
-                )
+            pit = await open_fn(
+                index=self.project_index, keep_alive=keep_alive, **kwargs
             )
-            pit_id = pit[ID]
+            pit_id = pit.get(ID, pit.get("pit_id"))
+            # Reformat pit for opensearch
+            pit = {ID: pit_id}
             yield pit
         finally:
             if pit_id is not None:
-                await self.close_point_in_time(body={ID: pit_id})
+                await self._close_pit(pit_id)
 
     async def write_concurrently_neo4j_csv(
         self,
@@ -187,6 +187,68 @@ class ESClient(AsyncElasticsearch):
                 write_neo4j_csv(f, rows=rows, header=header, write_header=False)
                 f.flush()
         return total_hits
+
+
+class ESClient(AsyncElasticsearch, ESClientMixin):
+    def __init__(
+        self,
+        project_index: str,
+        *,
+        pagination: int,
+        keep_alive: str = "1m",
+        max_concurrency: int = 5,
+        **kwargs,
+    ):
+        ESClientMixin.__init__(
+            self,
+            project_index=project_index,
+            pagination=pagination,
+            keep_alive=keep_alive,
+            max_concurrency=max_concurrency,
+        )
+        AsyncElasticsearch.__init__(self, **kwargs)
+
+    # TODO: this should be class attr
+    @cached_property
+    def _pit_id(self) -> str:
+        return ID
+
+    async def _close_pit(self, pit_id: str):
+        await self.close_point_in_time(body={ID: pit_id})
+
+
+try:
+    from opensearchpy import AsyncOpenSearch
+
+    class OSClient(AsyncOpenSearch, ESClientMixin):
+        def __init__(
+            self,
+            project_index: str,
+            *,
+            pagination: int,
+            keep_alive: str = "1m",
+            max_concurrency: int = 5,
+            **kwargs,
+        ):
+            ESClientMixin.__init__(
+                self,
+                project_index=project_index,
+                pagination=pagination,
+                keep_alive=keep_alive,
+                max_concurrency=max_concurrency,
+            )
+            AsyncOpenSearch.__init__(self, **kwargs)
+
+        # TODO: this should be class attr
+        @cached_property
+        def _pit_id(self) -> str:
+            return "pid_id"
+
+        async def _close_pit(self, pit_id: str):
+            await self.delete_point_in_time(body={"pid_id": [pit_id]})
+
+except ImportError:
+    pass
 
 
 def sliced_search_with_pit(
