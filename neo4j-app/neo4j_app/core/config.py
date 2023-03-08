@@ -9,6 +9,7 @@ from configparser import ConfigParser
 from logging.handlers import SysLogHandler
 from typing import Dict, List, Optional, TextIO
 
+import elasticsearch
 import neo4j
 from pydantic import Field
 
@@ -23,11 +24,13 @@ _SYSLOG_MODEL_SPLIT_CHAR = "@"
 _SYSLOG_FMT = f"%(name)s{_SYSLOG_MODEL_SPLIT_CHAR}%(message)s"
 _STREAM_HANDLER_FMT = "[%(levelname)s][%(asctime)s.%(msecs)03d][%(name)s]: %(message)s"
 _DATE_FMT = "%H:%M:%S"
+_ES_VERSION = ".".join(str(num) for num in elasticsearch.__version__)
 
 
 class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     doc_app_name: str = "🕸 neo4j app"
     elasticsearch_address: str = "http://127.0.0.1:9200"
+    elasticsearch_version: str = Field(default=_ES_VERSION, const=True)
     es_doc_type_field: str = Field(alias="docTypeField", default="type")
     es_default_page_size: int = 1000
     es_keep_alive: str = "1m"
