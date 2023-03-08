@@ -43,7 +43,7 @@ function _helpers() {
     function _build_neo4j_app() {
         _print_step "Building Python app executable"
         cd "$ROOT_DIR"/neo4j-app
-
+        poetry install
         _poetry_shell
         command -v pyinstaller 1>/dev/null 2>&1 || _install_pyinstaller
 
