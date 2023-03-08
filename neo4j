@@ -43,7 +43,11 @@ function _helpers() {
     function _build_neo4j_app() {
         _print_step "Building Python app executable"
         cd "$ROOT_DIR"/neo4j-app
-        poetry install
+        local groups=
+        if [[ -n "$OPENSEARCH_SUPPORT" ]]; then
+            groups=" --with opensearch"
+        fi
+        poetry install$groups
         _poetry_shell
         command -v pyinstaller 1>/dev/null 2>&1 || _install_pyinstaller
 
@@ -311,6 +315,7 @@ function _main() {
     PROJECT=
     PROJECTS=
     _ELASTICSEARCH_PORT=
+    OPENSEARCH_SUPPORT=
 
     # Define sub projects here
     PROJECTS=(
@@ -352,6 +357,8 @@ function _main() {
                     elif [[ "$TYPE_ARG" == "--elasticsearch-port" ]]; then
                         _ELASTICSEARCH_PORT=$VALUE_ARG
                         SKIP_NEXT_TYPE_ARG=true
+                    elif [[ "$TYPE_ARG" == "--opensearch-support" ]]; then
+                        OPENSEARCH_SUPPORT=true
                     fi
                 else
                     unset SKIP_NEXT_TYPE_ARG
