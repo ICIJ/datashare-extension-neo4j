@@ -79,10 +79,11 @@ class ESClientMixin:
         res = await self.search(size=size, sort=sort, **kwargs)
         kwargs = deepcopy(kwargs)
         yield res
-        total_hits = res[HITS][TOTAL][VALUE]
         page_hits = res[HITS][HITS]
-        remaining = total_hits - len(page_hits)
-        while remaining > 0:
+        # TODO: find more elegant solution here, indeed if we know how many hits
+        #  are left on the slice, we could avoid making the last call which returns
+        #  empty results
+        while page_hits:
             search_after = page_hits[-1][SORT]
             if "body" in kwargs:
                 kwargs["body"][SEARCH_AFTER] = search_after
@@ -91,7 +92,6 @@ class ESClientMixin:
             res = await self.search(size=size, sort=sort, **kwargs)
             yield res
             page_hits = res[HITS][HITS]
-            remaining -= len(page_hits)
 
     async def async_scan(
         self,
