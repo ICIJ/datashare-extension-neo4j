@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 
 from neo4j_app.app.dependencies import es_client_dep, neo4j_session_dep
 from neo4j_app.core import AppConfig
-from neo4j_app.core.elasticsearch import ESClient
+from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.imports import import_documents
 from neo4j_app.core.objects import IncrementalImportRequest, IncrementalImportResponse
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
@@ -68,7 +68,7 @@ def documents_router() -> APIRouter:
     async def _import_documents(
         payload: IncrementalImportRequest,
         request: Request,
-        es_client: ESClient = Depends(es_client_dep),
+        es_client: ESClientABC = Depends(es_client_dep),
     ) -> IncrementalImportResponse:
         neo4j_sess = request.state.neo4j_session
         config: AppConfig = request.app.state.config

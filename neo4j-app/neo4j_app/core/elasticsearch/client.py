@@ -1,3 +1,4 @@
+import abc
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -28,7 +29,7 @@ from neo4j_app.core.neo4j import write_neo4j_csv
 logger = logging.getLogger(__name__)
 
 
-class ESClientMixin:
+class ESClientABC(AsyncElasticsearch, metaclass=abc.ABCMeta):
     def __init__(
         self,
         project_index: str,
@@ -37,6 +38,7 @@ class ESClientMixin:
         keep_alive: str = "1m",
         max_concurrency: int = 5,
     ):
+        # pylint: disable=super-init-not-called
         self._project_index = project_index
         if pagination > 10000:
             raise ValueError("Elasticsearch doesn't support pages of size > 10000")
@@ -189,7 +191,7 @@ class ESClientMixin:
         return total_hits
 
 
-class ESClient(AsyncElasticsearch, ESClientMixin):
+class ESClient(ESClientABC, AsyncElasticsearch):
     def __init__(
         self,
         project_index: str,
@@ -199,7 +201,7 @@ class ESClient(AsyncElasticsearch, ESClientMixin):
         max_concurrency: int = 5,
         **kwargs,
     ):
-        ESClientMixin.__init__(
+        ESClientABC.__init__(
             self,
             project_index=project_index,
             pagination=pagination,
@@ -220,7 +222,7 @@ class ESClient(AsyncElasticsearch, ESClientMixin):
 try:
     from opensearchpy import AsyncOpenSearch
 
-    class OSClient(AsyncOpenSearch, ESClientMixin):
+    class OSClient(ESClientABC, AsyncOpenSearch):
         def __init__(
             self,
             project_index: str,
@@ -230,7 +232,7 @@ try:
             max_concurrency: int = 5,
             **kwargs,
         ):
-            ESClientMixin.__init__(
+            ESClientABC.__init__(
                 self,
                 project_index=project_index,
                 pagination=pagination,
