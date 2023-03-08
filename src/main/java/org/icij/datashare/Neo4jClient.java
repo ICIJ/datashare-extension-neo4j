@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 public class Neo4jClient {
     private static final Logger logger = LoggerFactory.getLogger(Neo4jClient.class);
+    private static final int importTimeout = 1000 * 30 * 60;
     protected final int port;
     private final String host = "127.0.0.1";
 
@@ -24,7 +25,8 @@ public class Neo4jClient {
         logger.debug("Importing documents to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
-            Unirest.post(url).body(body).header("Content-Type", "application/json"),
+            Unirest.post(url).socketTimeout(importTimeout).body(body)
+                .header("Content-Type", "application/json"),
             Objects.IncrementalImportResponse.class
         );
     }
@@ -35,7 +37,8 @@ public class Neo4jClient {
         logger.debug("Importing named entities to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
-            Unirest.post(url).body(body).header("Content-Type", "application/json"),
+            Unirest.post(url).socketTimeout(importTimeout).body(body)
+                .header("Content-Type", "application/json"),
             Objects.IncrementalImportResponse.class
         );
     }
