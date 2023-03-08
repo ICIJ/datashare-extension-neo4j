@@ -40,7 +40,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_default_page_size: int = 1000
     es_keep_alive: str = "1m"
     neo4j_app_host: str = "127.0.0.1"
-    neo4j_app_log_level: str = "DEBUG"
+    neo4j_app_log_level: str = "INFO"
     neo4j_app_name: str = "neo4j app"
     neo4j_app_port: int = 8080
     neo4j_app_syslog_facility: Optional[str] = None
