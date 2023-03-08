@@ -14,6 +14,7 @@ import neo4j
 from pydantic import Field
 
 from neo4j_app.core.elasticsearch import ESClient
+from neo4j_app.core.elasticsearch.client import OSClient
 from neo4j_app.core.utils.pydantic import (
     BaseICIJModel,
     IgnoreExtraModel,
@@ -35,17 +36,18 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_default_page_size: int = 1000
     es_keep_alive: str = "1m"
     neo4j_app_host: str = "127.0.0.1"
-    neo4j_app_log_level: str = "INFO"
+    neo4j_app_log_level: str = "DEBUG"
     neo4j_app_name: str = "neo4j app"
     neo4j_app_port: int = 8080
+    neo4j_app_syslog_facility: Optional[str] = None
+    neo4j_app_uses_opensearch: bool = False
     neo4j_connection_timeout: float = 5.0
     neo4j_host: str = "127.0.0.1"
     neo4j_import_dir: str
     neo4j_import_prefix: Optional[str] = None
     neo4j_port: int = 7687
     neo4j_project: str
-    neo4j_app_syslog_facility: str = "LOCAL7"
-    debug: bool = False
+    # TODO: maybe use an alias here
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
     # per request basis using FastApi dependencies...
@@ -128,9 +130,11 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         )
         return driver
 
+    # TODO: change this to output ESClientMixin...
     def to_es_client(self) -> ESClient:
+        client_cls = OSClient if self.neo4j_app_uses_opensearch else ESClient
         # TODO: read the index name in a secure manner...
-        client = ESClient(
+        client = client_cls(
             project_index=self.neo4j_project,
             hosts=[self.es_host],
             port=self.es_port,
@@ -149,6 +153,12 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             elasticsearch.__name__,
             neo4j.__name__,
         ]
+        try:
+            import opensearchpy
+
+            loggers.append(opensearchpy.__name__)
+        except ImportError:
+            pass
 
         for handler in self._handlers:
             handler.setLevel(self.neo4j_app_log_level)
@@ -165,7 +175,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         stream_handler = logging.StreamHandler(sys.stderr)
         stream_handler.setFormatter(logging.Formatter(_STREAM_HANDLER_FMT, _DATE_FMT))
         handlers = [stream_handler]
-        if not self.debug:
+        if self.neo4j_app_syslog_facility is not None:
             syslog_handler = SysLogHandler(
                 facility=self._neo4j_app_syslog_facility_int,
             )
