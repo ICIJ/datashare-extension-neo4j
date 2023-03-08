@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol
 import neo4j
 
 from neo4j_app.constants import DOC_COLUMNS, NE_COLUMNS
-from neo4j_app.core.elasticsearch import ESClient
+from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.to_neo4j import (
     es_to_neo4j_doc,
     es_to_neo4j_named_entity,
@@ -45,7 +45,7 @@ async def import_documents(
     *,
     query: Optional[Dict],
     neo4j_session: neo4j.AsyncSession,
-    es_client: ESClient,
+    es_client: ESClientABC,
     neo4j_import_dir: Path,
     neo4j_import_prefix: Optional[str] = None,
     keep_alive: Optional[str] = None,
@@ -81,7 +81,7 @@ async def import_named_entities(
     *,
     query: Optional[Dict],
     neo4j_session: neo4j.AsyncSession,
-    es_client: ESClient,
+    es_client: ESClientABC,
     neo4j_import_dir: Path,
     neo4j_import_prefix: Optional[str] = None,
     keep_alive: Optional[str] = None,
@@ -125,7 +125,7 @@ async def _es_to_neo4j_import(
     import_tx: ImportTransactionFunction,
     es_to_neo4j: Callable[[Dict[str, Any]], Dict[str, str]],
     neo4j_session: neo4j.AsyncSession,
-    es_client: ESClient,
+    es_client: ESClientABC,
     neo4j_import_dir: Path,
     neo4j_import_prefix: Optional[str] = None,
     keep_alive: Optional[str] = None,

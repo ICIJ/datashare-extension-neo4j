@@ -12,8 +12,8 @@ from typing import Dict, List, Optional, TextIO
 import neo4j
 from pydantic import Field
 
-from neo4j_app.core.elasticsearch import ESClient
-from neo4j_app.core.elasticsearch.client import OSClient
+from neo4j_app.core.elasticsearch import ESClientABC
+from neo4j_app.core.elasticsearch.client import ESClient, OSClient
 from neo4j_app.core.utils.pydantic import (
     BaseICIJModel,
     IgnoreExtraModel,
@@ -135,7 +135,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         return driver
 
     # TODO: change this to output ESClientMixin...
-    def to_es_client(self) -> ESClient:
+    def to_es_client(self) -> ESClientABC:
         client_cls = OSClient if self.neo4j_app_uses_opensearch else ESClient
         # TODO: read the index name in a secure manner...
         client = client_cls(
