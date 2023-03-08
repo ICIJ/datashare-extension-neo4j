@@ -35,7 +35,7 @@ async def request_validation_error_handler(
     detail = exc.errors()
     error = json_error(title=title, detail=detail)
     logger.error(
-        "%s\nURL:%s\nDetail:%s",
+        "%s\nURL: %s\nDetail: %s",
         title,
         lambda: request.url,
         lambda: _display_errors(detail),
@@ -52,7 +52,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         return Response(status_code=exc.status_code, headers=headers)
     title = detail = exc.detail
     error = json_error(title=title, detail=detail)
-    logger.error("%s\nURL:%s", title, lambda: request.url)
+    logger.error("%s\nURL: %s", title, lambda: request.url)
     return JSONResponse(
         jsonable_encoder(error), status_code=exc.status_code, headers=headers
     )
@@ -62,12 +62,12 @@ async def internal_exception_handler(request: Request, exc: Exception):
     # pylint: disable=unused-argument
     title = _INTERNAL_SERVER_ERROR
     detail = f"{type(exc).__name__}: {exc}"
-    trace = "\n".join(traceback.format_tb(exc.__traceback__))
+    trace = "".join(traceback.format_exc())
     error = json_error(title=title, detail=detail, trace=trace)
     logger.error(
-        "%s\nURL:%s\nDetail:%s\nTrace:%s",
+        "%s\nURL: %s\nDetail: %s\nTrace: %s",
         title,
-        lambda: request.url,
+        request.url,
         detail,
         trace,
     )
