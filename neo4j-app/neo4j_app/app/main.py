@@ -13,7 +13,7 @@ def main_router() -> APIRouter:
     def ping() -> str:
         return "pong"
 
-    @router.get("/config")
+    @router.get("/config", response_model=AppConfig, response_model_exclude_unset=True)
     def config(config: AppConfig = Depends(get_global_config_dep)) -> AppConfig:
         return config
 
