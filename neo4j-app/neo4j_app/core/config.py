@@ -51,7 +51,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_import_prefix: Optional[str] = None
     neo4j_port: int = 7687
     neo4j_project: str
-    # TODO: maybe use an alias here
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
     # per request basis using FastApi dependencies...
