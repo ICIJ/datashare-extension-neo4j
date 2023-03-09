@@ -1,3 +1,4 @@
+import functools
 import logging
 import traceback
 from typing import Dict, Iterable, List
@@ -14,6 +15,7 @@ from neo4j_app.app.documents import DOCUMENT_TAG, documents_router
 from neo4j_app.app.main import OTHER_TAG, main_router
 from neo4j_app.app.named_entities import NE_TAG, named_entities_router
 from neo4j_app.core import AppConfig
+from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schema
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
 
@@ -94,10 +96,24 @@ def create_app(config: AppConfig) -> FastAPI:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, internal_exception_handler)
     app.add_event_handler("startup", app.state.config.setup_loggers)
+    app.add_event_handler("startup", functools.partial(migrate_app_db, app))
     app.include_router(main_router())
     app.include_router(documents_router())
     app.include_router(named_entities_router())
     return app
+
+
+async def migrate_app_db(app: FastAPI):
+    config = app.state.config
+    async with config.to_neo4j_driver() as driver:
+        async with driver.session() as sess:
+            logger.info("Running schema migrations at application startup...")
+            await migrate_db_schema(
+                sess,
+                registry=MIGRATIONS,
+                timeout_s=config.neo4j_app_migration_timeout_s,
+                wait_s=config.neo4j_app_migration_wait_s,
+            )
 
 
 def _display_errors(errors: List[Dict]) -> str:
