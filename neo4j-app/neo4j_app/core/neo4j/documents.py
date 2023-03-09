@@ -9,7 +9,7 @@ from neo4j_app.constants import (
     DOC_DIRNAME,
     DOC_EXTRACTION_DATE,
     DOC_ID,
-    DOC_LABEL,
+    DOC_NODE,
     DOC_PATH,
     DOC_ROOT_ID,
 )
@@ -25,7 +25,7 @@ async def import_documents_from_csv_tx(
     #  have route to clean the DB and start fresh
     # TODO: add an index on document id
     query = f"""LOAD CSV WITH HEADERS FROM 'file:///{neo4j_import_path}' AS row
-MERGE (doc:{DOC_LABEL} {{{DOC_ID}: row.{DOC_ID}}})
+MERGE (doc:{DOC_NODE} {{{DOC_ID}: row.{DOC_ID}}})
 ON CREATE
     SET
         doc.{DOC_CONTENT_TYPE} = row.{DOC_CONTENT_TYPE},
@@ -55,7 +55,7 @@ async def documents_ids_tx(tx: neo4j.AsyncTransaction) -> List[str]:
 
 
 def document_ids_query() -> str:
-    query = f"""MATCH (doc:{DOC_LABEL})
+    query = f"""MATCH (doc:{DOC_NODE})
 RETURN doc.{DOC_ID} as {DOC_ID}
 """
     return query

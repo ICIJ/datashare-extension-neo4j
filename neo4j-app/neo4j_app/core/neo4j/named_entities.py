@@ -8,7 +8,7 @@ from neo4j_app.constants import (
     NE_EXTRACTOR,
     NE_EXTRACTOR_LANG,
     NE_ID,
-    NE_LABEL,
+    NE_NODE,
     NE_MENTION,
     NE_MENTION_NORM,
     NE_MENTION_NORM_TEXT_LENGTH,
@@ -30,7 +30,7 @@ async def import_named_entities_from_csv_tx(
 WITH row, \
 [offset IN split(row.{NE_OFFSETS}, '{NE_OFFSET_SPLITCHAR}') | toInteger(offset)] \
 as rowOffsets  
-MERGE (mention:{NE_LABEL} {{{NE_ID}: row.{NE_ID}}})
+MERGE (mention:{NE_NODE} {{{NE_ID}: row.{NE_ID}}})
 ON CREATE
     SET
         mention.{NE_CATEGORY} = row.{NE_CATEGORY},
