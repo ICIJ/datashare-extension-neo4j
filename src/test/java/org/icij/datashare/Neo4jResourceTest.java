@@ -134,7 +134,7 @@ public class Neo4jResourceTest {
         @Test
         public void test_get_ping() throws IOException, InterruptedException {
             // When
-            neo4jAppResource.startServerProcess();
+            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(routes -> routes.get("/ping", (context) -> "pong"));
             Response res =
                 get("/api/neo4j/ping").withPreemptiveAuthentication("foo", "null").response();
@@ -185,7 +185,7 @@ public class Neo4jResourceTest {
         @Test
         public void test_get_ping_should_return_200() throws IOException, InterruptedException {
             // When
-            neo4jAppResource.startServerProcess();
+            neo4jAppResource.startServerProcess(false);
             Response response =
                 get("/api/neo4j/ping").withPreemptiveAuthentication("foo", "null").response();
             // Then
@@ -214,7 +214,7 @@ public class Neo4jResourceTest {
         @Test
         public void test_get_status_when_running() throws IOException, InterruptedException {
             // When
-            neo4jAppResource.startServerProcess();
+            neo4jAppResource.startServerProcess(false);
             Response response =
                 get("/api/neo4j/status").withPreemptiveAuthentication("foo", "null").response();
             // Then
@@ -244,7 +244,7 @@ public class Neo4jResourceTest {
         public void test_post_start_should_return_200_when_already_started()
             throws IOException, InterruptedException {
             // When
-            neo4jAppResource.startServerProcess();
+            neo4jAppResource.startServerProcess(false);
             Response response =
                 post("/api/neo4j/start").withPreemptiveAuthentication("foo", "null").response();
             // Then
@@ -274,7 +274,7 @@ public class Neo4jResourceTest {
         public void test_post_stop_should_return_200_when_already_started()
             throws IOException, InterruptedException {
             // When
-            neo4jAppResource.startServerProcess();
+            neo4jAppResource.startServerProcess(false);
             Response response =
                 post("/api/neo4j/stop").withPreemptiveAuthentication("foo", "null").response();
             // Then
@@ -357,7 +357,7 @@ public class Neo4jResourceTest {
         public void test_post_documents_import_should_return_200()
             throws IOException, InterruptedException {
             // Given
-            neo4jAppResource.startServerProcess();
+            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post(
                     "/documents",
@@ -405,7 +405,7 @@ public class Neo4jResourceTest {
         public void test_post_named_entities_import_should_return_200()
             throws IOException, InterruptedException {
             // Given
-            neo4jAppResource.startServerProcess();
+            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post(
                     "/named-entities",

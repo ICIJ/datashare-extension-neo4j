@@ -16,6 +16,7 @@ from neo4j_app.app.main import OTHER_TAG, main_router
 from neo4j_app.app.named_entities import NE_TAG, named_entities_router
 from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schema
+from neo4j_app.core.neo4j.migrations import delete_all_migrations_tx
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
 
@@ -104,10 +105,12 @@ def create_app(config: AppConfig) -> FastAPI:
 
 
 async def migrate_app_db(app: FastAPI):
-    config = app.state.config
+    config: AppConfig = app.state.config
     async with config.to_neo4j_driver() as driver:
         async with driver.session() as sess:
             logger.info("Running schema migrations at application startup...")
+            if config.force_migrations:
+                await sess.execute_write(delete_all_migrations_tx)
             await migrate_db_schema(
                 sess,
                 registry=MIGRATIONS,
