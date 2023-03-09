@@ -17,6 +17,7 @@ from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.app.utils import create_app
 from neo4j_app.core.utils.pydantic import BaseICIJModel
 
+
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
 #  let's try to find a way to define the scope dynamically:
 #  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
@@ -24,7 +25,8 @@ from neo4j_app.core.utils.pydantic import BaseICIJModel
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
 NEO4J_TEST_IMPORT_DIR = DATA_DIR.joinpath("neo4j", "import")
 NEO4J_IMPORT_PREFIX = Path(os.sep).joinpath(".neo4j", "import")
-NEO4J_TEST_PORT = 7687
+ELASTICSEARCH_TEST_PORT = 9201
+NEO4J_TEST_PORT = 7688
 _INDEX_BODY = {
     "mappings": {
         "properties": {
@@ -53,6 +55,7 @@ def test_client_session(
 ) -> TestClient:
     # pylint: disable=unused-argument
     config = AppConfig(
+        elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
         es_default_page_size=5,
         neo4j_project="test-datashare-project",
         neo4j_import_dir=str(NEO4J_TEST_IMPORT_DIR),
@@ -119,7 +122,7 @@ def _make_test_client() -> ESClient:
     test_index = "test-datashare-project"
     es = ESClient(
         project_index=test_index,
-        hosts=[{"host": "localhost", "port": 9200}],
+        hosts=[{"host": "localhost", "port": ELASTICSEARCH_TEST_PORT}],
         pagination=3,
     )
     return es
