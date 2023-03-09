@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+function _export_global_variables() {
+    local root
+    root="$(cd "$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")" >/dev/null && pwd)"
+    source "$root"/neo4j
+}
+
+function _tests() {
+
+    function test_update_version() {
+        _print_step "Testing ./neo4j set_version"...
+        # Given
+        local new_version
+        new_version="99999999"
+
+        # When
+        "$ROOT_DIR"/neo4j set_version $new_version
+
+        # Then
+        "$ROOT_DIR"/neo4j test -p release_version
+    }
+
+    function test_run_manifest_checksums() {
+        _print_step "Testing checksums checks"...
+        # Given
+        local bin_path
+        bin_path=$ROOT_DIR/bins/hello.txt
+        echo "hello" > "$bin_path"
+        new_version="99999999"
+
+        # When
+        _update_manifest "$bin_path"
+        # Then
+        _run_manifest_checksums || exit_with_message "Checksums failed after updating the manifest..."
+
+        # When
+        echo "tempering the binary" > "$bin_path"
+        # Then
+        _run_manifest_checksums && exit_with_message "Checksums succeeded after tempering the binary..."
+    }
+
+    function test_verify_assets_should_fail_when_missing_binary() {
+        exit_with_message "TODO"
+    }
+
+    function test_verify_assets_should_succeed() {
+        exit_with_message "TODO"
+    }
+
+    function test_verify_assets_should_fail_when_assets_are_tempered() {
+        exit_with_message "TODO"
+    }
+}
+
+function _main() {
+    set -e
+    # Export variables
+    _tests
+    _export_global_variables
+
+    local test_funcs
+    test_funcs=$(declare -f | sed -nr 's@^\s*function\s+(test_[a-zA-Z0-9_]+).*$@\1@p')
+    for f in $test_funcs; do
+        $f
+    done
+    echo "All tests succeeded !"
+}
+
+_main "$@"
