@@ -103,7 +103,7 @@ public class Neo4jResource implements AutoCloseable {
                 Thread.sleep(500);
             }
         }
-        throw new RuntimeException("Couldn't read Python 30s after starting it !");
+        throw new RuntimeException("Couldn't start Python 30s after starting it !");
     }
 
     @Post("/start")
