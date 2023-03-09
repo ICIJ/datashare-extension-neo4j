@@ -178,7 +178,7 @@ async def neo4j_test_session_module(
     neo4j_test_session_session: neo4j.AsyncSession,
 ) -> neo4j.AsyncSession:
     session = neo4j_test_session_session
-    await session.execute_write(_wipe_db_tx)
+    await wipe_db(session)
     return session
 
 
@@ -187,7 +187,7 @@ async def neo4j_test_session(
     neo4j_test_session_session: neo4j.AsyncSession,
 ) -> neo4j.AsyncSession:
     session = neo4j_test_session_session
-    await session.execute_write(_wipe_db_tx)
+    await wipe_db(session)
     return session
 
 
@@ -325,12 +325,12 @@ DETACH DELETE ent
     return neo4j_session
 
 
-async def _wipe_db_tx(tx: neo4j.AsyncTransaction):
+async def wipe_db(session: neo4j.AsyncSession):
     # Indices and constraints
     query = "CALL apoc.schema.assert({}, {})"
-    await tx.run(query)
+    await session.run(query)
     # Documents
     query = """MATCH (n)
 DETACH DELETE n
     """
-    await tx.run(query)
+    await session.run(query)

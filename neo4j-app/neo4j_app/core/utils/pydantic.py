@@ -16,6 +16,7 @@ class BaseICIJModel(BaseModel):
         extra = "forbid"
         allow_population_by_field_name = True
         keep_untouched = (cached_property,)
+        use_enum_values = True
 
     def dict(self, **kwargs):
         kwargs = copy(kwargs)
@@ -34,3 +35,8 @@ class LowerCamelCaseModel(BaseICIJModel):
 class IgnoreExtraModel(BaseICIJModel):
     class Config:
         extra = "ignore"
+
+
+class NoEnumModel(BaseModel):
+    class Config:
+        use_enum_values = False
