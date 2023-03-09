@@ -6,14 +6,22 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, TextIO, Tuple
 from .migrations import Migration
 from .migrations.migrate import migrate_db_schema, MigrationError
-from .migrations.migrations import create_migration_unique_constraint_tx
+from .migrations.migrations import (
+    create_document_and_ne_id_unique_constraint_tx,
+    create_migration_unique_constraint_tx,
+)
 
 FIRST_MIGRATION = Migration(
     version="0.1.0",
     label="Create migration index and constraints",
     migration_fn=create_migration_unique_constraint_tx,
 )
-MIGRATIONS = [FIRST_MIGRATION]
+V_O_2_0 = Migration(
+    version="0.2.0",
+    label="Add uniqueness constraint for documents and named entities",
+    migration_fn=create_document_and_ne_id_unique_constraint_tx,
+)
+MIGRATIONS = [FIRST_MIGRATION, V_O_2_0]
 
 
 def get_neo4j_csv_writer(f: TextIO, header: List[str]) -> csv.DictWriter:
