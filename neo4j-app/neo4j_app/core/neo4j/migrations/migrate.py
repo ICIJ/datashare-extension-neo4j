@@ -155,6 +155,13 @@ RETURN m as migration
     return migrations
 
 
+async def delete_all_migrations_tx(tx: neo4j.AsyncTransaction):
+    query = f"""MATCH (m:{MIGRATION_NODE})
+DETACH DELETE m
+    """
+    await tx.run(query)
+
+
 async def migrate_db_schema(
     neo4j_session: neo4j.AsyncSession,
     registry: MigrationRegistry,
