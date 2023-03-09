@@ -4,7 +4,7 @@ DOC_CONTENT_TYPE = "contentType"
 DOC_DIRNAME = "dirname"
 DOC_ID = "id"
 DOC_EXTRACTION_DATE = "extractionDate"
-DOC_LABEL = "Document"
+DOC_NODE = "Document"
 DOC_PATH = "path"
 DOC_ROOT_ID = "rootId"
 DOC_COLUMNS = {
@@ -17,6 +17,13 @@ DOC_COLUMNS = {
     DOC_PATH,
 }
 
+MIGRATION_COMPLETED = "completed"
+MIGRATION_LABEL = "label"
+MIGRATION_NODE = "Migration"
+MIGRATION_STARTED = "started"
+MIGRATION_STATUS = "status"
+MIGRATION_VERSION = "version"
+
 NE_OFFSET_SPLITCHAR = ":"
 
 # TODO: replicate other named entities attributes
@@ -28,7 +35,7 @@ NE_EXTRACTOR_LANG = "extractorLanguage"
 NE_MENTION = "mention"
 NE_MENTION_NORM = "mentionNorm"
 NE_MENTION_NORM_TEXT_LENGTH = "mentionNormTextLength"
-NE_LABEL = "NamedEntity"
+NE_NODE = "NamedEntity"
 NE_OFFSETS = "offsets"
 NE_COLUMNS = {
     NE_ID,
