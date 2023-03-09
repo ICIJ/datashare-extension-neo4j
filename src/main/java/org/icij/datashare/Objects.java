@@ -29,4 +29,13 @@ public class Objects {
             this.query = query;
         }
     }
+
+    static class StartNeo4jAppRequest {
+        public boolean forceMigration;
+
+        @JsonCreator
+        StartNeo4jAppRequest(@JsonProperty("forceMigration") boolean forceMigration) {
+            this.forceMigration = forceMigration;
+        }
+    }
 }

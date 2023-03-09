@@ -11,11 +11,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.Cleaner;
-import java.lang.reflect.Array;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
@@ -106,11 +107,16 @@ public class Neo4jResource implements AutoCloseable {
     }
 
     @Post("/start")
-    public Payload postStartNeo4jApp() throws IOException, InterruptedException {
+    public Payload postStartNeo4jApp(Context context) throws IOException, InterruptedException {
         // TODO: check that the user is allowed
+        boolean forceMigrations = false;
+        if (!context.request().content().isBlank()) {
+            forceMigrations = context.extract(
+                org.icij.datashare.Objects.StartNeo4jAppRequest.class).forceMigration;
+        }
         boolean alreadyRunning;
         try {
-            alreadyRunning = this.startNeo4jApp();
+            alreadyRunning = this.startNeo4jApp(forceMigrations);
         } catch (Neo4jAlreadyRunningError e) {
             return new Payload("application/problem+json", e).withCode(500);
         }
@@ -171,7 +177,8 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    private boolean startNeo4jApp() throws IOException, InterruptedException {
+    private boolean startNeo4jApp(boolean forceMigrations)
+        throws IOException, InterruptedException {
         boolean alreadyRunning = this.isNeoAppRunning();
         if (!alreadyRunning) {
             synchronized (this) {
@@ -182,14 +189,15 @@ public class Neo4jResource implements AutoCloseable {
                     // TODO: since the process is static, if we instance the extension with a
                     //  different config, the new process with an updated config won't launch...
                     //  (might be acceptable)
-                    this.startServerProcess();
+                    this.startServerProcess(forceMigrations);
                 }
             }
         }
         return alreadyRunning;
     }
 
-    protected void startServerProcess() throws IOException, InterruptedException {
+    protected void startServerProcess(boolean forceMigrations)
+        throws IOException, InterruptedException {
         File propertiesFile = createTempFile("neo4j-", "-datashare.properties");
         logger.debug("Copying Datashare properties to temporary location {}",
             lazy(propertiesFile::getAbsolutePath));
@@ -198,12 +206,11 @@ public class Neo4jResource implements AutoCloseable {
             .getProperties()
             .store(Files.newOutputStream(propertiesFile.toPath().toAbsolutePath()), null);
 
-        String[] startServerCmd;
+        List<String> startServerCmd;
         Optional<String> propertiesCmd = this.propertiesProvider
-            // TODO: this might allow to run arbitrary code...
             .get("neo4jStartServerCmd");
         if (propertiesCmd.isPresent()) {
-            startServerCmd = propertiesCmd.get().split("\\s+");
+            startServerCmd = Arrays.asList(propertiesCmd.get().split("\\s+"));
         } else {
             // Let's copy the app binary somewhere accessible on the fs
             try (InputStream serverBytesStream = this.getClass().getClassLoader()
@@ -219,8 +226,14 @@ public class Neo4jResource implements AutoCloseable {
                 }
                 (new File(tmpServerBinaryPath.toAbsolutePath().toString())).setExecutable(true);
             }
-            startServerCmd =
-                new String[] {appBinaryPath.toString(), propertiesFile.getAbsolutePath()};
+            startServerCmd = Arrays.asList(
+                appBinaryPath.toString(),
+                "--config-path",
+                propertiesFile.getAbsolutePath()
+            );
+            if (forceMigrations) {
+                startServerCmd.add("--force-migrations");
+            }
         }
         // Bind syslog
         cleaner.register(this.getClass(), () -> {
@@ -246,9 +259,11 @@ public class Neo4jResource implements AutoCloseable {
         this.waitForServerToBeUp();
     }
 
-    protected void checkServerCommand(String[] startServerCmd) {
-        String mainCommand = (String) Optional.ofNullable(Array.get(startServerCmd, 0))
-            .orElseThrow(() -> new InvalidNeo4jCommandError("Empty neo4j server command"));
+    protected void checkServerCommand(List<String> startServerCmd) {
+        if (startServerCmd.isEmpty()) {
+            throw new InvalidNeo4jCommandError("Empty neo4j server command");
+        }
+        String mainCommand = startServerCmd.get(0);
         File maybeFile = new File(mainCommand);
         if (!maybeFile.isFile()) {
             String msg = maybeFile + " is not a file";

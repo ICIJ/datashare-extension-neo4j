@@ -170,6 +170,7 @@ async def neo4j_test_session_session(
 ) -> AsyncGenerator[neo4j.AsyncSession, None]:
     driver = neo4j_test_driver_session
     async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
+        await wipe_db(sess)
         yield sess
 
 
