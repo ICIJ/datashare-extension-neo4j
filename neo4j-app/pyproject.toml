@@ -28,7 +28,6 @@ pytest = "^7.2.1"
 pytest-asyncio = "^0.20.3"
 tomli = { version = "^2.0.1", markers = 'python_version < "3.11"' }
 
-
 [tool.poetry.group.opensearch.dependencies]
 opensearch-py = "^2.2.0"
 
