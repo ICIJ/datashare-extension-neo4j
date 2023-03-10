@@ -6,7 +6,6 @@ from typing import Optional
 
 import uvicorn
 
-import neo4j_app
 from neo4j_app.app.utils import create_app
 from neo4j_app.core.config import AppConfig
 
@@ -51,9 +50,6 @@ def get_arg_parser():
         description="neo4j_app start CLI", formatter_class=Formatter
     )
     arg_parser.add_argument(
-        "-v", "--version", action="store_true", help="Print app version"
-    )
-    arg_parser.add_argument(
         "--config-path",
         type=str,
         help="Path to Java properties holding the app configuration",
@@ -71,8 +67,6 @@ def main():
 
     if hasattr(args, "func"):
         args.func(args)
-    elif "version" in args:
-        print(neo4j_app.__version__)
     else:
         arg_parser.print_help()
         sys.exit(1)
