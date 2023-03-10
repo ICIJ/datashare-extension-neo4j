@@ -19,11 +19,7 @@ async def import_documents_from_csv_tx(
     tx: neo4j.AsyncTransaction, neo4j_import_path: Path
 ) -> neo4j.ResultSummary:
     # TODO: use apoc.periodic.iterate(.., ..., {batchSize:10000, parallel:true,
-    #  iterateList:true}) to || and speed import...
-    # TODO: if this is too long it might be worth skipping the ON MATCH part,
-    #  if we do so properties updates will be disabled and in this case we'll want to
-    #  have route to clean the DB and start fresh
-    # TODO: add an index on document id
+    #  iterateList:true}) to || and save memory import...
     query = f"""LOAD CSV WITH HEADERS FROM 'file:///{neo4j_import_path}' AS row
 MERGE (doc:{DOC_NODE} {{{DOC_ID}: row.{DOC_ID}}})
 ON CREATE
