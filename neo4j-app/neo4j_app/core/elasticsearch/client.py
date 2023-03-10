@@ -29,7 +29,7 @@ from neo4j_app.core.neo4j import write_neo4j_csv
 logger = logging.getLogger(__name__)
 
 
-class ESClientABC(AsyncElasticsearch, metaclass=abc.ABCMeta):
+class ESClientABC(metaclass=abc.ABCMeta):
     def __init__(
         self,
         project_index: str,
@@ -111,17 +111,10 @@ class ESClientABC(AsyncElasticsearch, metaclass=abc.ABCMeta):
     @asynccontextmanager
     async def pit(self, *, keep_alive: str, **kwargs) -> AsyncGenerator[Dict, None]:
         pit_id = None
-        if isinstance(self, AsyncElasticsearch):
-            open_fn = self.open_point_in_time
-        else:
-            open_fn = self.create_point_in_time
         try:
-            pit = await open_fn(
+            pit = await self.open_point_in_time(
                 index=self.project_index, keep_alive=keep_alive, **kwargs
             )
-            pit_id = pit.get(ID, pit.get("pit_id"))
-            # Reformat pit for opensearch
-            pit = {ID: pit_id}
             yield pit
         finally:
             if pit_id is not None:
@@ -246,8 +239,17 @@ try:
         def _pit_id(self) -> str:
             return "pid_id"
 
+        async def open_point_in_time(
+            self, index: str, keep_alive: str, **kwargs
+        ) -> Dict:
+            pit = await self.create_point_in_time(  # pylint: disable=unexpected-keyword-arg
+                index=index, keep_alive=keep_alive, **kwargs
+            )
+            pit = {ID: pit["pit_id"]}
+            return pit
+
         async def _close_pit(self, pit_id: str):
-            await self.delete_point_in_time(body={"pid_id": [pit_id]})
+            await self.close_point_in_time(body={"pid_id": [pit_id]})
 
 except ImportError:
     pass
