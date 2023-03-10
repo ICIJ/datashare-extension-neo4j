@@ -11,11 +11,7 @@ function _export_global_variables() {
     export DOCKER_UID
     DOCKER_GID="$(id -g)"
     export DOCKER_GID
-    if [ -z "$_ELASTICSEARCH_PORT" ]; then
-        export ELASTICSEARCH_PORT="9200"
-    else
-        export ELASTICSEARCH_PORT=$_ELASTICSEARCH_PORT
-    fi
+    export ELASTICSEARCH_PORT=9201
     export NEO4J_VERSION=4.4.17
     export TEST_APP_PORT=8002
     local archi
@@ -314,7 +310,6 @@ Please run ./neo4j format"
 function _main() {
     PROJECT=
     PROJECTS=
-    _ELASTICSEARCH_PORT=
     OPENSEARCH_SUPPORT=
 
     # Define sub projects here
@@ -353,9 +348,6 @@ function _main() {
                     VALUE_ARG="${!j}"
                     if [[ "$TYPE_ARG" == "-p" ]]; then
                         _parse_project_flag $VALUE_ARG
-                        SKIP_NEXT_TYPE_ARG=true
-                    elif [[ "$TYPE_ARG" == "--elasticsearch-port" ]]; then
-                        _ELASTICSEARCH_PORT=$VALUE_ARG
                         SKIP_NEXT_TYPE_ARG=true
                     elif [[ "$TYPE_ARG" == "--opensearch-support" ]]; then
                         OPENSEARCH_SUPPORT=true

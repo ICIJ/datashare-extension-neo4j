@@ -41,6 +41,8 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_keep_alive: str = "1m"
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
+    neo4j_app_migration_timeout_s: float = 60 * 5
+    neo4j_app_migration_wait_s: float = 1
     neo4j_app_name: str = "neo4j app"
     neo4j_app_port: int = 8080
     neo4j_app_syslog_facility: Optional[str] = None
@@ -51,13 +53,14 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_import_prefix: Optional[str] = None
     neo4j_port: int = 7687
     neo4j_project: str
+    force_migrations: bool = False
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
     # per request basis using FastApi dependencies...
     _global: Optional[AppConfig] = None
 
     @classmethod
-    def from_java_properties(cls, file: TextIO) -> AppConfig:
+    def from_java_properties(cls, file: TextIO, **kwargs) -> AppConfig:
         parser = ConfigParser(
             allow_no_value=True,
             strict=True,
@@ -74,6 +77,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     """
         parser.read_string(section_str)
         config_dict = dict(parser[section_name].items())
+        config_dict.update(kwargs)
         config_dict = _sanitize_values(config_dict)
         config = AppConfig.parse_obj(config_dict.items())
         return config

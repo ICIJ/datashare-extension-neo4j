@@ -13,8 +13,15 @@ def test_should_read_java_properties(tmpdir: Path):
 
     # When
     with pytest.raises(subprocess.CalledProcessError) as exception_info:
+        cmd = [
+            "python",
+            str(run_path),
+            "--config-path",
+            str(missing_config_file_path),
+            "--force-migrations",
+        ]
         subprocess.run(
-            ["python", str(run_path), str(missing_config_file_path)],
+            cmd,
             check=True,
             capture_output=True,
             encoding="utf-8",
