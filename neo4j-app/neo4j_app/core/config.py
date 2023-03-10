@@ -38,6 +38,8 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     elasticsearch_version: str = Field(default_factory=_es_version, const=True)
     es_doc_type_field: str = Field(alias="docTypeField", default="type")
     es_default_page_size: int = 1000
+    es_max_concurrency: int = 5
+    es_timeout: int = "1m"
     es_keep_alive: str = "1m"
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
@@ -146,6 +148,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             hosts=[self.es_host],
             port=self.es_port,
             pagination=self.es_default_page_size,
+            max_concurrency=self.es_max_concurrency,
         )
         return client
 

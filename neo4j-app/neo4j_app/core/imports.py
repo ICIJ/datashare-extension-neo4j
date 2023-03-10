@@ -132,6 +132,7 @@ async def _es_to_neo4j_import(
     concurrency: Optional[int] = None,
     imported_entity_label: str,
 ) -> IncrementalImportResponse:
+    logger.debug("Importing with ES concurrency of %s", concurrency)
     with make_neo4j_import_file(
         neo4j_import_dir=neo4j_import_dir, neo4j_import_prefix=neo4j_import_prefix
     ) as (f, neo4j_import_path):
@@ -161,3 +162,6 @@ async def _es_to_neo4j_import(
     n_inserted = summary.counters.nodes_created
     response = IncrementalImportResponse(n_to_insert=n_to_insert, n_inserted=n_inserted)
     return response
+
+
+œ

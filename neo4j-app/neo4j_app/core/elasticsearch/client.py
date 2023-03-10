@@ -25,6 +25,7 @@ from neo4j_app.core.elasticsearch.utils import (
     match_all,
 )
 from neo4j_app.core.neo4j import write_neo4j_csv
+from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
             size = self.pagination_size
         if not size:
             raise ValueError("size is expected to be > 0")
-        res = await self.search(size=size, sort=sort, **kwargs)
+        with log_elapsed_time_cm(
+            logger, logging.DEBUG, "Searched in ES in {elapsed_time}"
+        ):
+            res = await self.search(size=size, sort=sort, **kwargs)
         kwargs = deepcopy(kwargs)
         yield res
         page_hits = res[HITS][HITS]
@@ -91,7 +95,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 kwargs["body"][SEARCH_AFTER] = search_after
             else:
                 kwargs[SEARCH_AFTER] = search_after
-            res = await self.search(size=size, sort=sort, **kwargs)
+            with log_elapsed_time_cm(
+                logger, logging.DEBUG, "Searched in ES in {elapsed_time}"
+            ):
+                res = await self.search(size=size, sort=sort, **kwargs)
             yield res
             page_hits = res[HITS][HITS]
 
