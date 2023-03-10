@@ -1,3 +1,4 @@
+import abc
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -21,8 +22,6 @@ from neo4j_app.core.elasticsearch.utils import (
     SEARCH_AFTER,
     SLICE,
     SORT,
-    TOTAL,
-    VALUE,
     match_all,
 )
 from neo4j_app.core.neo4j import write_neo4j_csv
@@ -30,7 +29,7 @@ from neo4j_app.core.neo4j import write_neo4j_csv
 logger = logging.getLogger(__name__)
 
 
-class ESClient(AsyncElasticsearch):
+class ESClientABC(metaclass=abc.ABCMeta):
     def __init__(
         self,
         project_index: str,
@@ -38,15 +37,14 @@ class ESClient(AsyncElasticsearch):
         pagination: int,
         keep_alive: str = "1m",
         max_concurrency: int = 5,
-        **kwargs,
     ):
+        # pylint: disable=super-init-not-called
         self._project_index = project_index
         if pagination > 10000:
             raise ValueError("Elasticsearch doesn't support pages of size > 10000")
         self._pagination_size = pagination
         self._keep_alive = keep_alive
         self._max_concurrency = max_concurrency
-        super().__init__(**kwargs)
 
     @cached_property
     def project_index(self) -> str:
@@ -83,10 +81,11 @@ class ESClient(AsyncElasticsearch):
         res = await self.search(size=size, sort=sort, **kwargs)
         kwargs = deepcopy(kwargs)
         yield res
-        total_hits = res[HITS][TOTAL][VALUE]
         page_hits = res[HITS][HITS]
-        remaining = total_hits - len(page_hits)
-        while remaining > 0:
+        # TODO: find more elegant solution here, indeed if we know how many hits
+        #  are left on the slice, we could avoid making the last call which returns
+        #  empty results
+        while page_hits:
             search_after = page_hits[-1][SORT]
             if "body" in kwargs:
                 kwargs["body"][SEARCH_AFTER] = search_after
@@ -95,7 +94,6 @@ class ESClient(AsyncElasticsearch):
             res = await self.search(size=size, sort=sort, **kwargs)
             yield res
             page_hits = res[HITS][HITS]
-            remaining -= len(page_hits)
 
     async def async_scan(
         self,
@@ -114,16 +112,13 @@ class ESClient(AsyncElasticsearch):
     async def pit(self, *, keep_alive: str, **kwargs) -> AsyncGenerator[Dict, None]:
         pit_id = None
         try:
-            pit = (
-                await self.open_point_in_time(  # pylint: disable=unexpected-keyword-arg
-                    index=self.project_index, keep_alive=keep_alive, **kwargs
-                )
+            pit = await self.open_point_in_time(
+                index=self.project_index, keep_alive=keep_alive, **kwargs
             )
-            pit_id = pit[ID]
             yield pit
         finally:
             if pit_id is not None:
-                await self.close_point_in_time(body={ID: pit_id})
+                await self._close_pit(pit_id)
 
     async def write_concurrently_neo4j_csv(
         self,
@@ -187,6 +182,77 @@ class ESClient(AsyncElasticsearch):
                 write_neo4j_csv(f, rows=rows, header=header, write_header=False)
                 f.flush()
         return total_hits
+
+
+class ESClient(ESClientABC, AsyncElasticsearch):
+    def __init__(
+        self,
+        project_index: str,
+        *,
+        pagination: int,
+        keep_alive: str = "1m",
+        max_concurrency: int = 5,
+        **kwargs,
+    ):
+        ESClientABC.__init__(
+            self,
+            project_index=project_index,
+            pagination=pagination,
+            keep_alive=keep_alive,
+            max_concurrency=max_concurrency,
+        )
+        AsyncElasticsearch.__init__(self, **kwargs)
+
+    # TODO: this should be class attr
+    @cached_property
+    def _pit_id(self) -> str:
+        return ID
+
+    async def _close_pit(self, pit_id: str):
+        await self.close_point_in_time(body={ID: pit_id})
+
+
+try:
+    from opensearchpy import AsyncOpenSearch
+
+    class OSClient(ESClientABC, AsyncOpenSearch):
+        def __init__(
+            self,
+            project_index: str,
+            *,
+            pagination: int,
+            keep_alive: str = "1m",
+            max_concurrency: int = 5,
+            **kwargs,
+        ):
+            ESClientABC.__init__(
+                self,
+                project_index=project_index,
+                pagination=pagination,
+                keep_alive=keep_alive,
+                max_concurrency=max_concurrency,
+            )
+            AsyncOpenSearch.__init__(self, **kwargs)
+
+        # TODO: this should be class attr
+        @cached_property
+        def _pit_id(self) -> str:
+            return "pid_id"
+
+        async def open_point_in_time(
+            self, index: str, keep_alive: str, **kwargs
+        ) -> Dict:
+            pit = await self.create_point_in_time(  # pylint: disable=unexpected-keyword-arg
+                index=index, keep_alive=keep_alive, **kwargs
+            )
+            pit = {ID: pit["pit_id"]}
+            return pit
+
+        async def _close_pit(self, pit_id: str):
+            await self.close_point_in_time(body={"pid_id": [pit_id]})
+
+except ImportError:
+    pass
 
 
 def sliced_search_with_pit(

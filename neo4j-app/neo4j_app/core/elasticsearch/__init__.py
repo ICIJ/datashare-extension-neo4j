@@ -1,1 +1,1 @@
-from .client import ESClient
+from .client import ESClient, ESClientABC

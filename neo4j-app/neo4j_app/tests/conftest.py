@@ -53,7 +53,6 @@ def test_client_session(
 ) -> TestClient:
     # pylint: disable=unused-argument
     config = AppConfig(
-        debug=True,
         es_default_page_size=5,
         neo4j_project="test-datashare-project",
         neo4j_import_dir=str(NEO4J_TEST_IMPORT_DIR),

@@ -4,7 +4,7 @@ import neo4j
 from fastapi import Depends, Request
 
 from neo4j_app.core import AppConfig
-from neo4j_app.core.elasticsearch import ESClient
+from neo4j_app.core.elasticsearch import ESClientABC
 
 
 def get_global_config_dep() -> AppConfig:
@@ -32,6 +32,6 @@ async def neo4j_session_dep(
 
 async def es_client_dep(
     config: AppConfig = Depends(get_global_config_dep),
-) -> AsyncGenerator[ESClient, None]:
+) -> AsyncGenerator[ESClientABC, None]:
     async with config.to_es_client() as client:
         yield client

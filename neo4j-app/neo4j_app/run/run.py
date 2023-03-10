@@ -13,7 +13,6 @@ def debug_app():
     config = AppConfig(
         neo4j_import_dir=str(neo4j_import_dir),
         neo4j_project="Debug project",
-        debug=True,
     )
     app = create_app(config)
     return app
