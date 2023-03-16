@@ -19,7 +19,7 @@ executors:
       docker_layer_caching: true
   unknown-linux:
     machine:
-      image: ubuntu-2004:202010-01
+      image: ubuntu-2004:2022.04.1
   darwin-universal2:
     macos:
       xcode: 14.2.0
