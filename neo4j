@@ -59,7 +59,7 @@ function _helpers() {
         fi
         poetry install$groups
         _poetry_shell
-        command -v pyinstaller 1>/dev/null 2>&1 || _install_pyinstaller
+        command -v pyinstaller 1>/dev/null 2>&1 || python3 -m pip install  pyinstaller==5.7.0
 
         local app_dir
         app_dir="$ROOT_DIR"/bins
@@ -109,6 +109,7 @@ function _helpers() {
         local python_version
         python_version=$(poetry version -s)
         if ! [ "$python_version" = "$file_version" ]; then exit_with_message "Python version \"$python_version\" differs from \"$file_version\""; fi
+        cd "$ROOT_DIR"
 
         echo "All versions match !"
     }
@@ -133,10 +134,6 @@ function _helpers() {
         _pip_install black==23.1.0
     )
 
-    function _install_pyinstaller() (
-        _pip_install pyinstaller==5.7.0
-    )
-
     function _join_by {
         local d=${1-} f=${2-}
         if shift 2; then
@@ -149,6 +146,7 @@ function _helpers() {
     }
 
     function _pip_install() (
+        # TODO: we might alreading by insider poetry
         poetry run python3 -m pip install "$@"
     )
 
