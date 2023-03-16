@@ -359,7 +359,7 @@ Please run ./neo4j format"
     function run() {
         if _should_run_project "neo4j_app"; then
             # TODO: maybe we should run the binary we've copied to the java dir
-            "$ROOT_DIR/bins/$NEO4J_APP_BIN"
+            "$ROOT_DIR/bins/$(_make_neoj_binary_name)"
         else
             exit_with_message "Can't run project $PROJECT"
         fi
