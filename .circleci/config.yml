@@ -245,18 +245,18 @@ workflows:
   release-branch:
     when: << pipeline.parameters.release_branch >>
     jobs:
-      - build-unknown-linux-binary:
-          matrix:
-            parameters:
-               resource_cls: [ medium ]
-               branch: [ << pipeline.parameters.branch >> ]
+#      - build-unknown-linux-binary:
+#          matrix:
+#            parameters:
+#               resource_cls: [ medium ]
+#               branch: [ << pipeline.parameters.branch >> ]
 #            parameters:
 #              resource_cls: [ medium, arm.medium ]
 #              branch: [ << pipeline.parameters.branch >> ]
-#      - build-darwin-universal2-binary:
-#          branch: << pipeline.parameters.branch >>
+      - build-darwin-universal2-binary:
+          branch: << pipeline.parameters.branch >>
       - publish-binaries:
           branch: << pipeline.parameters.branch >>
           requires:
-            - build-unknown-linux-binary
-#            - build-darwin-universal2-binary
+#            - build-unknown-linux-binary
+            - build-darwin-universal2-binary
