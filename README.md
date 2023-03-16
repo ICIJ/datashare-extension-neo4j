@@ -14,6 +14,7 @@ Users are expected to have the following dependencies on their file system:
 
 - Docker
 - [maven](https://maven.apache.org/) `>3.8,<4.0`
+- [git](https://git-scm.com/)
 
 ## Commands
 
