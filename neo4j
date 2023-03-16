@@ -65,7 +65,7 @@ function _helpers() {
         app_dir="$ROOT_DIR"/bins
 
         local site_packages_path
-        site_packages_path=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+        site_packages_path=$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 
         local app_bin
         app_bin=$(_make_neoj_binary_name)
@@ -79,8 +79,10 @@ function _helpers() {
             -p neo4j_app \
             -p "$site_packages_path"
 
-        chmod +x "$app_dir/$app_bin"
+        deactivate
         echo "Successfully built bins/$app_bin"
+        chmod +x "$app_dir/$app_bin"
+
         cd "$ROOT_DIR"
     }
 
@@ -377,7 +379,7 @@ Please run ./neo4j format"
 
         cd "$PYTHON_APP_DIR"
         _pip_install tomlkit==0.11.6
-        poetry run python "$ROOT_DIR"/scripts/update_versions.py
+        poetry run python3 "$ROOT_DIR"/scripts/update_versions.py
     }
 
     function setup() {
