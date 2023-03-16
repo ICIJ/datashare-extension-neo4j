@@ -31,23 +31,29 @@ commands:
       branch:
         type: string
     steps:
-      - run:
-          name: Perform sanity checks
-          command: ./neo4j is_publishable
       - checkout-code:
           revision: << parameters.branch >>
       - run:
           name: Setting up environment
           command: |
+            cd datashare-extension-neo4j
             ./neo4j setup -p build_env
             echo "export PATH=$CIRCLE_WORKING_DIRECTORY/.poetry/bin:$PATH" >> "$BASH_ENV"
             source "$BASH_ENV"
             command -v poetry
+      # This has to be done after installing poetry
+      - run:
+          name: Perform sanity checks
+          command: |
+            cd datashare-extension-neo4j
+            ./neo4j is_publishable
+      # Fail early
       - check-is-latest-commit:
           branch: << parameters.branch >>
       - run:
           name: Build binary
           command: |
+            cd datashare-extension-neo4j
             ./neo4j setup -p neo4j_app
             ./neo4j build -p neo4j_app --sha >bins/$(./neo4j binary_name -p neo4j_app)-manifest.txt
       # TODO: store_artifacts here if it helps debugging
@@ -63,7 +69,10 @@ commands:
       revision:
         type: string
     steps:
-      - run: git checkout << parameters.revision >>
+      - run: |
+          if [[ ! -d datashare-extension-neo4j ]]; then git clone git@github.com:ICIJ/datashare-extension-neo4j.git; fi 
+          cd datashare-extension-neo4j
+          git checkout << parameters.revision >>
 
   check-is-latest-commit:
     description: "Checking that no commit was made later on the same branch"
@@ -147,6 +156,7 @@ jobs:
       - run:
           name: Publish assets to Github release
           command: |
+            cd datashare-extension-neo4j
             tag=$(./neo4j --version)
             ls /tmp/workspace/neo4j-app-*-"$tag" | xargs -0 -I {} cp {} bins
             ./neo4j update_manifest -p neo4j_app "$(ls bins/neo4j-app-*-$tag)"
@@ -209,6 +219,8 @@ workflows:
   version: 2
 
   build_and_test:
+    when:
+      not: << pipeline.parameters.release_branch >>
     jobs:
       - build
       - build-test-services
