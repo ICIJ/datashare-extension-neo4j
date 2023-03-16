@@ -29,13 +29,7 @@ function _commands() {
     }
 
     function _install_poetry() {
-        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$ROOT_DIR"/.poetry python3.8
-    }
-
-    function _install_python_universal2() {
-        if ! [[ $(python3 -c "import sysconfig;print(sysconfig.get_platform())") == *-universal2 ]];then
-            exit_with_message "Installation of universal2 python version is needed..."
-        fi
+        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$ROOT_DIR"/.poetry /usr/bin/python3.8
     }
 }
 
