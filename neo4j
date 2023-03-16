@@ -79,7 +79,6 @@ function _helpers() {
             -p neo4j_app \
             -p "$site_packages_path"
 
-        deactivate
         echo "Successfully built bins/$app_bin"
         chmod +x "$app_dir/$app_bin"
 
@@ -396,7 +395,7 @@ Please run ./neo4j format"
 
             cd "$PYTHON_APP_DIR"
             poetry env use "$(which python3)"
-            poetry install --with dev
+            poetry install --no-interaction -vvv --with=dev --no-ansi
             echo "Python setup succeeded !"
         else
             exit_with_message "Can't setup project $PROJECT"

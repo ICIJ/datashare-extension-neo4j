@@ -36,6 +36,8 @@ commands:
       # TODO: cache apt
       - run:
           name: Setting up environment
+          # TODO: remove the source ~/.bashrc is not needed
+          # We make a separate cache dir to avoid conflict with docker
           command: |
             cd datashare-extension-neo4j
             ./neo4j setup -p build_env
@@ -43,7 +45,8 @@ commands:
             source ~/.bashrc
             echo "export PATH=$CIRCLE_WORKING_DIRECTORY/datashare-extension-neo4j/.poetry/bin:$PATH" >> "$BASH_ENV"
             source "$BASH_ENV"
-            command -v poetry
+            mkdir $CIRCLE_WORKING_DIRECTORY/datashare-extension-neo4j/.cache
+            poetry config cache-dir $CIRCLE_WORKING_DIRECTORY/datashare-extension-neo4j/.cache
       # This has to be done after installing poetry
       - run:
           name: Perform sanity checks
@@ -59,10 +62,9 @@ commands:
             cd datashare-extension-neo4j
             ./neo4j setup -p neo4j_app
             ./neo4j build -p neo4j_app --sha >bins/$(./neo4j binary_name -p neo4j_app)-manifest.txt
-            echo "Successfully built binary"
       # TODO: store_artifacts here if it helps debugging
       - persist_to_workspace:
-          root: bins
+          root: datashare-extension-neo4j/bins
           paths:
             - "*-manifest.txt"
             - neo4j-app-*
@@ -185,7 +187,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: v3-deps-java-{{ checksum "pom.xml" }}
+          key: v4-deps-java-{{ checksum "pom.xml" }}
       - run:
           name: Java format tests
           command: ./neo4j docker_test -p neo4j_extension_format
@@ -193,10 +195,10 @@ jobs:
           name: Java tests
           command: ./neo4j docker_test -p neo4j_extension
       - save_cache:
-          key: v3-deps-java-{{ checksum "pom.xml" }}
+          key: v4-deps-java-{{ checksum "pom.xml" }}
           when: always
           paths:
-            - .data/.m2
+            - /home/circleci/projects/datashare-extension-neo4j/.data/.m2
 
   test-python:
     executor: docker-machine
@@ -204,7 +206,7 @@ jobs:
       - checkout
       # On the Python side reusing the older virtualenv will speed up the build
       - restore_cache:
-          key: v3-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
+          key: v4-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
       - run:
           name: Python format tests
           command: ./neo4j docker_test -p neo4j_app_format
@@ -215,10 +217,10 @@ jobs:
           name: Python tests
           command: ./neo4j docker_test -p neo4j_app
       - save_cache:
-          key: v3-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
+          key: v4-deps-python-{{ checksum "neo4j-app/poetry.lock" }}
           when: always
           paths:
-            - .data/.cache
+            - /home/circleci/projects/datashare-extension-neo4j/.data/.cache
 
 workflows:
   version: 2
