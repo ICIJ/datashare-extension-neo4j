@@ -393,7 +393,6 @@ Please run ./neo4j format"
             command -v poetry 1>/dev/null 2>&1 || echo "poetry is not installed"
 
             cd "$PYTHON_APP_DIR"
-            poetry env use "$(which python3)"
             poetry install --no-interaction -vvv --with=dev --no-ansi
             echo "Python setup succeeded !"
         else
