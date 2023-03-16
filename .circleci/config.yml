@@ -82,10 +82,11 @@ commands:
         type: string
     steps:
       - run: |
+          cd datashare-extension-neo4j
           git fetch
           current_commit="$(git rev-parse HEAD)"
-          last_commit="$(git log -1 --pretty=%H -n 1 origin/$current_commit)"
-          if ! [ "$current_commit" = "$last_commit" ];then
+          last_commit="$(git log -1 --pretty=%H -n 1 origin/<< parameters.branch >>)"
+          if ! [[ "$current_commit" = "$last_commit" ]];then
             echo "$current_commit is not the last commit on << parameters.branch >>" && exit 1
           fi
 
