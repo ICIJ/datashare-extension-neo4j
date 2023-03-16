@@ -56,17 +56,17 @@ To run code formatting use:
 it will run Python code base formatting.
 
 The Java code style guides are located in [checkstyle.xml](qa/java/checkstyle.xml).
-You can then use the [Checkstyle Intellij plugin](https://plugins.jetbrains.com/plugin/1065-checkstyle-idea) to
+Then use the [Checkstyle Intellij plugin](https://plugins.jetbrains.com/plugin/1065-checkstyle-idea) to
 highlight code style warnings and errors.
 
-Additionally once the plugin has been installed you can import the [checkstyle.xml](qa/java/checkstyle.xml) as a 
+Additionally once the plugin has been installed, import the [checkstyle.xml](qa/java/checkstyle.xml) as a 
 Java Code Style template ` Settings|Editor|Code Style|Manage...|Import..`.
-This will allow you to automatically format you code according to the style guide when running the `Reformat Code`
+This will allow to automatically format the code according to the style guide when running the `Reformat Code`
 action in Intellij.
 
 Be aware that reformatting code will only solve formatting style issues and other issues might be left.
 
-`Checkstyle` is also available for other IDEs and you should be able to integrate it in your preferred IDE.
+`Checkstyle` is also available for other IDEs and can be integrated in most IDEs.
 
 
 ### Display the Python app documentation
@@ -76,6 +76,10 @@ After building the app:
 ```bash
 ./neo4j run -p neo4j_app
 ```
+
+this will use the default app configuration. However is to provide the path to a 
+[Datashare](https://github.com/ICIJ/datashare) `properties`. The location of this file can be found in Datashare's 
+settings. 
 
 and then navigate to [http://localhost/8080/docs](http://localhost/8080/docs)
 
@@ -124,8 +128,43 @@ To run a specify test  run:
 available tests are `neo4j_app`, `neo4j_app_format`, `neo4j_extension` and `neo4j_extension_format` 
 
 #### Docker tests
-**Docker tests require you to launch tests services first using `./neo4j start_all_test_services`**, then you can use
+**Docker tests requires to launch tests services first using `./neo4j start_all_test_services`**, then use
 any of the above test commands replacing `test` by `docker_test`, for instance:
 ```bash
 ./neo4j docker_test -p neo4j_app
 ```
+
+## Development
+
+### Java and Python development
+
+If changes impact the Python and Java codebase, or if they have to be tested inside Datashare
+
+#### 1. Build the java extension and make it available
+- build
+- make it available
+
+#### 2. Make it available in [Datashare](https://github.com/ICIJ/datashare)
+The following steps have to be done only once. The goal here is to make the development version of the extension
+available in Datashare
+
+- Set up Datashare for development and launch development services following instructions found
+[here](https://github.com/ICIJ/datashare#compilation--build)
+- Update the 
+[datashare extensions registry](https://github.com/ICIJ/datashare/blob/41280446494a51e3842e2b6142fc5318a31669a6/datashare-app/src/main/resources/extensions.json)
+to reference the  
+- build datashare
+
+#### 3. Launch with additional properties
+- kjlrka
+- install or re-install the extension in Datashare
+- test
+
+### Python only development
+
+#### 1. Build the Python app
+- build
+
+#### 2. Test it
+- get a configuration file
+- launch the python service pointing to the configuration file
