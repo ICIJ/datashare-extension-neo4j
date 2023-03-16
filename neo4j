@@ -87,6 +87,10 @@ function _helpers() {
         local file_version
         file_version=$(head -n 1 "$ROOT_DIR"/version)
 
+        if [[ $(git tag -l "$file_version") ]]; then
+            exit_with_message "Tag $file_version already exists. Bump the release version using ./neo4j set_version"
+        fi
+
         # Source version
         local source_version
         source_version=$("$ROOT_DIR"/neo4j --version)
