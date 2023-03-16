@@ -33,12 +33,13 @@ commands:
     steps:
       - checkout-code:
           revision: << parameters.branch >>
+      # TODO: cache apt
       - run:
           name: Setting up environment
           command: |
             cd datashare-extension-neo4j
             ./neo4j setup -p build_env
-            echo "export PATH=$CIRCLE_WORKING_DIRECTORY/.poetry/bin:$PATH" >> "$BASH_ENV"
+            echo "export PATH=$CIRCLE_WORKING_DIRECTORY/datashare-extension-neo4j/.poetry/bin:$PATH" >> "$BASH_ENV"
             source "$BASH_ENV"
             command -v poetry
       # This has to be done after installing poetry
