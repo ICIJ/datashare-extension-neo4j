@@ -80,7 +80,7 @@ function _helpers() {
             -p "$site_packages_path"
 
         chmod +x "$app_dir/$app_bin"
-        echo "bins/$app_bin"
+        echo "Successfully built bins/$app_bin"
     }
 
     function _check_release_version() {
@@ -228,9 +228,10 @@ function _commands() {
     function build() {
         if _should_run_project "neo4j_app"; then
             if [ -z "$PRINT_SHA" ]; then _print_step "Building Python app executable";fi
-            local bin_path
-            bin_path=$(_build_neo4j_app)
+            _build_neo4j_app
             if [ -n "$PRINT_SHA" ]; then
+                local bin_path
+                bin_path="bins/$(_make_neoj_binary_name)"
                 shasum -a 256 "$bin_path"
             fi
         elif _should_run_project "neo4j_extension"; then
