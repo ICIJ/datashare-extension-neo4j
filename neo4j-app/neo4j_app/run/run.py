@@ -1,5 +1,6 @@
 # TODO: rename this into run_http ?
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -8,6 +9,10 @@ import uvicorn
 
 from neo4j_app.app.utils import create_app
 from neo4j_app.core.config import AppConfig
+
+DATA_DIR = Path(__file__).parents[3].joinpath(".data")
+NEO4J_TEST_IMPORT_DIR = DATA_DIR.joinpath("neo4j", "import")
+NEO4J_IMPORT_PREFIX = Path(os.sep).joinpath(".neo4j", "import")
 
 
 def debug_app():
@@ -39,7 +44,11 @@ def _start_app(config_path: Optional[str] = None, force_migrations: bool = False
                 f, force_migrations=force_migrations
             )
     else:
-        raise ValueError("Config path is missing")
+        config = AppConfig(
+            neo4j_project="test-datashare-project",
+            neo4j_import_dir=str(NEO4J_TEST_IMPORT_DIR),
+            neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
+        )
     app = create_app(config)
     uvicorn_config = config.to_uvicorn()
     uvicorn.run(app, **uvicorn_config.dict())

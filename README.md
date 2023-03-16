@@ -77,6 +77,10 @@ After building the app:
 ./neo4j run -p neo4j_app
 ```
 
+this will use the default app configuration. However is to provide the path to a 
+[Datashare](https://github.com/ICIJ/datashare) `properties`. The location of this file can be found in Datashare's 
+settings. 
+
 and then navigate to [http://localhost/8080/docs](http://localhost/8080/docs)
 
 ### Start/stop test services
