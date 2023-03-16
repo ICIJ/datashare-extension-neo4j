@@ -81,6 +81,7 @@ function _helpers() {
 
         chmod +x "$app_dir/$app_bin"
         echo "Successfully built bins/$app_bin"
+        cd "$ROOT_DIR"
     }
 
     function _check_release_version() {
@@ -230,14 +231,15 @@ function _commands() {
             if [ -z "$PRINT_SHA" ]; then _print_step "Building Python app executable";fi
             _build_neo4j_app
             if [ -n "$PRINT_SHA" ]; then
+                # TODO: to avoid this, we could redirect logs from _build_neo4j_app to stderr and echo the bin path
+                #  to stdout
                 local bin_path
                 bin_path="bins/$(_make_neoj_binary_name)"
                 shasum -a 256 "$bin_path"
             fi
         elif _should_run_project "neo4j_extension"; then
             _print_step "Building the Python app first"
-            local bin_name
-            bin_name=$(_build_neo4j_app)
+            _build_neo4j_app
 
             _print_step "Copying neo4j app binary to java extension"
             local java_resources
@@ -245,8 +247,8 @@ function _commands() {
 
             # TODO: for now we rename the platform specific binary into a generic one which loaded by the extension
             #  later the extension will DL binaries
-            cp "$ROOT_DIR"/bins/"$bin_name" "$java_resources"/$NEO4J_APP_BIN
-            echo Copied binary from "$app_bin" to "$java_resources"
+            cp "$ROOT_DIR"/bins/"$(_make_neoj_binary_name)" "$java_resources"/$NEO4J_APP_BIN
+            echo Copied binary from "$ROOT_DIR"/bins to "$java_resources"
 
             _print_step "Compiling the java extension"
             cd "$ROOT_DIR"
