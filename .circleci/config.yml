@@ -1,17 +1,90 @@
 version: 2.1
 
+parameters:
+  release_branch:
+    description: Trigger branch release
+    type: boolean
+    default: false
+  branch:
+    description: >
+      Branch to release (the last commit will be used, if a new one occurs during the release, it will probably
+      fail...)
+    type: string
+    default: main
+
 executors:
   docker-machine:
     machine:
       image: ubuntu-2204:2023.02.1
       docker_layer_caching: true
+  unknown-linux:
+    machine:
+      image: ubuntu-2004:202010-01
+  darwin-universal2:
+    macos:
+      xcode: 14.2.0
+
+commands:
+  build-binary:
+    description: Build neo4j_app binary
+    parameters:
+      branch:
+        type: string
+    steps:
+      - run:
+          name: Perform sanity checks
+          command: ./neo4j is_publishable
+      - checkout-code:
+          revision: << parameters.branch >>
+      - run:
+          name: Setting up environment
+          command: |
+            ./neo4j setup -p build_env
+            echo "export PATH=$CIRCLE_WORKING_DIRECTORY/.poetry/bin:$PATH" >> "$BASH_ENV"
+            source "$BASH_ENV"
+            command -v poetry
+      - check-is-latest-commit:
+          branch: << parameters.branch >>
+      - run:
+          name: Build binary
+          command: |
+            ./neo4j setup -p neo4j_app
+            ./neo4j build -p neo4j_app --sha >bins/$(./neo4j binary_name -p neo4j_app)-manifest.txt
+      # TODO: store_artifacts here if it helps debugging
+      - persist_to_workspace:
+          root: bins
+          paths:
+            - "*-manifest.txt"
+            - neo4j-app-*
+
+  checkout-code:
+    description: "Checkout code"
+    parameters:
+      revision:
+        type: string
+    steps:
+      - run: git checkout << parameters.revision >>
+
+  check-is-latest-commit:
+    description: "Checking that no commit was made later on the same branch"
+    parameters:
+      branch:
+        type: string
+    steps:
+      - run: |
+          git fetch
+          current_commit="$(git rev-parse HEAD)"
+          last_commit="$(git log -1 --pretty=%H -n 1 origin/$current_commit)"
+          if ! [ "$current_commit" = "$last_commit" ];then
+            echo "$current_commit is not the last commit on << parameters.branch >>" && exit 1
+          fi
 
 jobs:
   build:
     executor: docker-machine
     steps:
       - checkout
-      -  when:
+      - when:
           condition:
             or:
               - matches:
@@ -26,6 +99,17 @@ jobs:
           name: Build
           command: ./neo4j docker_build
 
+  build-darwin-universal2-binary:
+    executor: darwin-universal2
+    parameters:
+      branch:
+        type: string
+    steps:
+      - checkout-code:
+          revision: << parameters.branch >>
+      - build-binary:
+          branch: << parameters.branch >>
+
   # We build test services to benefit from caching, using docker-compose up directly doesn't seem to benefit from it
   build-test-services:
     executor: docker-machine
@@ -34,6 +118,44 @@ jobs:
       - run:
           name: Build external services
           command: ./neo4j docker_build_test_services
+
+  build-unknown-linux-binary:
+    executor: unknown-linux
+    parameters:
+      branch:
+        type: string
+      resource_cls:
+        type: string
+    resource_class: << parameters.resource_cls >>
+    steps:
+      - checkout-code:
+          revision: << parameters.branch >>
+      - build-binary:
+          branch: << parameters.branch >>
+
+  publish-binaries:
+    parameters:
+      branch:
+        type: string
+    executor: unknown-linux
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      # Try to fail early in  case another commit happened
+      - check-is-latest-commit:
+          branch: << parameters.branch >>
+      - run:
+          name: Publish assets to Github release
+          command: |
+            tag=$(./neo4j --version)
+            ls /tmp/workspace/neo4j-app-*-"$tag" | xargs -0 -I {} cp {} bins
+            ./neo4j update_manifest -p neo4j_app "$(ls bins/neo4j-app-*-$tag)"
+            git add src/main/resources/manifest.txt
+            git commit -m "release: updating manifest.txt for $tag"
+            git tag "$tag"
+            git push origin "$tag"
+            git push
+            ./neo4j publish -p neo4j-app
 
   test-script:
     executor: docker-machine
@@ -83,17 +205,9 @@ jobs:
           paths:
             - .data/.cache
 
-  test-assets-publication:
-    executor: docker-machine
-
-    steps:
-      - checkout
-      - run:
-          name: Check assets publication
-          command: ./neo4j verify_asset_publication
-
 workflows:
   version: 2
+
   build_and_test:
     jobs:
       - build
@@ -108,8 +222,22 @@ workflows:
           requires:
             - build
             - build-test-services
-      - test-assets-publication:
+
+  release-branch:
+    when: << pipeline.parameters.release_branch >>
+    jobs:
+      - build-unknown-linux-binary:
+          matrix:
+            parameters:
+               resource_cls: [ medium ]
+               branch: [ << pipeline.parameters.branch >> ]
+#            parameters:
+#              resource_cls: [ medium, arm.medium ]
+#              branch: [ << pipeline.parameters.branch >> ]
+#      - build-darwin-universal2-binary:
+#          branch: << pipeline.parameters.branch >>
+      - publish-binaries:
+          branch: << pipeline.parameters.branch >>
           requires:
-            - test-script
-            - test-python
-            - test-java
+            - build-unknown-linux-binary
+#            - build-darwin-universal2-binary
