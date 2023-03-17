@@ -20,6 +20,10 @@ function _commands() {
         command -v javac 1>/dev/null 2>&1 || sudo apt-get -y install openjdk-11-jdk
     }
 
+    function _install_jq() {
+        command -v jq 1>/dev/null 2>&1 || sudo apt-get -y install jq
+    }
+
     function _install_maven() {
         command -v mvn 1>/dev/null 2>&1 || sudo apt-get -y install maven
     }
@@ -44,6 +48,7 @@ function _main() {
     _install_python_dev
     _install_poetry
     _install_jdk
+    _install_jq
     _install_maven
 }
 
