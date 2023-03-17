@@ -61,12 +61,11 @@ commands:
           command: |
             cd datashare-extension-neo4j
             ./neo4j setup -p neo4j_app
-            ./neo4j build -p neo4j_app --sha >bins/$(./neo4j binary_name -p neo4j_app)-manifest.txt
+            ./neo4j build -p neo4j_app --sha >bins/"$(./neo4j binary_name -p neo4j_app)-manifest.txt"
       # TODO: store_artifacts here if it helps debugging
       - persist_to_workspace:
           root: datashare-extension-neo4j/bins
           paths:
-            - "*-manifest.txt"
             - neo4j-app-*
 
   checkout-code:
