@@ -170,9 +170,10 @@ function _helpers() {
         local version
         version=$(_print_version)
 
-        _run_manifest_checksums $MANIFEST_PATH
+        _run_manifest_checksums "$MANIFEST_PATH"
         local binaries
-        binaries=(sed -nr "s@.*($NEO4J_APP_BIN-.+-$version).*@\1@p" "$ROOT_DIR"/src/main/resources/manifest.txt)
+        binaries=$(sed -nr "s@.*($NEO4J_APP_BIN-.+-$version).*@\1@p" "$MANIFEST_PATH")
+        if [[ -z $binaries ]]; then _exit_with_message "No binary to release...";fi
         for binary in "${binaries[@]}";do
             local filename
             filename=$(basename -- "$binary")
@@ -474,7 +475,7 @@ Please run ./neo4j format"
                 local manifest_path
                 manifest_path="$binary"-manifest.txt
                 shasum -a 256 -c "$manifest_path"
-                _update_manifest $MANIFEST_PATH "$binary"
+                _update_manifest "$MANIFEST_PATH" "$binary"
             done
         else
             _exit_with_message "Can't update manifest for $PROJECT"
