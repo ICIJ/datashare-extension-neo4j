@@ -14,6 +14,7 @@ RUN --mount=type=cache,target=/var/cache/apt  \
     apt-get -y install \
         libssl-dev \
         maven \
+        git-all \
         python3.8 \
         python3.8-dev \
 	    openjdk-11-jdk \
