@@ -174,7 +174,7 @@ jobs:
             git tag "$tag"
             git push origin "$tag"
             git push
-            ./neo4j publish -p neo4j-app
+            ./neo4j publish -p neo4j_app
 
   test-script:
     executor: docker-machine
