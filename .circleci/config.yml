@@ -166,7 +166,7 @@ jobs:
           command: |
             cd datashare-extension-neo4j
             tag=$(./neo4j --version)
-            ls /tmp/workspace/neo4j-app-*-"$tag" | tr '\n' '\0' | xargs -0 -I {} cp {} bins
+            ls /tmp/workspace/neo4j-app-*-"$tag"* | tr '\n' '\0' | xargs -0 -I {} cp {} bins
             binaries=( $(ls bins/neo4j-app-*-$tag) )
             ./neo4j update_manifest -p neo4j_app "${binaries[@]}"
             git add src/main/resources/manifest.txt
