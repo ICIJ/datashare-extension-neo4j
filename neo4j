@@ -3,6 +3,7 @@
 function _export_global_variables() {
     export ROOT_DIR
     ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
+    export MANIFEST_PATH="$ROOT_DIR"/src/main/resources/manifest.txt
     export PROJECT_URL=https://github.com/ICIJ/datashare-extension-neo4j
     export DOCKER_HOME=/home/dev
     export PYTHON_APP_DIR="$ROOT_DIR/neo4j-app"
@@ -31,7 +32,7 @@ function _export_global_variables() {
         export DOCKER_PLATFORM="linux/arm64"
         export NEO4J_IMAGE="arm64v8/neo4j"
     else
-        exit_with_message "Unsupported architecture $BIN_ARCHI"
+        _exit_with_message "Unsupported architecture $BIN_ARCHI"
     fi
     export BIN_ARCHI
 
@@ -42,7 +43,7 @@ function _export_global_variables() {
     elif [ "$PLATFORM" == "Linux" ]; then
         export BIN_PLATFORM="unknown-linux-$BIN_ARCHI"
     else
-        exit_with_message "Unsupported platform $PLATFORM"
+        _exit_with_message "Unsupported platform $PLATFORM"
     fi
 }
 
@@ -89,24 +90,24 @@ function _helpers() {
         file_version=$(head -n 1 "$ROOT_DIR"/version)
 
         if [[ $(git tag -l "$file_version") ]]; then
-            exit_with_message "Tag $file_version already exists. Bump the release version using ./neo4j set_version"
+            _exit_with_message "Tag $file_version already exists. Bump the release version using ./neo4j set_version"
         fi
 
         # Source version
         local source_version
         source_version=$("$ROOT_DIR"/neo4j --version)
-        if ! [ "$source_version" = "$file_version" ]; then exit_with_message "Source version \"$source_version\" differs from \"$file_version\""; fi
+        if ! [ "$source_version" = "$file_version" ]; then _exit_with_message "Source version \"$source_version\" differs from \"$file_version\""; fi
 
         # Java version
         local java_version
         java_version=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-        if ! [ "$java_version" = "$file_version" ]; then exit_with_message "Java version \"$java_version\" differs from \"$file_version\""; fi
+        if ! [ "$java_version" = "$file_version" ]; then _exit_with_message "Java version \"$java_version\" differs from \"$file_version\""; fi
 
         # Python version
         cd "$ROOT_DIR"/neo4j-app || exit
         local python_version
         python_version=$(poetry version -s)
-        if ! [ "$python_version" = "$file_version" ]; then exit_with_message "Python version \"$python_version\" differs from \"$file_version\""; fi
+        if ! [ "$python_version" = "$file_version" ]; then _exit_with_message "Python version \"$python_version\" differs from \"$file_version\""; fi
         cd "$ROOT_DIR"
 
         echo "All versions match !"
@@ -149,7 +150,7 @@ function _helpers() {
     )
 
     function _poetry_shell() {
-        command -v poetry 1>/dev/null 2>&1 || exit_with_message "Poetry is not installed"
+        command -v poetry 1>/dev/null 2>&1 || _exit_with_message "Poetry is not installed"
 
         local venv_path
         venv_path=$(poetry env info -p)
@@ -158,7 +159,7 @@ function _helpers() {
     }
 
     function _print_step() {
-        printf "\n##### -> %s" "$1"
+        printf "\n##### -> %s\n" "$1"
     }
     
     function _print_version() (
@@ -169,7 +170,7 @@ function _helpers() {
         local version
         version=$(_print_version)
 
-        _run_manifest_checksums
+        _run_manifest_checksums $MANIFEST_PATH
         local binaries
         binaries=(sed -nr "s@.*($NEO4J_APP_BIN-.+-$version).*@\1@p" "$ROOT_DIR"/src/main/resources/manifest.txt)
         for binary in "${binaries[@]}";do
@@ -191,7 +192,10 @@ function _helpers() {
     }
 
     function _run_manifest_checksums() {
-        if shasum -a 256 -c "$ROOT_DIR"/src/main/resources/manifest.txt; then return 0; else return 1; fi
+        local manifest_path
+        manifest_path=$1
+        if [ -z "$manifest_path" ]; then exit_with_message "Can't update manifest without manifest_path !"; fi
+        if shasum -a 256 -c "$manifest_path"; then return 0; else return 1; fi
     }
 
     function _should_run_project() {
@@ -203,12 +207,15 @@ function _helpers() {
     }
 
     function _update_manifest() {
+        local manifest_path
+        manifest_path=$1
+        if [ -z "$manifest_path" ]; then exit_with_message "Can't update manifest without manifest_path !"; fi
+
         local bin_path
-        bin_path=$1
+        bin_path=$2
         if [ -z "$bin_path" ]; then exit_with_message "Can't update manifest with an empty asset name !"; fi
 
         local manifest_path
-        manifest_path="$ROOT_DIR"/src/main/resources/manifest.txt
         shasum -a 256 "$bin_path" >>"$manifest_path"
     }
 
@@ -220,7 +227,7 @@ function _commands() {
         if _should_run_project "neo4j_app"; then
             _make_neoj_binary_name
         else
-            exit_with_message "No binary available for $PROJECT"
+            _exit_with_message "No binary available for $PROJECT"
         fi
     }
 
@@ -252,7 +259,7 @@ function _commands() {
             cd "$ROOT_DIR"
             mvn validate package -Dmaven.test.skip=true
         else
-            exit_with_message "Can't build project $PROJECT"
+            _exit_with_message "Can't build project $PROJECT"
         fi
     }
 
@@ -292,7 +299,7 @@ function _commands() {
             _docker_build base-script
             _docker_run base-script:latest ./neo4j test -p release_version
         else
-            exit_with_message "Can't test project $PROJECT"
+            _exit_with_message "Can't test project $PROJECT"
         fi
     }
 
@@ -317,7 +324,7 @@ function _commands() {
         cd "$ROOT_DIR"
         mvn validate
         if ! mvn checkstyle:check; then
-            exit_with_message "Java source code does not comply with style guidelines.
+            _exit_with_message "Java source code does not comply with style guidelines.
 Please check the README.md to see how to automatically format the code and fix"
         fi
     }
@@ -327,7 +334,7 @@ Please check the README.md to see how to automatically format the code and fix"
         cd "$PYTHON_APP_DIR"
         _install_black
         if ! poetry run python3 -m black --config pyproject.toml --check .; then
-            exit_with_message "Python project is not properly formatted.
+            _exit_with_message "Python project is not properly formatted.
 Please run ./neo4j format"
         fi
         echo "Python format test succeeded !"
@@ -336,10 +343,10 @@ Please run ./neo4j format"
     function install_poetry() (
         local poetry_home
         poetry_home=$1
-        if [ -z "$poetry_home" ]; then exit_with_message "Missing poetry_home !"; fi
+        if [ -z "$poetry_home" ]; then _exit_with_message "Missing poetry_home !"; fi
         local python_version
         python_version=$2
-        if [ -z "$python_version" ]; then exit_with_message "Missing python_version !"; fi
+        if [ -z "$python_version" ]; then _exit_with_message "Missing python_version !"; fi
         echo "Installing Poetry to $poetry_home..."
         curl -sSL https://install.python-poetry.org | POETRY_HOME=$poetry_home $python_version -
         export PATH="$poetry_home/bin:$PATH"
@@ -353,7 +360,7 @@ Please run ./neo4j format"
         if _should_run_project "neo4j_app"; then
             _publish_neo4j_app
         else
-            exit_with_message "Can't pre-publish project $PROJECT"
+            _exit_with_message "Can't pre-publish project $PROJECT"
         fi
     }
 
@@ -362,7 +369,7 @@ Please run ./neo4j format"
             # TODO: maybe we should run the binary we've copied to the java dir
             "$ROOT_DIR/bins/$(_make_neoj_binary_name)"
         else
-            exit_with_message "Can't run project $PROJECT"
+            _exit_with_message "Can't run project $PROJECT"
         fi
     }
 
@@ -370,7 +377,7 @@ Please run ./neo4j format"
         # Update root file
         local file_version
         file_version=$1
-        if [ -z "$file_version" ]; then exit_with_message "Empty version !"; fi
+        if [ -z "$file_version" ]; then _exit_with_message "Empty version !"; fi
         echo "$file_version" >"$ROOT_DIR"/version
 
         cd "$PYTHON_APP_DIR"
@@ -385,7 +392,7 @@ Please run ./neo4j format"
             elif [ "$PLATFORM" == "Linux" ]; then
                 "$ROOT_DIR"/.circleci/setup/unknown-linux
             else
-                exit_with_message "Unknown platform $PLATFORM"
+                _exit_with_message "Unknown platform $PLATFORM"
             fi
         elif _should_run_project "neo4j_app"; then
             _print_step "Setting up neo4j_app"
@@ -396,7 +403,7 @@ Please run ./neo4j format"
             poetry install --no-interaction -vvv --with=dev --no-ansi
             echo "Python setup succeeded !"
         else
-            exit_with_message "Can't setup project $PROJECT"
+            _exit_with_message "Can't setup project $PROJECT"
         fi
     }
 
@@ -452,23 +459,25 @@ Please run ./neo4j format"
         elif _should_run_project "release_version"; then
             _check_release_version
         else
-            exit_with_message "Can't test project $PROJECT"
+            _exit_with_message "Can't test project $PROJECT"
         fi
     }
 
     function update_manifest() {
         if _should_run_project "neo4j_app"; then
             local args
-            args=("$@:2}")
-            if ! [ ${#args} -ne 3 ]; then exit_with_message "Expected 3 binaries found $#";fi
+            args=( "${@:3}" )
+            local num_args
+            num_args=${#args[@]}
+            if [[ $num_args -ne 3 ]]; then _return_with_message "Expected 3 binaries found $num_args";fi
             for binary in "${args[@]}";do
                 local manifest_path
                 manifest_path="$binary"-manifest.txt
                 shasum -a 256 -c "$manifest_path"
-                _update_manifest "$binary"
+                _update_manifest $MANIFEST_PATH "$binary"
             done
         else
-            exit_with_message "Can't pre-publish project $PROJECT"
+            _exit_with_message "Can't update manifest for $PROJECT"
         fi
     }
 }
@@ -491,20 +500,25 @@ function _main() {
         release_version
     )
 
-    function exit_with_message() {
+    function _exit_with_message() {
         echo "$1"
         exit "${2:-1}"
+    }
+
+    function _return_with_message() {
+        echo "$1"
+        return "${2:-1}"
     }
 
     function _parse_project_flag() {
         local project
         project=$1
         if [ -z "$project" ]; then
-            exit_with_message "Empty project flag, please provide one !"
+            _exit_with_message "Empty project flag, please provide one !"
         elif _array_contains "$project" "${PROJECTS[@]}"; then
             PROJECT=$project
         else
-            exit_with_message "Unknown project \"$project\", available projects: $(_join_by "," "${PROJECTS[@]}")"
+            _exit_with_message "Unknown project \"$project\", available projects: $(_join_by "," "${PROJECTS[@]}")"
         fi
     }
 
