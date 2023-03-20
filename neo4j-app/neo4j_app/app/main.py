@@ -1,3 +1,5 @@
+import importlib.metadata
+
 from fastapi import APIRouter, Depends, Response
 
 from neo4j_app.app.dependencies import get_global_config_dep
@@ -21,6 +23,8 @@ def main_router() -> APIRouter:
     def version() -> Response:
         import neo4j_app
 
-        return Response(content=neo4j_app.__version__, media_type="text/plain")
+        package_version = importlib.metadata.version(neo4j_app.__name__)
+
+        return Response(content=package_version, media_type="text/plain")
 
     return router
