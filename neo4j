@@ -186,7 +186,7 @@ function _helpers() {
 
         echo "Uploading release assets to: $upload_url"
         local binaries
-        binaries=$(sed -nr "s@.*($NEO4J_APP_BIN-.+-$version).*@\1@p" "$MANIFEST_PATH")
+        binaries=$(sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)@\1@p" "$MANIFEST_PATH")
         if [[ -z $binaries ]]; then _exit_with_message "No binary to release...";fi
         for binary in "${binaries[@]}";do
             local filename
