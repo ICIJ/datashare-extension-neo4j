@@ -183,11 +183,7 @@ function _helpers() {
             -d "{\"tag_name\":\"$version\",\"name\":\"$version\",\"draft\":true,\"generate_release_notes\":true}" | jq ".upload_url"
         )
         upload_url=$(echo "${upload_url%\{*}" | tr -d '"')
-
-        local binaries
-        binaries=$(sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)@\1@p" "$MANIFEST_PATH")
-        if [[ -z $binaries ]]; then _exit_with_message "No binary to release...";fi
-        for binary in "${binaries[@]}";do
+        sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)@\1@p" "$MANIFEST_PATH" | while read -r binary;do
             local filename
             filename=$(basename -- "$binary")
             local url
