@@ -40,6 +40,7 @@
     </licenses>
 
     <properties>
+        <guava.version>30.0-jre</guava.version>
         <guice.version>4.1.0</guice.version>
         <jackson.version>2.12.2</jackson.version>
         <jna.version>5.13.0</jna.version>
@@ -118,6 +119,11 @@
             <version>${guice.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>${guava.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>com.github.CodeStory</groupId>
@@ -148,6 +154,11 @@
             <artifactId>logback-classic</artifactId>
             <version>1.4.5</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-model</artifactId>
+            <version>3.9.1</version>
         </dependency>
     </dependencies>
 
@@ -224,6 +235,15 @@
                 </configuration>
             </plugin>
         </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>src/main/resources-filtered</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
     </build>
 
 </project>

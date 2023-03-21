@@ -17,7 +17,7 @@ function _export_global_variables() {
     export NEO4J_VERSION=4.4.17
     export TEST_APP_PORT=8002
     BIN_ARCHI="$(arch)"
-    if [ "$BIN_ARCHI" == "x86_64" ] || [ "$BIN_ARCHI" == "i386" ]; then
+    if [ "$BIN_ARCHI" == "x86_64" ] || [ "$BIN_ARCHI" == "i386" ] || [ "$BIN_ARCHI" == "amd64" ]; then
         # Renormalize the BIN_ARCHI name
         BIN_ARCHI="x86_64"
         export DOCKER_PLATFORM="linux/amd64"
