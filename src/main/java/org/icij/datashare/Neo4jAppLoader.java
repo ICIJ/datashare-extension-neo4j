@@ -1,7 +1,5 @@
 package org.icij.datashare;
 
-import static org.apache.commons.io.FilenameUtils.getExtension;
-
 import com.google.common.hash.Hashing;
 import java.io.File;
 import java.io.FileInputStream;
@@ -13,18 +11,19 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.stream.Stream;
+import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Neo4jAppLoader {
     public static final String NEO4J_APP_BIN = "neo4j-app";
-
-    protected static final String TMP_PREFIX = "tmp";
     protected static final String MANIFEST_NAME = "manifest.txt";
+
     protected static final Logger logger = LoggerFactory.getLogger(Neo4jAppLoader.class);
     private static final String RELEASE_BASE_URL =
         "https://github.com/ICIJ/datashare-extension-neo4j/releases/download";
@@ -38,30 +37,11 @@ public class Neo4jAppLoader {
     protected static boolean IS_ARM =
         (ARCH.contains("aarch64") || ARCH.contains("arm64"));
 
-    public static File downloadApp(String version) throws IOException {
-        String binaryName = getBinaryPrefix() + "-" + version;
-        String urlAsString = RELEASE_BASE_URL + "/" + version + "/" + binaryName;
-        URL assetUrl = new URL(urlAsString);
-        ReadableByteChannel readableByteChannel = Channels.newChannel(assetUrl.openStream());
-        File tmpFile = Files.createTempFile(
-            TMP_PREFIX, "." + getExtension(assetUrl.toString())
-        ).toFile();
-        logger.debug(
-            "Downloading python binary from url {} to {}",
-            assetUrl,
-            tmpFile.getAbsolutePath()
-        );
-        Path manifestPath = Path.of(Objects.requireNonNull(
-            ClassLoader.getSystemResource(MANIFEST_NAME),
-            "Couldn't locate manifest file"
-        ).getPath());
-        try (FileOutputStream fileOutputStream = new FileOutputStream(tmpFile)) {
-            fileOutputStream.getChannel().transferFrom(
-                readableByteChannel, 0, Long.MAX_VALUE
-            );
-            verifyNeo4jAppBinary(manifestPath, binaryName, tmpFile);
-            return tmpFile;
-        }
+    private final PropertiesProvider propertiesProvider;
+
+    @Inject
+    public Neo4jAppLoader(PropertiesProvider propertiesProvider) {
+        this.propertiesProvider = propertiesProvider;
     }
 
     public static String getExtensionVersion() throws IOException {
@@ -130,5 +110,36 @@ public class Neo4jAppLoader {
                 throw new RuntimeException(msg);
             }
         }
+    }
+
+    public File downloadApp(String version) throws IOException {
+        String binaryName = getBinaryPrefix() + "-" + version;
+        String urlAsString = RELEASE_BASE_URL + "/" + version + "/" + binaryName;
+        URL assetUrl = new URL(urlAsString);
+        ReadableByteChannel readableByteChannel = Channels.newChannel(assetUrl.openStream());
+        File binFile = this.propertiesProvider
+            .get(PropertiesProvider.EXTENSIONS_DIR)
+            .map(dir -> new File(Paths.get(dir, binaryName).toUri()))
+            .orElse(Files.createTempDirectory(NEO4J_APP_BIN).resolve(binaryName).toFile());
+        if (!binFile.exists()) {
+            logger.debug(
+                "Downloading python binary from url {} to {}",
+                assetUrl,
+                binFile.getAbsolutePath()
+            );
+            try (FileOutputStream fileOutputStream = new FileOutputStream(binFile)) {
+                fileOutputStream.getChannel().transferFrom(
+                    readableByteChannel, 0, Long.MAX_VALUE
+                );
+            }
+        } else {
+            logger.debug("Found existing python binary on the file system");
+        }
+        Path manifestPath = Path.of(Objects.requireNonNull(
+            ClassLoader.getSystemResource(MANIFEST_NAME),
+            "Couldn't locate manifest file"
+        ).getPath());
+        verifyNeo4jAppBinary(manifestPath, binaryName, binFile);
+        return binFile;
     }
 }
