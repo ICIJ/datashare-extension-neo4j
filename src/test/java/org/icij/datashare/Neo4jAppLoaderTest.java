@@ -1,7 +1,6 @@
 package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
-import static org.icij.datashare.Neo4jAppLoader.downloadApp;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
 import static org.icij.datashare.Neo4jAppLoader.parseManifest;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,6 +13,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -28,13 +28,20 @@ public class Neo4jAppLoaderTest {
     private static String mockedBinaryPath;
     private static Path mockedManifestPath;
 
+    private final Neo4jAppLoader loader = new Neo4jAppLoader(
+        new PropertiesProvider(new HashMap<>() {})
+    );
+
     @Test
     public void test_download_app() throws IOException {
         // Given
         String mockedExtensionVersion = "0.1.0rc0";
 
-        // When/Then
-        downloadApp(mockedExtensionVersion);
+        // When
+        File binFile = loader.downloadApp(mockedExtensionVersion);
+
+        // Then
+        assertThat(binFile.exists());
     }
 
     @Test
