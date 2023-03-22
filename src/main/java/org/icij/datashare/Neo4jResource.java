@@ -3,10 +3,12 @@ package org.icij.datashare;
 
 import static java.io.File.createTempFile;
 import static org.icij.datashare.LoggingUtils.lazy;
+import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -68,6 +70,7 @@ public class Neo4jResource {
     private final int port;
     private final String host = "127.0.0.1";
     private final String projectId;
+    private final Neo4jAppLoader appLoader;
     protected Path appBinaryPath;
 
 
@@ -77,6 +80,7 @@ public class Neo4jResource {
         Properties neo4jDefaultProps = new Properties();
         neo4jDefaultProps.putAll(DEFAULT_NEO4J_PROPERTIES);
         this.propertiesProvider.mergeWith(neo4jDefaultProps);
+        this.appLoader = new Neo4jAppLoader(this.propertiesProvider);
         this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
         logger.info("Loading the neo4j extension which will run on port " + this.port);
         this.client = new Neo4jClient(this.port);
@@ -213,12 +217,14 @@ public class Neo4jResource {
         if (propertiesCmd.isPresent()) {
             startServerCmd = Arrays.asList(propertiesCmd.get().split("\\s+"));
         } else {
+            String version = getExtensionVersion();
+            logger.debug("Load neo4j app version {}", version);
+            File serverBinary = this.appLoader.downloadApp(version);
             // Let's copy the app binary somewhere accessible on the fs
-            try (InputStream serverBytesStream = this.getClass().getClassLoader()
-                .getResourceAsStream(NEO4J_APP_BIN)) {
-                Path tmpServerBinaryPath =
-                    createTempFile("neo4j-", "-app").toPath().toAbsolutePath();
-                logger.debug("Copying neo4j app to {}", tmpServerBinaryPath);
+            try (InputStream serverBytesStream = new FileInputStream(serverBinary)) {
+                Path tmpServerBinaryPath = Files.createTempDirectory("neo4j-app")
+                    .resolve(serverBinary.toPath().getFileName()).toAbsolutePath();
+                logger.debug("Copying neo4j app binary to {}", tmpServerBinaryPath);
                 try (OutputStream serverBinaryOutputStream = Files.newOutputStream(
                     tmpServerBinaryPath)) {
                     serverBinaryOutputStream.write(serverBytesStream.readAllBytes());
