@@ -1,16 +1,17 @@
 package org.icij.datashare;
 
 import com.google.common.hash.Hashing;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Objects;
@@ -77,26 +78,28 @@ public class Neo4jAppLoader {
         }
     }
 
-    protected static String parseManifest(Path manifestPath, String binaryName) throws IOException {
-        try (Stream<String> lines = Files.lines(manifestPath)) {
-            String hashLine = lines.filter(line -> line.endsWith("bins/" + binaryName))
-                .findFirst()
-                .orElseThrow(
-                    () -> new RuntimeException(
-                        "Couldn't not find hash for " + binaryName + " in " + MANIFEST_NAME
-                    )
-                );
-            return Arrays.stream(hashLine.split("\\s")).findFirst()
-                .orElseThrow(
-                    () -> new RuntimeException("Couldn't not parse manifest line " + hashLine)
-                );
-        }
+    protected static String parseManifest(
+        InputStream manifestInputStream, String binaryName
+    ) {
+        Stream<String> manifestLines = new BufferedReader(
+            new InputStreamReader(manifestInputStream)).lines();
+        String hashLine = manifestLines.filter(line -> line.endsWith("bins/" + binaryName))
+            .findFirst()
+            .orElseThrow(
+                () -> new RuntimeException(
+                    "Couldn't not find hash for " + binaryName + " in " + MANIFEST_NAME
+                )
+            );
+        return Arrays.stream(hashLine.split("\\s")).findFirst()
+            .orElseThrow(
+                () -> new RuntimeException("Couldn't not parse manifest line " + hashLine)
+            );
     }
 
     protected static void verifyNeo4jAppBinary(
-        Path manifestPath, String binaryName, File binaryFile
+        InputStream manifestInputStream, String binaryName, File binaryFile
     ) throws IOException {
-        String expectedHash = parseManifest(manifestPath, binaryName);
+        String expectedHash = parseManifest(manifestInputStream, binaryName);
         try (InputStream inputStream = new FileInputStream(binaryFile)) {
             String binaryHash = Hashing.sha256().hashBytes(inputStream.readAllBytes()).toString();
             if (!binaryHash.equals(expectedHash)) {
@@ -135,11 +138,11 @@ public class Neo4jAppLoader {
         } else {
             logger.debug("Found existing python binary on the file system");
         }
-        Path manifestPath = Path.of(Objects.requireNonNull(
-            ClassLoader.getSystemResource(MANIFEST_NAME),
+        InputStream manifestInputStream = Objects.requireNonNull(
+            this.getClass().getClassLoader().getResourceAsStream(MANIFEST_NAME),
             "Couldn't locate manifest file"
-        ).getPath());
-        verifyNeo4jAppBinary(manifestPath, binaryName, binFile);
+        );
+        verifyNeo4jAppBinary(manifestInputStream, binaryName, binFile);
         return binFile;
     }
 }

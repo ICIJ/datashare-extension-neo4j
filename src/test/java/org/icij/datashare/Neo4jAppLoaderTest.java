@@ -9,6 +9,7 @@ import com.google.common.hash.Hashing;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,7 +30,8 @@ public class Neo4jAppLoaderTest {
     private static Path mockedManifestPath;
 
     private final Neo4jAppLoader loader = new Neo4jAppLoader(
-        new PropertiesProvider(new HashMap<>() {})
+        new PropertiesProvider(new HashMap<>() {
+        })
     );
 
     @Test
@@ -50,24 +52,28 @@ public class Neo4jAppLoaderTest {
         Path manifestPath = Paths.get("src", "main", "resources", "manifest.txt");
 
         // When
-        String hash = parseManifest(manifestPath, "neo4j-app-darwin-universal2-0.1.0rc0");
-
-        // Then
-        assertThat(hash).isEqualTo(
-            "ddbfda6bba1a97c08d3d68ec631836314c4f5136ea9df9a4dd5b2bc73242a3cd");
+        try (InputStream manifestInputStream = Files.newInputStream(manifestPath)) {
+            String hash = parseManifest(
+                manifestInputStream, "neo4j-app-darwin-universal2-0.1.0rc0");
+            // Then
+            assertThat(hash).isEqualTo(
+                "ddbfda6bba1a97c08d3d68ec631836314c4f5136ea9df9a4dd5b2bc73242a3cd");
+        }
     }
 
     @Test
-    public void test_parse_manifest_should_raise_for_invalid_binary() {
+    public void test_parse_manifest_should_raise_for_invalid_binary() throws IOException {
         // Given
         Path manifestPath = Paths.get("src", "main", "resources", "manifest.txt");
 
         // When/Then
-        String msg = assertThrows(
-            RuntimeException.class,
-            () -> parseManifest(manifestPath, "invalid_binary")
-        ).getMessage();
-        assertThat(msg).isEqualTo("Couldn't not find hash for invalid_binary in manifest.txt");
+        try (InputStream manifestInputStream = Files.newInputStream(manifestPath)) {
+            String msg = assertThrows(
+                RuntimeException.class,
+                () -> parseManifest(manifestInputStream, "invalid_binary")
+            ).getMessage();
+            assertThat(msg).isEqualTo("Couldn't not find hash for invalid_binary in manifest.txt");
+        }
     }
 
     @Test
@@ -100,9 +106,15 @@ public class Neo4jAppLoaderTest {
     class Neo4jAppLoaderMockedBinaryTest {
         @Test
         public void test_verify_app_binary() throws IOException {
-            Neo4jAppLoader.verifyNeo4jAppBinary(
-                mockedManifestPath, mockedBinaryName, new File(mockedBinaryPath)
-            );
+            // Given
+            try (
+                InputStream mockedManifestInputStream = Files.newInputStream(mockedManifestPath)) {
+
+                // When/Then
+                Neo4jAppLoader.verifyNeo4jAppBinary(
+                    mockedManifestInputStream, mockedBinaryName, new File(mockedBinaryPath)
+                );
+            }
         }
 
         @Test
@@ -112,16 +124,18 @@ public class Neo4jAppLoaderTest {
             try (FileOutputStream fos = new FileOutputStream(mockedBinaryPath, true)) {
                 fos.write("some additional data".getBytes());
             }
-            // Then
-            String expectedMsg = "Expected a SHA-256 [a-z0-9]+ for binary neo4j-app, "
-                + "found [a-z0-9]+, asset has probably been tempered";
-            File binFile = new File(mockedBinaryPath);
-            String msg = assertThrows(
-                RuntimeException.class,
-                () -> Neo4jAppLoader.verifyNeo4jAppBinary(
-                    mockedManifestPath, mockedBinaryName, binFile)
-            ).getMessage();
-            assertThat(msg).matches(expectedMsg);
+            try (InputStream mockedManifestInputStream = Files.newInputStream(mockedManifestPath)) {
+                // Then
+                String expectedMsg = "Expected a SHA-256 [a-z0-9]+ for binary neo4j-app, "
+                    + "found [a-z0-9]+, asset has probably been tempered";
+                File binFile = new File(mockedBinaryPath);
+                String msg = assertThrows(
+                    RuntimeException.class,
+                    () -> Neo4jAppLoader.verifyNeo4jAppBinary(
+                        mockedManifestInputStream, mockedBinaryName, binFile)
+                ).getMessage();
+                assertThat(msg).matches(expectedMsg);
+            }
         }
     }
 
