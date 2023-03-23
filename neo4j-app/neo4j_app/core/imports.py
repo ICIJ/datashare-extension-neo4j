@@ -154,7 +154,8 @@ async def _es_to_neo4j_import(
         with log_elapsed_time_cm(
             logger,
             logging.DEBUG,
-            f"Imported {imported_entity_label} from csv to neo4j in {{elapsed_time}}",
+            f"Imported {imported_entity_label} from csv to neo4j in"
+            f" {{elapsed_time}}",
         ):
             summary: neo4j.ResultSummary = await neo4j_session.execute_write(
                 import_tx, neo4j_import_path=neo4j_import_path
@@ -162,6 +163,3 @@ async def _es_to_neo4j_import(
     n_inserted = summary.counters.nodes_created
     response = IncrementalImportResponse(n_to_insert=n_to_insert, n_inserted=n_inserted)
     return response
-
-
-œ
