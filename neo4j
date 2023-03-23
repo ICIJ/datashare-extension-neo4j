@@ -60,7 +60,7 @@ function _helpers() {
         fi
         poetry install$groups
         _poetry_shell
-        command -v pyinstaller 1>/dev/null 2>&1 || python3 -m pip install  pyinstaller==5.7.0
+        command -v pyinstaller 1>/dev/null 2>&1 || python3 -m pip install pyinstaller==5.7.0
 
         local app_dir
         app_dir="$ROOT_DIR"/bins
@@ -70,9 +70,6 @@ function _helpers() {
 
         local app_bin
         app_bin=$(_make_neoj_binary_name)
-
-        local app_bin
-        app_bin=$(_make_binary_name $BIN_ARCHI $BIN_PLATFORM "$(print_version)")
 
         PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
@@ -177,16 +174,17 @@ function _helpers() {
         _run_manifest_checksums "$MANIFEST_PATH"
 
         local upload_url
-        upload_url=$(curl -L \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN"\
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases \
-            -d "{\"tag_name\":\"$version\",\"name\":\"$version\",\"draft\":true,\"generate_release_notes\":true}" | jq ".upload_url"
+        upload_url=$(
+            curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases \
+                -d "{\"tag_name\":\"$version\",\"name\":\"$version\",\"draft\":true,\"generate_release_notes\":true}" | jq ".upload_url"
         )
         upload_url=$(echo "${upload_url%\{*}" | tr -d '"')
-        sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)@\1@p" "$MANIFEST_PATH" | while read -r binary;do
+        sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)@\1@p" "$MANIFEST_PATH" | while read -r binary; do
             local filename
             filename=$(basename -- "$binary")
             local url
@@ -195,7 +193,7 @@ function _helpers() {
             curl -L \
                 -X POST \
                 -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer $GITHUB_TOKEN"\
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 -H "Content-Type: application/octet-stream" \
                 "$url" \
@@ -249,7 +247,7 @@ function _commands() {
 
     function build() {
         if _should_run_project "neo4j_app"; then
-            if [ -z "$PRINT_SHA" ]; then _print_step "Building Python app executable";fi
+            if [ -z "$PRINT_SHA" ]; then _print_step "Building Python app executable"; fi
             _build_neo4j_app
             if [ -n "$PRINT_SHA" ]; then
                 # TODO: to avoid this, we could redirect logs from _build_neo4j_app to stderr and echo the bin path
@@ -260,17 +258,7 @@ function _commands() {
             fi
         elif _should_run_project "neo4j_extension"; then
             _print_step "Building the Python app first"
-            local bin_name
-            bin_name=$(_build_neo4j_app)
-
-            _print_step "Copying neo4j app binary to java extension"
-            local java_resources
-            java_resources=$ROOT_DIR/src/main/resources
-
-            # TODO: for now we rename the platform specific binary into a generic one which loaded by the extension
-            #  later the extension will DL binaries
-            cp "$ROOT_DIR"/bins/"$(_make_neoj_binary_name)" "$java_resources"/$NEO4J_APP_BIN
-            echo Copied binary from "$ROOT_DIR"/bins to "$java_resources"
+            _build_neo4j_app
 
             _print_step "Compiling the java extension"
             cd "$ROOT_DIR"
@@ -381,10 +369,6 @@ Please run ./neo4j format"
         fi
     }
 
-    function print_version() (
-        cat "$ROOT_DIR"/version
-    )
-
     function run() {
         if _should_run_project "neo4j_app"; then
             # TODO: maybe we should run the binary we've copied to the java dir
@@ -404,18 +388,6 @@ Please run ./neo4j format"
         cd "$PYTHON_APP_DIR"
         _pip_install tomlkit==0.11.6
         poetry run python3 "$ROOT_DIR"/scripts/update_versions.py
-    }
-
-    function set_version() {
-        # Update root file
-        local file_version
-        file_version=$1
-        if [ -z "$file_version" ]; then exit_with_message "Empty version !"; fi
-        echo "$file_version" >"$ROOT_DIR"/version
-
-        cd "$PYTHON_APP_DIR"
-        _pip_install tomlkit==0.11.6
-        poetry run python "$ROOT_DIR"/scripts/update_versions.py
     }
 
     function setup() {
@@ -499,11 +471,11 @@ Please run ./neo4j format"
     function update_manifest() {
         if _should_run_project "neo4j_app"; then
             local args
-            args=( "${@:3}" )
+            args=("${@:3}")
             local num_args
             num_args=${#args[@]}
-            if [[ $num_args -ne 3 ]]; then _return_with_message "Expected 3 binaries found $num_args";fi
-            for binary in "${args[@]}";do
+            if [[ $num_args -ne 3 ]]; then _return_with_message "Expected 3 binaries found $num_args"; fi
+            for binary in "${args[@]}"; do
                 local manifest_path
                 manifest_path="$binary"-manifest.txt
                 shasum -a 256 -c "$manifest_path"
@@ -514,28 +486,6 @@ Please run ./neo4j format"
         fi
     }
 
-    function test_release_version() {
-        local file_version
-        file_version=$(head -n 1 "$ROOT_DIR"/version)
-
-        # Source version
-        local source_version
-        source_version=$("$ROOT_DIR"/neo4j --version)
-        if ! [ "$source_version" = "$file_version" ]; then exit_with_message "Source version \"$source_version\" differs from \"$file_version\""; fi
-
-        # Java version
-        local java_version
-        java_version=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-        if ! [ "$java_version" = "$file_version" ]; then exit_with_message "Java version \"$java_version\" differs from \"$file_version\""; fi
-
-        # Python version
-        cd "$ROOT_DIR"/neo4j-app || exit
-        local python_version
-        python_version=$(poetry version -s)
-        if ! [ "$python_version" = "$file_version" ]; then exit_with_message "Python version \"$python_version\" differs from \"$file_version\""; fi
-
-        echo "All versions match !"
-    }
 }
 
 function _main() {
