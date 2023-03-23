@@ -26,22 +26,13 @@ async def import_documents_from_csv_tx(
     # TODO: add an index on document id
     query = f"""LOAD CSV WITH HEADERS FROM 'file:///{neo4j_import_path}' AS row
 MERGE (doc:{DOC_NODE} {{{DOC_ID}: row.{DOC_ID}}})
-ON CREATE
-    SET
-        doc.{DOC_CONTENT_TYPE} = row.{DOC_CONTENT_TYPE},
-        doc.{DOC_CONTENT_LENGTH} = toInteger(row.{DOC_CONTENT_LENGTH}),
-        doc.{DOC_EXTRACTION_DATE} = datetime(row.{DOC_EXTRACTION_DATE}),
-        doc.{DOC_DIRNAME} = row.{DOC_DIRNAME},
-        doc.{DOC_PATH} = row.{DOC_PATH},
-        doc.{DOC_ROOT_ID} = row.{DOC_ROOT_ID}
-ON MATCH
-    SET 
-        doc.{DOC_CONTENT_TYPE} = row.{DOC_CONTENT_TYPE},
-        doc.{DOC_CONTENT_LENGTH} = toInteger(row.{DOC_CONTENT_LENGTH}),
-        doc.{DOC_EXTRACTION_DATE} = datetime(row.{DOC_EXTRACTION_DATE}),
-        doc.{DOC_DIRNAME} = row.{DOC_DIRNAME},
-        doc.{DOC_PATH} = row.{DOC_PATH},
-        doc.{DOC_ROOT_ID} = row.{DOC_ROOT_ID}
+SET
+    doc.{DOC_CONTENT_TYPE} = row.{DOC_CONTENT_TYPE},
+    doc.{DOC_CONTENT_LENGTH} = toInteger(row.{DOC_CONTENT_LENGTH}),
+    doc.{DOC_EXTRACTION_DATE} = datetime(row.{DOC_EXTRACTION_DATE}),
+    doc.{DOC_DIRNAME} = row.{DOC_DIRNAME},
+    doc.{DOC_PATH} = row.{DOC_PATH},
+    doc.{DOC_ROOT_ID} = row.{DOC_ROOT_ID}
 """
     res = await tx.run(query)
     summary = await res.consume()
