@@ -58,7 +58,7 @@ public class Neo4jResourceTest {
     public static class BindNeo4jResource extends ProdWebServerRuleExtension
         implements BeforeAllCallback, AfterEachCallback {
         @Override
-        public void beforeAll(ExtensionContext extensionContext) {
+        public void beforeAll(ExtensionContext extensionContext) throws IOException {
             neo4jAppResource = new Neo4jResource(propertyProvider);
             this.configure(
                 routes -> routes
@@ -69,8 +69,9 @@ public class Neo4jResourceTest {
         }
 
         @Override
-        public void afterEach(ExtensionContext extensionContext) {
-            neo4jAppResource.close();
+        public void afterEach(ExtensionContext extensionContext)
+            throws IOException, InterruptedException {
+            Neo4jResource.stopServerProcess();
         }
     }
 
@@ -94,8 +95,9 @@ public class Neo4jResourceTest {
         }
 
         @Override
-        public void afterEach(ExtensionContext extensionContext) {
-            neo4jAppResource.close();
+        public void afterEach(ExtensionContext extensionContext)
+            throws IOException, InterruptedException {
+            Neo4jResource.stopServerProcess();
         }
     }
 
@@ -106,8 +108,9 @@ public class Neo4jResourceTest {
         }
 
         @Override
-        public void afterEach(ExtensionContext extensionContext) {
-            neo4jAppResource.close();
+        public void afterEach(ExtensionContext extensionContext)
+            throws IOException, InterruptedException {
+            Neo4jResource.stopServerProcess();
         }
     }
 
@@ -124,7 +127,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_not_be_running_by_default() {
+        public void test_not_be_running_by_default() throws IOException, InterruptedException {
             // When
             Neo4jResource.Neo4jAppStatus status = neo4jAppResource.getStopNeo4jApp();
             // Then

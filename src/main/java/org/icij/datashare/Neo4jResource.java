@@ -12,16 +12,20 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.Cleaner;
 import java.net.Socket;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.inject.Inject;
-import javax.inject.Provider;
 import kong.unirest.Unirest;
 import kong.unirest.apache.ApacheClient;
 import net.codestory.http.Context;
@@ -36,10 +40,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Prefix("/api/neo4j")
-public class Neo4jResource implements AutoCloseable {
+public class Neo4jResource {
     private static final String NEO4J_APP_BIN = "neo4j-app";
+    private static final Path TMP_ROOT = Path.of(
+        FileSystems.getDefault().getSeparator(), "tmp");
     private static final String SYSLOG_SPLIT_CHAR = "@";
 
+    private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
     // All these properties have to start with "neo4j" in order to be properly filtered
     private static final HashMap<String, String> DEFAULT_NEO4J_PROPERTIES = new HashMap<>() {
         {
@@ -53,7 +60,6 @@ public class Neo4jResource implements AutoCloseable {
         }
     };
     private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
-    protected static volatile Process serverProcess;
     // TODO: not sure that we want to delete the process when this deleted...
     // Cleaner which will ensure the Python server will be close when the resource is deleted
     private static Cleaner cleaner;
@@ -63,7 +69,6 @@ public class Neo4jResource implements AutoCloseable {
     private final String host = "127.0.0.1";
     private final String projectId;
     protected Path appBinaryPath;
-    private Cleaner.Cleanable cleanPythonProcess;
 
 
     @Inject
@@ -124,37 +129,40 @@ public class Neo4jResource implements AutoCloseable {
     }
 
     @Post("/stop")
-    public ServerStopResponse postStopNeo4jApp() {
+    public ServerStopResponse postStopNeo4jApp() throws IOException, InterruptedException {
         // TODO: check that the user is allowed
         return new ServerStopResponse(stopServerProcess());
     }
 
     @Get("/status")
-    public Neo4jAppStatus getStopNeo4jApp() {
+    public Neo4jAppStatus getStopNeo4jApp() throws IOException, InterruptedException {
         // TODO: check that the user is allowed
-        return new Neo4jAppStatus(this.isNeoAppRunning());
+        boolean isRunning = neo4jAppPid() != null;
+        return new Neo4jAppStatus(isRunning);
     }
 
     @Post("/documents?project=:project")
-    public Payload postDocuments(String project, Context context) throws IOException {
+    public Payload postDocuments(String project, Context context)
+        throws IOException, InterruptedException {
         checkAccess(project, context);
         // TODO: this should throw a bad request when not parsed correcly...
         org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
             context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
-        return doImport(() -> this.importDocuments(project, incrementalImportRequest));
+        return doImport(this.importDocuments(project, incrementalImportRequest));
     }
 
     @Post("/named-entities?project=:project")
-    public Payload postNamedEntities(String project, Context context) throws IOException {
+    public Payload postNamedEntities(String project, Context context)
+        throws IOException, InterruptedException {
         checkAccess(project, context);
         // TODO: this should throw a bad request when not parsed correcly...
         org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
             context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
-        return doImport(() -> this.importNamedEntities(project, incrementalImportRequest));
+        return doImport(this.importNamedEntities(project, incrementalImportRequest));
     }
 
     @Get("/ping")
-    public Payload getPingMethod() {
+    public Payload getPingMethod() throws IOException, InterruptedException {
         try {
             return new Payload(this.ping());
         } catch (Neo4jNotRunningError e) {
@@ -162,33 +170,26 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    private String ping() {
+    private String ping() throws IOException, InterruptedException {
         checkNeo4jAppStarted();
         return client.ping();
     }
 
-    protected boolean isNeoAppRunning() {
-        return serverProcess != null;
-    }
-
-    private void checkNeo4jAppStarted() {
-        if (!this.isNeoAppRunning()) {
+    private void checkNeo4jAppStarted() throws IOException, InterruptedException {
+        if (neo4jAppPid() == null) {
             throw new Neo4jNotRunningError();
         }
     }
 
     private boolean startNeo4jApp(boolean forceMigrations)
         throws IOException, InterruptedException {
-        boolean alreadyRunning = this.isNeoAppRunning();
+        boolean alreadyRunning = neo4jAppPid() != null;
         if (!alreadyRunning) {
-            synchronized (this) {
-                if (!this.isNeoAppRunning()) {
+            synchronized (Neo4jResource.class) {
+                if (neo4jAppPid() == null) {
                     if (isOpen(host, port)) {
                         throw new Neo4jAlreadyRunningError();
                     }
-                    // TODO: since the process is static, if we instance the extension with a
-                    //  different config, the new process with an updated config won't launch...
-                    //  (might be acceptable)
                     this.startServerProcess(forceMigrations);
                 }
             }
@@ -251,11 +252,14 @@ public class Neo4jResource implements AutoCloseable {
         logger.info("Starting syslog server...");
         syslogServer.run();
 
-        this.cleanPythonProcess = cleaner.register(this, new KillPythonProcess(this));
         checkServerCommand(startServerCmd);
         logger.info("Starting Python app running \"{}\"",
             lazy(() -> String.join(" ", startServerCmd)));
-        serverProcess = new ProcessBuilder(startServerCmd).start();
+        Process serverProcess = new ProcessBuilder(startServerCmd).start();
+        ProcessUtils.dumpPid(
+            Files.createTempFile(TMP_ROOT, NEO4J_APP_BIN + "_", ".pid").toFile(),
+            serverProcess.pid()
+        );
         this.waitForServerToBeUp();
     }
 
@@ -274,48 +278,77 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    protected boolean stopServerProcess() {
-        boolean alreadyStopped = !isNeoAppRunning();
+    protected static boolean stopServerProcess() throws IOException, InterruptedException {
+        boolean alreadyStopped = neo4jAppPid() == null;
         if (!alreadyStopped) {
-            synchronized (this) {
-                if (isNeoAppRunning()) {
-                    // TODO: check if we want to force destroyForcibly
-                    serverProcess.toHandle().descendants().forEach(ProcessHandle::destroy);
-                    serverProcess.destroy();
-                    serverProcess = null;
+            synchronized (Neo4jResource.class) {
+                Long pid = neo4jAppPid();
+                if (pid != null) {
+                    ProcessUtils.killProcessById(pid);
+                    Path maybePidPath = neo4jAppPidPath();
+                    if (maybePidPath != null) {
+                        Files.delete(maybePidPath);
+                    }
                 }
             }
         }
         return alreadyStopped;
     }
 
+    private static Path neo4jAppPidPath() throws IOException {
+        PathMatcher pathMatcher = FileSystems.getDefault().getPathMatcher(PID_FILE_PATTERN);
+        try (Stream<Path> paths = Files.list(TMP_ROOT)) {
+            List<Path> pidFilePaths = paths
+                .filter(file -> !Files.isDirectory(file) && pathMatcher.matches(file.getFileName()))
+                .collect(Collectors.toList());
+            if (pidFilePaths.isEmpty()) {
+                return null;
+            }
+            if (pidFilePaths.size() != 1) {
+                String msg = "Found several matching PID files "
+                    + pidFilePaths
+                    + ", to avoid phantom Python process,"
+                    + " kill these processes and clean the PID files";
+                throw new RuntimeException(msg);
+            }
+            return pidFilePaths.get(0);
+        }
+    }
+
+    private static Long neo4jAppPid() throws IOException, InterruptedException {
+        Path maybePidPath = neo4jAppPidPath();
+        if (maybePidPath != null) {
+            Long maybePid = ProcessUtils.isProcessRunning(maybePidPath, 500, TimeUnit.MILLISECONDS);
+            if (maybePid != null) {
+                return maybePid;
+            }
+            // If the process is dead, let's clean the pid file
+            Files.delete(maybePidPath);
+        }
+        return null;
+    }
+
+
     protected org.icij.datashare.Objects.IncrementalImportResponse importDocuments(
         String projectId,
         org.icij.datashare.Objects.IncrementalImportRequest request
-    ) {
+    ) throws IOException, InterruptedException {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         return client.importDocuments(request);
     }
 
     protected org.icij.datashare.Objects.IncrementalImportResponse importNamedEntities(
-        String projectId, org.icij.datashare.Objects.IncrementalImportRequest request) {
+        String projectId, org.icij.datashare.Objects.IncrementalImportRequest request
+    ) throws IOException, InterruptedException {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         return client.importNamedEntities(request);
     }
 
-    @Override
-    public void close() {
-        if (this.cleanPythonProcess != null) {
-            this.cleanPythonProcess.clean();
-        }
-    }
-
-    private Payload doImport(
-        Provider<org.icij.datashare.Objects.IncrementalImportResponse> importProvider) {
+    private Payload doImport(Object imported) {
         try {
-            return new Payload(importProvider.get()).withCode(200);
+            return new Payload(imported).withCode(200);
         } catch (InvalidProjectError e) {
             return new Payload("application/problem+json", e).withCode(401);
         } catch (Neo4jNotRunningError e) {
@@ -348,7 +381,11 @@ public class Neo4jResource implements AutoCloseable {
         }
 
         public void run() {
-            this.resource.stopServerProcess();
+            try {
+                this.resource.stopServerProcess();
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
             if (this.resource.appBinaryPath != null) {
                 File appBinFile = new File(this.resource.appBinaryPath.toAbsolutePath().toString());
                 if (appBinFile.exists()) {
@@ -425,4 +462,5 @@ public class Neo4jResource implements AutoCloseable {
             super(emptyNeo4jServerCommand);
         }
     }
+
 }

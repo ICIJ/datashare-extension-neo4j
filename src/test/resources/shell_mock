@@ -1,2 +1,4 @@
 #!/usr/bin/env bash
-ls .
+while true; do
+    sleep 10000
+done
