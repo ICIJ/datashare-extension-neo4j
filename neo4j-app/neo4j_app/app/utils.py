@@ -115,7 +115,7 @@ async def migrate_app_db(app: FastAPI):
                 sess,
                 registry=MIGRATIONS,
                 timeout_s=config.neo4j_app_migration_timeout_s,
-                wait_s=config.neo4j_app_migration_wait_s,
+                throttle_s=config.neo4j_app_migration_throttle_s,
             )
 
 

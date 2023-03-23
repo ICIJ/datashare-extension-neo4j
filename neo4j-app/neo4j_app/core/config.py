@@ -42,7 +42,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
     neo4j_app_migration_timeout_s: float = 60 * 5
-    neo4j_app_migration_wait_s: float = 1
+    neo4j_app_migration_throttle_s: float = 1
     neo4j_app_name: str = "neo4j app"
     neo4j_app_port: int = 8080
     neo4j_app_syslog_facility: Optional[str] = None
