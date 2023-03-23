@@ -1,3 +1,4 @@
 .github/CODEOWNERS @ICIJ/developers
 src/main/resources/manifest.txt @ICIJ/developers
+src/main/java/org/icij/datashare/Neo4jResource.java @ICIJ/developers
 src/main/java/org/icij/datashare/Neo4jAppLoader.java @ICIJ/developers
