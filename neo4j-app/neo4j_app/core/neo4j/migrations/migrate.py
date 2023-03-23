@@ -167,7 +167,7 @@ async def migrate_db_schema(
     registry: MigrationRegistry,
     *,
     timeout_s: float,
-    wait_s: float,
+    throttle_s: float,
 ):
     start = datetime.now()
     if not registry:
@@ -187,9 +187,9 @@ async def migrate_db_schema(
             logger.info(
                 "Found that %s is in progress, waiting for %s seconds...",
                 in_progress[0].label,
-                wait_s,
+                throttle_s,
             )
-            await asyncio.sleep(wait_s)
+            await asyncio.sleep(throttle_s)
             continue
         done = [m for m in migrations if m.status is MigrationStatus.DONE]
         if done:
@@ -206,7 +206,7 @@ async def migrate_db_schema(
                 "Migration %s has just started somewhere else, "
                 " waiting for %s seconds...",
                 todo[0].label,
-                wait_s,
+                throttle_s,
             )
-            await asyncio.sleep(wait_s)
+            await asyncio.sleep(throttle_s)
             continue

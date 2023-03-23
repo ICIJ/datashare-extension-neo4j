@@ -23,7 +23,7 @@ async def _migration_index_and_constraint(
     neo4j_test_session: neo4j.AsyncSession,
 ) -> neo4j.AsyncSession:
     await migrate_db_schema(
-        neo4j_test_session, _BASE_REGISTRY, timeout_s=30, wait_s=0.1
+        neo4j_test_session, _BASE_REGISTRY, timeout_s=30, throttle_s=0.1
     )
     return neo4j_test_session
 
@@ -78,7 +78,7 @@ async def test_migrate_db_schema(
     neo4j_session = _migration_index_and_constraint
 
     # When
-    await migrate_db_schema(neo4j_session, registry, timeout_s=10, wait_s=0.1)
+    await migrate_db_schema(neo4j_session, registry, timeout_s=10, throttle_s=0.1)
 
     # Then
     index_res = await neo4j_session.run("SHOW INDEXES")
@@ -115,7 +115,7 @@ async def test_migrate_db_schema_should_raise_after_timeout(
     # When
     expected_msg = "Migration timeout expired"
     with pytest.raises(MigrationError, match=expected_msg):
-        await migrate_db_schema(neo4j_session, registry, timeout_s=0, wait_s=0.1)
+        await migrate_db_schema(neo4j_session, registry, timeout_s=0, throttle_s=0.1)
 
 
 @pytest.mark.asyncio
@@ -151,7 +151,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
             neo4j_session_0,
             [_MIGRATION_0, _MIGRATION_1],
             timeout_s=timeout_s,
-            wait_s=wait_s,
+            throttle_s=wait_s,
         )
     # Check that we've slept at least once otherwise timeout must be increased...
     assert any(
@@ -193,7 +193,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
             neo4j_session_0,
             [_MIGRATION_0],
             timeout_s=timeout_s,
-            wait_s=wait_s,
+            throttle_s=wait_s,
         )
     # Check that we've slept at least once otherwise timeout must be increased...
     assert any(
