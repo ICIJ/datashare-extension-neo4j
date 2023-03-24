@@ -1,5 +1,6 @@
 # pylint: disable=redefined-outer-name
 import asyncio
+import contextlib
 import os
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, Tuple
@@ -58,8 +59,6 @@ def test_client_session(
         elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
         es_default_page_size=5,
         neo4j_project="test-datashare-project",
-        neo4j_import_dir=str(NEO4J_TEST_IMPORT_DIR),
-        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
         neo4j_app_host="127.0.0.1",
         neo4j_port=NEO4J_TEST_PORT,
     )
@@ -155,12 +154,26 @@ async def es_test_client() -> AsyncGenerator[ESClient, None]:
     await es.close()
 
 
-@pytest_asyncio.fixture(scope="session")
-async def neo4j_test_driver_session() -> AsyncGenerator[neo4j.AsyncDriver, None]:
+@contextlib.asynccontextmanager
+async def _build_neo4j_driver():
     uri = f"neo4j://127.0.0.1:{NEO4J_TEST_PORT}"
     async with AsyncGraphDatabase.driver(  # pylint: disable=not-async-context-manager
         uri, auth=None
     ) as driver:
+        yield driver
+
+
+@pytest_asyncio.fixture(scope="session")
+async def neo4j_test_driver_session() -> AsyncGenerator[neo4j.AsyncDriver, None]:
+    async with _build_neo4j_driver() as driver:
+        yield driver
+
+
+@pytest_asyncio.fixture()
+async def neo4j_test_driver() -> AsyncGenerator[neo4j.AsyncDriver, None]:
+    async with _build_neo4j_driver() as driver:
+        async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
+            await wipe_db(sess)
         yield driver
 
 

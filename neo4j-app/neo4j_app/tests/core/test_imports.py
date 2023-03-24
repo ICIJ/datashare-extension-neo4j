@@ -8,8 +8,6 @@ from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.imports import import_documents, import_named_entities
 from neo4j_app.core.objects import IncrementalImportResponse
 from neo4j_app.tests.conftest import (
-    NEO4J_IMPORT_PREFIX,
-    NEO4J_TEST_IMPORT_DIR,
     index_docs,
     index_named_entities,
     index_noise,
@@ -66,22 +64,30 @@ async def test_import_documents(
     query: Optional[Dict],
     doc_type_field: str,
     expected_response: IncrementalImportResponse,
-    neo4j_test_session: neo4j.AsyncSession,
+    neo4j_test_driver: neo4j.AsyncDriver,
 ):
     # pylint: disable=invalid-name
     # Given
     es_client = _populate_es
-    neo4j_session = neo4j_test_session
+    neo4j_driver = neo4j_test_driver
+    # There are 20 records, let's insert by batch of 5, a maximum of 2 batches at a time
+    # and transactions of 3 by batch
+    neo4j_concurrency = 2
+    neo4j_import_batch_size = 5
+    max_records_in_memory = 10
+    neo4j_transaction_batch_size = 3
 
     # When
     response = await import_documents(
-        neo4j_session=neo4j_session,
         es_client=es_client,
-        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
-        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
-        query=query,
-        doc_type_field=doc_type_field,
-        keep_alive="10s",
+        es_query=query,
+        es_keep_alive="10s",
+        es_doc_type_field=doc_type_field,
+        neo4j_driver=neo4j_driver,
+        neo4j_concurrency=neo4j_concurrency,
+        neo4j_import_batch_size=neo4j_import_batch_size,
+        neo4j_transaction_batch_size=neo4j_transaction_batch_size,
+        max_records_in_memory=max_records_in_memory,
     )
 
     # Then
@@ -121,6 +127,7 @@ async def test_import_documents(
 async def test_import_named_entities(
     _populate_es: ESClient,
     insert_docs_in_neo4j: neo4j.AsyncSession,
+    neo4j_test_driver_session: neo4j.AsyncDriver,
     # Wipe neo4j named entities at each test_client
     wipe_named_entities,
     query: Optional[Dict],
@@ -130,17 +137,25 @@ async def test_import_named_entities(
     # pylint: disable=invalid-name,unused-argument
     # Given
     es_client = _populate_es
-    neo4j_session = insert_docs_in_neo4j
+    neo4j_driver = neo4j_test_driver_session
+    # There are 20 records, let's insert by batch of 5, a maximum of 2 batches at a time
+    # and transactions of 3 by batch
+    neo4j_concurrency = 2
+    neo4j_import_batch_size = 5
+    max_records_in_memory = 10
+    neo4j_transaction_batch_size = 3
 
     # When
     response = await import_named_entities(
-        neo4j_session=neo4j_session,
         es_client=es_client,
-        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
-        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
-        query=query,
-        doc_type_field=doc_type_field,
-        keep_alive="10s",
+        es_query=query,
+        es_keep_alive="10s",
+        es_doc_type_field=doc_type_field,
+        neo4j_driver=neo4j_driver,
+        neo4j_concurrency=neo4j_concurrency,
+        neo4j_import_batch_size=neo4j_import_batch_size,
+        neo4j_transaction_batch_size=neo4j_transaction_batch_size,
+        max_records_in_memory=max_records_in_memory,
     )
 
     # Then

@@ -1,9 +1,12 @@
 import logging
-from pathlib import Path
 
+import neo4j
 from fastapi import APIRouter, Depends, Request
 
-from neo4j_app.app.dependencies import es_client_dep, neo4j_session_dep
+from neo4j_app.app.dependencies import (
+    es_client_dep,
+    neo4j_driver_dep,
+)
 from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.imports import import_named_entities
@@ -65,7 +68,7 @@ app to the Python one through configuration.
 
 
 def named_entities_router() -> APIRouter:
-    router = APIRouter(dependencies=[Depends(neo4j_session_dep)], tags=[NE_TAG])
+    router = APIRouter(tags=[NE_TAG])
 
     @router.post(
         "/named-entities",
@@ -76,23 +79,24 @@ def named_entities_router() -> APIRouter:
     async def _import_named_entities(
         payload: IncrementalImportRequest,
         request: Request,
+        neo4j_driver: neo4j.AsyncDriver = Depends(neo4j_driver_dep),
         es_client: ESClientABC = Depends(es_client_dep),
     ) -> IncrementalImportResponse:
-        neo4j_sess = request.state.neo4j_session
         config: AppConfig = request.app.state.config
         with log_elapsed_time_cm(
             logger, logging.INFO, "Imported named entities in {elapsed_time} !"
         ):
             res = await import_named_entities(
-                query=payload.query,
-                neo4j_session=neo4j_sess,
                 es_client=es_client,
-                neo4j_import_dir=Path(config.neo4j_import_dir),
-                neo4j_import_prefix=config.neo4j_import_prefix,
-                keep_alive=config.es_keep_alive,
-                doc_type_field=config.es_doc_type_field,
-                # TODO: take this one from the payload
-                concurrency=es_client.max_concurrency,
+                es_query=payload.query,
+                es_concurrency=es_client.max_concurrency,
+                es_keep_alive=config.es_keep_alive,
+                es_doc_type_field=config.es_doc_type_field,
+                neo4j_driver=neo4j_driver,
+                neo4j_concurrency=config.neo4j_concurrency,
+                neo4j_import_batch_size=config.neo4j_import_batch_size,
+                neo4j_transaction_batch_size=config.neo4j_transaction_batch_size,
+                max_records_in_memory=config.max_records_in_memory,
             )
         return res
 

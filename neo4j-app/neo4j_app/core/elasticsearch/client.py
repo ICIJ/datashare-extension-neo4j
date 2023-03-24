@@ -6,6 +6,7 @@ from copy import deepcopy
 from functools import cached_property
 from typing import Any, AsyncGenerator, Callable, Dict, List, Mapping, Optional, TextIO
 
+import neo4j
 from elasticsearch import AsyncElasticsearch
 from elasticsearch._async.helpers import async_scan
 
@@ -24,7 +25,7 @@ from neo4j_app.core.elasticsearch.utils import (
     SORT,
     match_all,
 )
-from neo4j_app.core.neo4j import write_neo4j_csv
+from neo4j_app.core.neo4j import Neo4jImportWorker, write_neo4j_csv
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,86 @@ class ESClientABC(metaclass=abc.ABCMeta):
             if pit_id is not None:
                 await self._close_pit(pit_id)
 
+    async def to_neo4j(
+        self,
+        query: Optional[Mapping[str, Any]],
+        *,
+        neo4j_import_worker_factory: Callable[[str], Neo4jImportWorker],
+        num_neo4j_workers: int,
+        concurrency: Optional[int] = None,
+        max_records_in_memory: int,
+        import_batch_size: int,
+        keep_alive: Optional[str] = None,
+        imported_entity_label: str,
+    ) -> [int, List[neo4j.ResultSummary]]:
+        if num_neo4j_workers <= 0:
+            raise ValueError("num_neo4j_workers must be > 0")
+        if concurrency is None:
+            concurrency = self.max_concurrency
+        if keep_alive is None:
+            keep_alive = self.keep_alive
+        logger.info(
+            "Starting import with %s neo4j and %s elasticsearch workers",
+            num_neo4j_workers,
+            concurrency,
+        )
+        queue_size = max_records_in_memory // import_batch_size
+        if not queue_size:
+            raise ValueError("import_batch_size must be >= max_records_in_memory")
+        queue = asyncio.Queue(maxsize=queue_size)
+
+        # Start the consumer tasks
+        neo4j_workers = [
+            neo4j_import_worker_factory(f"neo4j-worker-{i}")
+            for i in range(num_neo4j_workers)
+        ]
+        neo4j_tasks = [
+            asyncio.create_task(worker(queue), name=worker.name)
+            for worker in neo4j_workers
+        ]
+        # 1 slice is not supported...
+        concurrency = max(concurrency, 2)
+        async with self.pit(keep_alive=keep_alive) as pit:
+            bodies = (
+                sliced_search_with_pit(
+                    query,
+                    pit=pit,
+                    id_=i,
+                    max_=concurrency,
+                    keep_alive=keep_alive,
+                )
+                for i in range(concurrency)
+            )
+            with log_elapsed_time_cm(
+                logger,
+                logging.INFO,
+                f"Retrieved all {imported_entity_label} from elasticsearch in"
+                f" {{elapsed_time}} !",
+            ):
+                es_workers = [
+                    asyncio.create_task(
+                        self._fill_import_queue(
+                            import_batch_size=import_batch_size,
+                            body=body,
+                            queue=queue,
+                        ),
+                        name=f"es-worker-{body_i}",
+                    )
+                    for body_i, body in enumerate(bodies)
+                ]
+                total_hits = await asyncio.gather(*es_workers)
+        total_hits = sum(total_hits)
+        # Wait for the queue to be fully consumed
+        await queue.join()
+        # Cancel consumer tasks which will make them break their infinite loop and
+        # return the result summaries
+        for task in neo4j_tasks:
+            task.cancel()
+        # Wait for all results to be there
+        summaries = await asyncio.gather(*neo4j_tasks)
+        summaries = sum(summaries, [])
+        return total_hits, summaries
+
     async def write_concurrently_neo4j_csv(
         self,
         query: Optional[Mapping[str, Any]],
@@ -170,6 +251,31 @@ class ESClientABC(metaclass=abc.ABCMeta):
             total_hits = sum(total_hits)
         return total_hits
 
+    async def _fill_import_queue(
+        self,
+        *,
+        queue: asyncio.Queue,
+        import_batch_size: int,
+        **kwargs,
+    ) -> int:
+        # TODO: use https://github.com/jd/tenacity to implement retry with backoff in
+        #  case of network error
+        total_hits = 0
+        # Since we can't provide an async generator to the neo4j client, let's store
+        # results into a list fitting in memory, which will then be split into
+        # transaction batches
+        import_batch = []
+        async for res in self._poll_search_pages(**kwargs):
+            import_batch += res[HITS][HITS]
+            if len(import_batch) >= import_batch_size:
+                await _enqueue_import_batch(queue, import_batch)
+                total_hits += len(import_batch)
+                import_batch = []
+        if import_batch:
+            await _enqueue_import_batch(queue, import_batch)
+            total_hits += len(import_batch)
+        return total_hits
+
     async def _write_search_to_neo4j_csv_with_lock(
         self,
         *,
@@ -189,6 +295,15 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 write_neo4j_csv(f, rows=rows, header=header, write_header=False)
                 f.flush()
         return total_hits
+
+
+async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]):
+    # Let's monitor the time it takes to enqueue the batch, if it's long it
+    # means that more neo4j workers are needed
+    with log_elapsed_time_cm(
+        logger, logging.DEBUG, "Waited {elapsed_time} to enqueue batch"
+    ):
+        await queue.put(import_batch)
 
 
 class ESClient(ESClientABC, AsyncElasticsearch):
@@ -250,7 +365,9 @@ try:
             self, index: str, keep_alive: str, **kwargs
         ) -> Dict:
             pit = await self.create_point_in_time(  # pylint: disable=unexpected-keyword-arg
-                index=index, keep_alive=keep_alive, **kwargs
+                index=index,
+                keep_alive=keep_alive,
+                **kwargs,
             )
             pit = {ID: pit["pit_id"]}
             return pit
