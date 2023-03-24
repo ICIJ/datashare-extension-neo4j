@@ -10,7 +10,7 @@ from logging.handlers import SysLogHandler
 from typing import Dict, List, Optional, TextIO
 
 import neo4j
-from pydantic import Field
+from pydantic import Field, validator
 
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.client import ESClient, OSClient
@@ -41,6 +41,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_max_concurrency: int = 5
     es_timeout: int = "1m"
     es_keep_alive: str = "1m"
+    max_records_in_memory: int = int(1e6)
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
     neo4j_app_migration_timeout_s: float = 60 * 5
@@ -49,10 +50,11 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_port: int = 8080
     neo4j_app_syslog_facility: Optional[str] = None
     neo4j_app_uses_opensearch: bool = False
+    neo4j_concurrency: int = 2
+    neo4j_import_batch_size: int = int(5e5)
+    neo4j_transaction_batch_size = 50000
     neo4j_connection_timeout: float = 5.0
     neo4j_host: str = "127.0.0.1"
-    neo4j_import_dir: str
-    neo4j_import_prefix: Optional[str] = None
     neo4j_port: int = 7687
     neo4j_project: str
     force_migrations: bool = False
@@ -60,6 +62,15 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
     # per request basis using FastApi dependencies...
     _global: Optional[AppConfig] = None
+
+    @validator("neo4j_import_batch_size")
+    def neo4j_import_batch_size_must_be_less_than_max_records_in_memory(  # pylint: disable=no-self-argument
+        cls, v, values
+    ):
+        max_records = values["max_records_in_memory"]
+        if v > max_records:
+            raise ValueError("neo4j_import_batch_size must be <= max_records_in_memory")
+        return v
 
     @classmethod
     def from_java_properties(cls, file: TextIO, **kwargs) -> AppConfig:

@@ -1,5 +1,4 @@
-from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 import neo4j
 
@@ -15,22 +14,28 @@ from neo4j_app.constants import (
 )
 
 
-async def import_documents_from_csv_tx(
-    tx: neo4j.AsyncTransaction, neo4j_import_path: Path
+async def import_document_rows(
+    neo4j_session: neo4j.AsyncSession,
+    records: List[Dict],
+    *,
+    transaction_batch_size: int,
 ) -> neo4j.ResultSummary:
-    # TODO: use apoc.periodic.iterate(.., ..., {batchSize:10000, parallel:true,
-    #  iterateList:true}) to || and save memory import...
-    query = f"""LOAD CSV WITH HEADERS FROM 'file:///{neo4j_import_path}' AS row
-MERGE (doc:{DOC_NODE} {{{DOC_ID}: row.{DOC_ID}}})
-SET
-    doc.{DOC_CONTENT_TYPE} = row.{DOC_CONTENT_TYPE},
-    doc.{DOC_CONTENT_LENGTH} = toInteger(row.{DOC_CONTENT_LENGTH}),
-    doc.{DOC_EXTRACTION_DATE} = datetime(row.{DOC_EXTRACTION_DATE}),
-    doc.{DOC_DIRNAME} = row.{DOC_DIRNAME},
-    doc.{DOC_PATH} = row.{DOC_PATH},
+    # TODO: use apoc.periodic.iterate(parallel:true, iterateList:true}) to || and speed
+    #  up import...
+    query = f"""UNWIND $rows AS row
+CALL {{
+    WITH row
+    MERGE (doc:{DOC_NODE} {{{DOC_ID}: row.{DOC_ID}}})
+    SET
+        doc.{DOC_CONTENT_TYPE} = row.{DOC_CONTENT_TYPE},
+        doc.{DOC_CONTENT_LENGTH} = toInteger(row.{DOC_CONTENT_LENGTH}),
+        doc.{DOC_EXTRACTION_DATE} = datetime(row.{DOC_EXTRACTION_DATE}),
+        doc.{DOC_DIRNAME} = row.{DOC_DIRNAME},
+        doc.{DOC_PATH} = row.{DOC_PATH},
     doc.{DOC_ROOT_ID} = row.{DOC_ROOT_ID}
+}} IN TRANSACTIONS OF $batchSize ROWS
 """
-    res = await tx.run(query)
+    res = await neo4j_session.run(query, rows=records, batchSize=transaction_batch_size)
     summary = await res.consume()
     return summary
 

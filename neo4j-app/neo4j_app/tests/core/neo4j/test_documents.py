@@ -5,13 +5,11 @@ import pytest
 from neo4j.time import DateTime
 
 from neo4j_app.core.elasticsearch.to_neo4j import es_to_neo4j_doc
-from neo4j_app.core.neo4j import make_neo4j_import_file, write_neo4j_csv
+from neo4j_app.core.neo4j import write_neo4j_csv
 from neo4j_app.core.neo4j.documents import (
-    import_documents_from_csv_tx,
+    import_document_rows,
 )
 from neo4j_app.tests.conftest import (
-    NEO4J_IMPORT_PREFIX,
-    NEO4J_TEST_IMPORT_DIR,
     make_docs,
 )
 
@@ -55,47 +53,24 @@ async def test_import_documents(
     # Given
     num_docs = 3
     docs = list(make_docs(n=num_docs))
-
-    headers = [
-        "id",
-        "rootId",
-        "dirname",
-        "contentType",
-        "contentLength",
-        "extractionDate",
-        "path",
-    ]
     # When
     n_created_first = 0
+    transaction_batch_size = 3
     if n_existing:
-        with make_neo4j_import_file(
-            neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
-            neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
-        ) as (
-            f,
-            neo4j_path,
-        ):
-            rows = (es_to_neo4j_doc(doc) for doc in docs[:n_existing])
-            write_neo4j_csv(f, rows=rows, header=headers, write_header=True)
-            f.flush()
-            summary = await neo4j_test_session.execute_write(
-                import_documents_from_csv_tx, neo4j_import_path=neo4j_path
-            )
-            n_created_first = summary.counters.nodes_created
-    with make_neo4j_import_file(
-        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
-        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
-    ) as (
-        f,
-        neo4j_path,
-    ):
-        rows = (es_to_neo4j_doc(doc) for doc in docs)
-        write_neo4j_csv(f, rows=rows, header=headers, write_header=True)
-        f.flush()
-        summary = await neo4j_test_session.execute_write(
-            import_documents_from_csv_tx, neo4j_import_path=neo4j_path
+        records = [es_to_neo4j_doc(doc) for doc in docs[:n_existing]]
+        summary = await import_document_rows(
+            neo4j_session=neo4j_test_session,
+            records=records,
+            transaction_batch_size=transaction_batch_size,
         )
-        n_created_second = summary.counters.nodes_created
+        n_created_first = summary.counters.nodes_created
+    records = [es_to_neo4j_doc(doc) for doc in docs]
+    summary = await import_document_rows(
+        neo4j_session=neo4j_test_session,
+        records=records,
+        transaction_batch_size=transaction_batch_size,
+    )
+    n_created_second = summary.counters.nodes_created
 
     # Then
     assert n_created_first == n_existing
@@ -115,6 +90,7 @@ async def test_import_documents_should_update_document(
 ):
     # Given
     num_docs = 1
+    transaction_batch_size = 3
     docs = list(make_docs(n=num_docs))
     query = """
 CREATE (n:Document {id: 'doc-0', contentType: 'someContentType'})
@@ -122,28 +98,12 @@ CREATE (n:Document {id: 'doc-0', contentType: 'someContentType'})
     await neo4j_test_session.run(query)
 
     # When
-    headers = [
-        "id",
-        "rootId",
-        "dirname",
-        "contentType",
-        "contentLength",
-        "extractionDate",
-        "path",
-    ]
-    with make_neo4j_import_file(
-        neo4j_import_dir=NEO4J_TEST_IMPORT_DIR,
-        neo4j_import_prefix=str(NEO4J_IMPORT_PREFIX),
-    ) as (
-        f,
-        neo4j_path,
-    ):
-        rows = (es_to_neo4j_doc(doc) for doc in docs)
-        write_neo4j_csv(f, rows=rows, header=headers, write_header=True)
-        f.flush()
-        await neo4j_test_session.execute_write(
-            import_documents_from_csv_tx, neo4j_import_path=neo4j_path
-        )
+    records = [es_to_neo4j_doc(doc) for doc in docs]
+    await import_document_rows(
+        neo4j_session=neo4j_test_session,
+        records=records,
+        transaction_batch_size=transaction_batch_size,
+    )
 
     # Then
     query = """
@@ -155,7 +115,7 @@ RETURN doc, count(*) as numDocs"""
     assert count == 1
     doc = dict(doc["doc"])
     expected_doc = docs[0]
-    assert len(doc) == len(headers) - 1  # for the roodId which is None
+    assert len(doc) == 6
     assert doc["id"] == expected_doc["_id"]
     ignored = {"type", "join"}
     # TODO: test the document directly

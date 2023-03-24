@@ -24,8 +24,6 @@ MIGRATION_STARTED = "started"
 MIGRATION_STATUS = "status"
 MIGRATION_VERSION = "version"
 
-NE_OFFSET_SPLITCHAR = ":"
-
 # TODO: replicate other named entities attributes
 NE_ID = "id"
 NE_CATEGORY = "category"

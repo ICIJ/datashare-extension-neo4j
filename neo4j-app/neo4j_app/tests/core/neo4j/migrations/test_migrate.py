@@ -14,6 +14,7 @@ from neo4j_app.core.neo4j.migrations.migrate import (
     MigrationStatus,
     Neo4jMigration,
 )
+from neo4j_app.tests.conftest import wipe_db
 
 _BASE_REGISTRY = [FIRST_MIGRATION]
 
@@ -166,7 +167,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
     monkeypatch, caplog, _migration_index_and_constraint  # pylint: disable=invalid-name
 ):
     # Given
-    neo4j_session_0 = _migration_index_and_constraint
+    neo4j_session = _migration_index_and_constraint
     caplog.set_level(logging.INFO, logger=neo4j_app.__name__)
 
     async def mocked_get_migrations(
@@ -179,25 +180,33 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
 
     # However we simulate _MIGRATION_0 being running just before our migrate_db_schema
     # by inserting it in progress
-    await neo4j_session_0.run(
-        "CREATE (m:Migration { version: $version })",
-        version=str(_MIGRATION_0.version),
+    query = """CREATE (m:Migration {
+    version: $version, 
+    label: 'someLabel', 
+    started: $started
+})
+"""
+    await neo4j_session.run(
+        query, version=str(_MIGRATION_0.version), started=datetime.now()
     )
-
-    # When/Then
-    expected_msg = "Migration timeout expired "
-    with pytest.raises(MigrationError, match=expected_msg):
-        timeout_s = 0.5
-        wait_s = 0.1
-        await migrate_db_schema(
-            neo4j_session_0,
-            [_MIGRATION_0],
-            timeout_s=timeout_s,
-            throttle_s=wait_s,
+    try:
+        # When/Then
+        expected_msg = "Migration timeout expired "
+        with pytest.raises(MigrationError, match=expected_msg):
+            timeout_s = 0.5
+            wait_s = 0.1
+            await migrate_db_schema(
+                neo4j_session,
+                [_MIGRATION_0],
+                timeout_s=timeout_s,
+                throttle_s=wait_s,
+            )
+        # Check that we've slept at least once otherwise timeout must be increased...
+        assert any(
+            rec.name == "neo4j_app.core.neo4j.migrations.migrate"
+            and "just started" in rec.message
+            for rec in caplog.records
         )
-    # Check that we've slept at least once otherwise timeout must be increased...
-    assert any(
-        rec.name == "neo4j_app.core.neo4j.migrations.migrate"
-        and "just started" in rec.message
-        for rec in caplog.records
-    )
+    finally:
+        # Don't forget to cleanup other the DB will be locked
+        await wipe_db(neo4j_session)
