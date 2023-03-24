@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Coroutine
 from datetime import datetime
 from distutils.version import StrictVersion
@@ -114,7 +115,7 @@ async def create_migration_tx(
     {MIGRATION_LABEL}: $label,
     {MIGRATION_VERSION}: $version,
     {MIGRATION_STATUS}: $status,
-    {MIGRATION_STARTED}:  $started
+    {MIGRATION_STARTED}: $started
 }})
 RETURN m as migration"""
     res = await tx.run(
@@ -169,14 +170,13 @@ async def migrate_db_schema(
     timeout_s: float,
     throttle_s: float,
 ):
-    start = datetime.now()
+    start = time.monotonic()
     if not registry:
         return
     todo = sorted(registry, key=lambda m: m.version)
     while "Waiting for DB to be migrated or for a timeout":
-        elapsed = datetime.now() - start
-        if elapsed.total_seconds() > timeout_s:
-            # TODO: add an flag to force the migration cleanup
+        elapsed = time.monotonic() - start
+        if elapsed > timeout_s:
             logger.error(_MIGRATION_TIMEOUT_MSG)
             raise MigrationError(_MIGRATION_TIMEOUT_MSG)
         migrations = await neo4j_session.execute_read(migrations_tx)
