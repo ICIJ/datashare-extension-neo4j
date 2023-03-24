@@ -1,10 +1,9 @@
+import functools
 import logging
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Protocol
+from typing import Any, Callable, Dict, Optional, Protocol
 
 import neo4j
 
-from neo4j_app.constants import DOC_COLUMNS, NE_COLUMNS
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.to_neo4j import (
     es_to_neo4j_doc,
@@ -19,59 +18,62 @@ from neo4j_app.core.elasticsearch.utils import (
     has_parent,
     has_type,
 )
-from neo4j_app.core.neo4j import (
-    get_neo4j_csv_writer,
-    make_neo4j_import_file,
-)
+from neo4j_app.core.neo4j import Neo4Import, Neo4jImportWorker
 from neo4j_app.core.neo4j.documents import (
     documents_ids_tx,
-    import_documents_from_csv_tx,
+    import_document_rows,
 )
-from neo4j_app.core.neo4j.named_entities import import_named_entities_from_csv_tx
+from neo4j_app.core.neo4j.named_entities import import_named_entity_rows
 from neo4j_app.core.objects import IncrementalImportResponse
-from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
 logger = logging.getLogger(__name__)
 
 
 class ImportTransactionFunction(Protocol):
     async def __call__(
-        self, tx: neo4j.AsyncTransaction, neo4j_import_path: Path, **kwargs
-    ) -> Any:
+        self,
+        neo4j_session: neo4j.AsyncSession,
+        *,
+        batch_size: int,
+        **kwargs,
+    ) -> neo4j.ResultSummary:
         ...
 
 
 async def import_documents(
     *,
-    query: Optional[Dict],
-    neo4j_session: neo4j.AsyncSession,
     es_client: ESClientABC,
-    neo4j_import_dir: Path,
-    neo4j_import_prefix: Optional[str] = None,
-    keep_alive: Optional[str] = None,
-    doc_type_field: str,
-    concurrency: Optional[int] = None,
+    es_query: Optional[Dict],
+    es_concurrency: Optional[int] = None,
+    es_keep_alive: Optional[str] = None,
+    es_doc_type_field: str,
+    neo4j_driver: neo4j.AsyncDriver,
+    neo4j_concurrency: int,
+    neo4j_import_batch_size: int,
+    neo4j_transaction_batch_size: int,
+    max_records_in_memory: int,
 ) -> IncrementalImportResponse:
     # Let's restrict the search to documents, the type is a keyword property
     # we can safely use a term query
     document_type_query = has_type(
-        type_field=doc_type_field, type_value=ES_DOCUMENT_TYPE
+        type_field=es_doc_type_field, type_value=ES_DOCUMENT_TYPE
     )
-    if query is not None and query:
-        query = and_query(document_type_query, query)
+    if es_query is not None and es_query:
+        es_query = and_query(document_type_query, es_query)
     else:
-        query = {QUERY: document_type_query}
+        es_query = {QUERY: document_type_query}
     response = await _es_to_neo4j_import(
-        query=query,
-        header=DOC_COLUMNS,
-        import_tx=import_documents_from_csv_tx,
-        es_to_neo4j=es_to_neo4j_doc,
-        neo4j_session=neo4j_session,
         es_client=es_client,
-        neo4j_import_dir=neo4j_import_dir,
-        neo4j_import_prefix=neo4j_import_prefix,
-        keep_alive=keep_alive,
-        concurrency=concurrency,
+        es_query=es_query,
+        es_concurrency=es_concurrency,
+        es_keep_alive=es_keep_alive,
+        neo4j_driver=neo4j_driver,
+        neo4j_import_fn=import_document_rows,
+        neo4j_concurrency=neo4j_concurrency,
+        neo4j_import_batch_size=neo4j_import_batch_size,
+        neo4j_transaction_batch_size=neo4j_transaction_batch_size,
+        to_neo4j_record=es_to_neo4j_doc,
+        max_records_in_memory=max_records_in_memory,
         imported_entity_label="documents",
     )
     return response
@@ -79,87 +81,95 @@ async def import_documents(
 
 async def import_named_entities(
     *,
-    query: Optional[Dict],
-    neo4j_session: neo4j.AsyncSession,
     es_client: ESClientABC,
-    neo4j_import_dir: Path,
-    neo4j_import_prefix: Optional[str] = None,
-    keep_alive: Optional[str] = None,
-    doc_type_field: str,
-    concurrency: Optional[int] = None,
+    es_query: Optional[Dict],
+    es_concurrency: Optional[int] = None,
+    es_keep_alive: Optional[str] = None,
+    es_doc_type_field: str,
+    neo4j_driver: neo4j.AsyncDriver,
+    neo4j_concurrency: int,
+    neo4j_import_batch_size: int,
+    neo4j_transaction_batch_size: int,
+    max_records_in_memory: int,
 ) -> IncrementalImportResponse:
-    if concurrency is None:
-        concurrency = es_client.max_concurrency
-    document_ids = await neo4j_session.execute_read(documents_ids_tx)
+    async with neo4j_driver.session() as neo4j_session:
+        document_ids = await neo4j_session.execute_read(documents_ids_tx)
     # Since this is an incremental import we consider it reasonable to use an ES join,
     # however for named entities bulk import join should be avoided and post filtering
     # on the documentId will probably be much more efficient !
     # TODO: if joining is too slow, switch to post filtering
     queries = [
-        has_type(type_field=doc_type_field, type_value=ES_NAMED_ENTITY_TYPE),
+        has_type(type_field=es_doc_type_field, type_value=ES_NAMED_ENTITY_TYPE),
         has_parent(parent_type=ES_DOCUMENT_TYPE, query=has_id(document_ids)),
     ]
-    if query is not None and query:
-        queries.append(query)
-    query = and_query(*queries)
+    if es_query is not None and es_query:
+        queries.append(es_query)
+    es_query = and_query(*queries)
     response = await _es_to_neo4j_import(
-        query=query,
-        header=NE_COLUMNS,
-        import_tx=import_named_entities_from_csv_tx,
-        es_to_neo4j=es_to_neo4j_named_entity,
-        neo4j_session=neo4j_session,
         es_client=es_client,
-        neo4j_import_dir=neo4j_import_dir,
-        neo4j_import_prefix=neo4j_import_prefix,
-        keep_alive=keep_alive,
-        concurrency=concurrency,
+        es_query=es_query,
+        es_concurrency=es_concurrency,
+        es_keep_alive=es_keep_alive,
+        neo4j_driver=neo4j_driver,
+        neo4j_import_fn=import_named_entity_rows,
+        neo4j_concurrency=neo4j_concurrency,
+        neo4j_import_batch_size=neo4j_import_batch_size,
+        neo4j_transaction_batch_size=neo4j_transaction_batch_size,
+        to_neo4j_record=es_to_neo4j_named_entity,
+        max_records_in_memory=max_records_in_memory,
         imported_entity_label="named entities",
     )
     return response
 
 
+def _make_neo4j_worker(
+    name: str,
+    neo4j_driver: neo4j.AsyncDriver,
+    import_fn: Neo4Import,
+    transaction_batch_size: int,
+    to_neo4j_record: Callable[[Any], Dict],
+) -> Neo4jImportWorker:
+    return Neo4jImportWorker(
+        name=name,
+        neo4j_driver=neo4j_driver,
+        import_fn=import_fn,
+        transaction_batch_size=transaction_batch_size,
+        to_neo4j_record=to_neo4j_record,
+    )
+
+
 async def _es_to_neo4j_import(
     *,
-    query: Optional[Dict],
-    header: List[str],
-    import_tx: ImportTransactionFunction,
-    es_to_neo4j: Callable[[Dict[str, Any]], Dict[str, str]],
-    neo4j_session: neo4j.AsyncSession,
     es_client: ESClientABC,
-    neo4j_import_dir: Path,
-    neo4j_import_prefix: Optional[str] = None,
-    keep_alive: Optional[str] = None,
-    concurrency: Optional[int] = None,
+    es_query: Optional[Dict],
+    es_concurrency: Optional[int] = None,
+    es_keep_alive: Optional[str] = None,
+    neo4j_driver: neo4j.AsyncDriver,
+    neo4j_concurrency: int,
+    neo4j_import_fn: Neo4Import,
+    neo4j_import_batch_size: int,
+    neo4j_transaction_batch_size: int,
+    to_neo4j_record: Callable[[Any], Dict],
+    max_records_in_memory: int,
     imported_entity_label: str,
 ) -> IncrementalImportResponse:
-    logger.debug("Importing with ES concurrency of %s", concurrency)
-    with make_neo4j_import_file(
-        neo4j_import_dir=neo4j_import_dir, neo4j_import_prefix=neo4j_import_prefix
-    ) as (f, neo4j_import_path):
-        writer = get_neo4j_csv_writer(f, header=header)
-        writer.writeheader()
-        f.flush()
-
-        with log_elapsed_time_cm(
-            logger, logging.DEBUG, "Exported ES query to neo4j csv in {elapsed_time} !"
-        ):
-            n_to_insert = await es_client.write_concurrently_neo4j_csv(
-                query,
-                f,
-                header=header,
-                keep_alive=keep_alive,
-                concurrency=concurrency,
-                es_to_neo4j=es_to_neo4j,
-            )
-        with log_elapsed_time_cm(
-            logger,
-            logging.DEBUG,
-            f"Imported {imported_entity_label} from csv to neo4j in"
-            f" {{elapsed_time}}",
-        ):
-            summary: neo4j.ResultSummary = await neo4j_session.execute_write(
-                import_tx, neo4j_import_path=neo4j_import_path
-            )
-    n_inserted = summary.counters.nodes_created
+    neo4j_import_worker_factory = functools.partial(
+        _make_neo4j_worker,
+        neo4j_driver=neo4j_driver,
+        import_fn=neo4j_import_fn,
+        transaction_batch_size=neo4j_transaction_batch_size,
+        to_neo4j_record=to_neo4j_record,
+    )
+    n_to_insert, summaries = await es_client.to_neo4j(
+        es_query,
+        neo4j_import_worker_factory=neo4j_import_worker_factory,
+        num_neo4j_workers=neo4j_concurrency,
+        import_batch_size=neo4j_import_batch_size,
+        concurrency=es_concurrency,
+        max_records_in_memory=max_records_in_memory,
+        keep_alive=es_keep_alive,
+        imported_entity_label=imported_entity_label,
+    )
+    n_inserted = sum(summary.counters.nodes_created for summary in summaries)
     response = IncrementalImportResponse(n_to_insert=n_to_insert, n_inserted=n_inserted)
     return response
