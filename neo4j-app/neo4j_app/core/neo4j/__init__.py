@@ -11,7 +11,6 @@ from .migrations.migrate import MigrationError, migrate_db_schema
 from .migrations.migrations import (
     create_document_and_ne_id_unique_constraint_tx,
     create_migration_unique_constraint_tx,
-    create_migration_unique_constraint_tx,
 )
 
 FIRST_MIGRATION = Migration(
