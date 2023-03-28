@@ -88,7 +88,7 @@ def documents_router() -> APIRouter:
                 neo4j_concurrency=config.neo4j_concurrency,
                 neo4j_import_batch_size=config.neo4j_import_batch_size,
                 neo4j_transaction_batch_size=config.neo4j_transaction_batch_size,
-                max_records_in_memory=config.max_records_in_memory,
+                max_records_in_memory=config.neo4j_app_max_records_in_memory,
             )
         return res
 
