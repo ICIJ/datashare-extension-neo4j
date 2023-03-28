@@ -2,7 +2,7 @@ import abc
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from copy import deepcopy
+from copy import copy, deepcopy
 from functools import cached_property
 from typing import Any, AsyncGenerator, Callable, Dict, List, Mapping, Optional, TextIO
 
@@ -80,10 +80,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
             size = self.pagination_size
         if not size:
             raise ValueError("size is expected to be > 0")
-        with log_elapsed_time_cm(
-            logger, logging.DEBUG, "Searched in ES in {elapsed_time}"
-        ):
-            res = await self.search(size=size, sort=sort, **kwargs)
+        res = await self.search(size=size, sort=sort, **kwargs)
         kwargs = deepcopy(kwargs)
         yield res
         page_hits = res[HITS][HITS]
@@ -96,10 +93,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 kwargs["body"][SEARCH_AFTER] = search_after
             else:
                 kwargs[SEARCH_AFTER] = search_after
-            with log_elapsed_time_cm(
-                logger, logging.DEBUG, "Searched in ES in {elapsed_time}"
-            ):
-                res = await self.search(size=size, sort=sort, **kwargs)
+            res = await self.search(size=size, sort=sort, **kwargs)
             yield res
             page_hits = res[HITS][HITS]
 
@@ -184,19 +178,11 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 f"Retrieved all {imported_entity_label} from elasticsearch in"
                 f" {{elapsed_time}} !",
             ):
-                es_workers = [
-                    asyncio.create_task(
-                        self._fill_import_queue(
-                            import_batch_size=import_batch_size,
-                            body=body,
-                            queue=queue,
-                        ),
-                        name=f"es-worker-{body_i}",
-                    )
-                    for body_i, body in enumerate(bodies)
-                ]
-                total_hits = await asyncio.gather(*es_workers)
-        total_hits = sum(total_hits)
+                total_hits = await self._fill_import_queue(
+                    import_batch_size=import_batch_size,
+                    bodies=list(bodies),
+                    queue=queue,
+                )
         # Wait for the queue to be fully consumed
         await queue.join()
         # Cancel consumer tasks which will make them break their infinite loop and
@@ -252,10 +238,34 @@ class ESClientABC(metaclass=abc.ABCMeta):
         return total_hits
 
     async def _fill_import_queue(
+        self, queue: asyncio.Queue, import_batch_size: int, bodies: List[Dict]
+    ):
+        lock = asyncio.Lock()
+        buffer = []
+        futures = [
+            self._fill_import_buffer(
+                queue=queue,
+                import_batch_size=import_batch_size,
+                lock=lock,
+                buffer=buffer,
+                body=body,
+            )
+            for body in bodies
+        ]
+        total_hits = await asyncio.gather(*futures)
+        total_hits = sum(total_hits)
+        if buffer:
+            total_hits += len(buffer)
+            await _enqueue_import_batch(queue, buffer)
+        return total_hits
+
+    async def _fill_import_buffer(
         self,
         *,
         queue: asyncio.Queue,
         import_batch_size: int,
+        lock: asyncio.Lock,
+        buffer: List[Dict],
         **kwargs,
     ) -> int:
         # TODO: use https://github.com/jd/tenacity to implement retry with backoff in
@@ -264,16 +274,14 @@ class ESClientABC(metaclass=abc.ABCMeta):
         # Since we can't provide an async generator to the neo4j client, let's store
         # results into a list fitting in memory, which will then be split into
         # transaction batches
-        import_batch = []
         async for res in self._poll_search_pages(**kwargs):
-            import_batch += res[HITS][HITS]
-            if len(import_batch) >= import_batch_size:
-                await _enqueue_import_batch(queue, import_batch)
-                total_hits += len(import_batch)
-                import_batch = []
-        if import_batch:
-            await _enqueue_import_batch(queue, import_batch)
-            total_hits += len(import_batch)
+            buffer.extend(res[HITS][HITS])
+            async with lock:
+                buffer_size = len(buffer)
+                if buffer_size >= import_batch_size:
+                    await _enqueue_import_batch(queue, buffer)
+                    total_hits += buffer_size
+                    buffer.clear()
         return total_hits
 
     async def _write_search_to_neo4j_csv_with_lock(
@@ -303,7 +311,7 @@ async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]):
     with log_elapsed_time_cm(
         logger, logging.DEBUG, "Waited {elapsed_time} to enqueue batch"
     ):
-        await queue.put(import_batch)
+        await queue.put(copy(import_batch))
 
 
 class ESClient(ESClientABC, AsyncElasticsearch):
