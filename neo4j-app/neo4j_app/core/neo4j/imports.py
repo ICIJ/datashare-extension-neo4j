@@ -46,7 +46,11 @@ class Neo4jImportWorker:
                 import_batch = await queue.get()
                 if self._to_neo4j_record is not None:
                     import_batch = [self._to_neo4j_record(r) for r in import_batch]
-                logger.debug("Worker %s is starting import...", self.name)
+                logger.debug(
+                    "Worker %s is starting import of %s records",
+                    self.name,
+                    len(import_batch),
+                )
                 async with self._neo4j_driver.session() as neo4j_session:
                     summary = await self._import_fn(
                         neo4j_session,
