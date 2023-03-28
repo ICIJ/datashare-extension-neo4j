@@ -174,7 +174,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             neo4j_app.__name__,
             uvicorn.__name__,
             elasticsearch.__name__,
-            neo4j.__name__,
         ]
         try:
             import opensearchpy
