@@ -11,9 +11,10 @@ from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
-from neo4j_app.app.documents import DOCUMENT_TAG, documents_router
-from neo4j_app.app.main import OTHER_TAG, main_router
-from neo4j_app.app.named_entities import NE_TAG, named_entities_router
+from neo4j_app.app.documents import documents_router
+from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
+from neo4j_app.app.main import main_router
+from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schema
 from neo4j_app.core.neo4j.migrations import delete_all_migrations_tx

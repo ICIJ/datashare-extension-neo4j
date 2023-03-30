@@ -7,6 +7,7 @@ from neo4j_app.app.dependencies import (
     es_client_dep,
     neo4j_driver_dep,
 )
+from neo4j_app.app.doc import DOCUMENT_TAG, DOC_IMPORT_DESC, DOC_IMPORT_SUM
 from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.imports import import_documents
@@ -15,49 +16,6 @@ from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
 logger = logging.getLogger(__name__)
 
-DOCUMENT_TAG = "Documents"
-_DOC_IMPORT_SUM = "Import documents from elasticsearch to neo4j"
-_DOC_IMPORT_DESC = """Documents are searched for in `elasticsearch` potentially using \
-the provided query they are then upserted into the `neo4j` database. 
-
-They query must be an content of the `query` field of an elasticsearch query. When \
-provided it will combined into `bool` query in order to restrict the provided query to \
- apply to documents. 
-
-If you provide:
-```json
-{
-    "match": {
-        "path": "somePath"
-    }
-}
-```
-then the query which will actually be performed will be:
-```json
-{
-    "query": {
-        "bool": {
-            "must": [
-                {
-                    "term": {
-                        "<docFieldType>": "Document"
-                    }
-                }
-                {
-                    "match": {
-                        "path": "somePath"
-                    }
-                }           
-            ]
-        }
-    }
-}
-```
-
-The `<docFieldType>` defaults to `type` and is supposed to be forwarded from the Java \
-app to the Python one through configuration. 
-"""
-
 
 def documents_router() -> APIRouter:
     router = APIRouter(tags=[DOCUMENT_TAG])
@@ -65,8 +23,8 @@ def documents_router() -> APIRouter:
     @router.post(
         "/documents",
         response_model=IncrementalImportResponse,
-        summary=_DOC_IMPORT_SUM,
-        description=_DOC_IMPORT_DESC,
+        summary=DOC_IMPORT_SUM,
+        description=DOC_IMPORT_DESC,
     )
     async def _import_documents(
         payload: IncrementalImportRequest,
