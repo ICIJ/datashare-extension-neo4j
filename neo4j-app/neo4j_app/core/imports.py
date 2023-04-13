@@ -8,8 +8,8 @@ import neo4j
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.client import PointInTime
 from neo4j_app.core.elasticsearch.to_neo4j import (
-    es_to_neo4j_named_entity,
-    es_to_neo4j_row,
+    es_to_neo4j_named_entity_row,
+    es_to_neo4j_doc_row,
 )
 from neo4j_app.core.elasticsearch.utils import (
     ES_DOCUMENT_TYPE,
@@ -86,7 +86,7 @@ async def import_documents(
             neo4j_import_batch_size=neo4j_import_batch_size,
             neo4j_transaction_batch_size=neo4j_transaction_batch_size,
             neo4j_import_fn=import_document_rows,
-            to_neo4j_row=es_to_neo4j_row,
+            to_neo4j_row=es_to_neo4j_doc_row,
             max_records_in_memory=max_records_in_memory,
             imported_entity_label="document nodes",
         )
@@ -137,7 +137,7 @@ async def import_named_entities(
             neo4j_import_batch_size=neo4j_import_batch_size,
             neo4j_transaction_batch_size=neo4j_transaction_batch_size,
             neo4j_import_fn=import_named_entity_rows,
-            to_neo4j_row=es_to_neo4j_named_entity,
+            to_neo4j_row=es_to_neo4j_named_entity_row,
             max_records_in_memory=max_records_in_memory,
             imported_entity_label="named entity nodes",
         )

@@ -2,7 +2,7 @@ import neo4j
 import pytest
 
 from neo4j_app.core.elasticsearch.to_neo4j import (
-    es_to_neo4j_named_entity,
+    es_to_neo4j_named_entity_row,
 )
 from neo4j_app.core.neo4j.named_entities import import_named_entity_rows
 from neo4j_app.tests.conftest import (
@@ -24,7 +24,7 @@ async def test_import_named_entities(
     n_created_first = 0
     if n_existing:
         records = [
-            row for ent in ents[:n_existing] for row in es_to_neo4j_named_entity(ent)
+            row for ent in ents[:n_existing] for row in es_to_neo4j_named_entity_row(ent)
         ]
         summary = await import_named_entity_rows(
             neo4j_test_session,
@@ -32,7 +32,7 @@ async def test_import_named_entities(
             transaction_batch_size=transaction_batch_size,
         )
         n_created_first = summary.counters.nodes_created
-    records = [row for ent in ents for row in es_to_neo4j_named_entity(ent)]
+    records = [row for ent in ents for row in es_to_neo4j_named_entity_row(ent)]
     summary = await import_named_entity_rows(
         neo4j_test_session,
         records=records,
@@ -71,7 +71,7 @@ CREATE (n:NamedEntity {id: 'named-entity-0', offsets: [1, 2], documentId: 'doc-0
     await neo4j_test_session.run(query)
 
     # When
-    records = [row for ent in ents for row in es_to_neo4j_named_entity(ent)]
+    records = [row for ent in ents for row in es_to_neo4j_named_entity_row(ent)]
     await import_named_entity_rows(
         neo4j_test_session,
         records=records,
