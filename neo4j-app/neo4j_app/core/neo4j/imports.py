@@ -27,13 +27,13 @@ class Neo4jImportWorker:
         import_fn: Neo4Import,
         *,
         transaction_batch_size: int,
-        to_neo4j_record: Optional[Callable[[Any], Dict]] = None,
+        to_neo4j: Optional[Callable[[Any], Optional[Dict]]] = None,
     ):
         self._name = name
         self._neo4j_driver = neo4j_driver
         self._import_fn = import_fn
         self._transaction_batch_size = transaction_batch_size
-        self._to_neo4j_record = to_neo4j_record
+        self._to_neo4j = to_neo4j
 
     async def __call__(self, queue: asyncio.Queue) -> List[neo4j.ResultSummary]:
         # TODO:
@@ -44,8 +44,11 @@ class Neo4jImportWorker:
         try:
             while "Waiting forever until the task is cancelled":
                 import_batch = await queue.get()
-                if self._to_neo4j_record is not None:
-                    import_batch = [self._to_neo4j_record(r) for r in import_batch]
+                if self._to_neo4j is not None:
+                    import_batch = (
+                        row for rec in import_batch for row in self._to_neo4j(rec)
+                    )
+                    import_batch = [rec for rec in import_batch if rec is not None]
                 logger.debug(
                     "Worker %s is starting import of %s records",
                     self.name,

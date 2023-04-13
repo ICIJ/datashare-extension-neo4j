@@ -11,6 +11,7 @@ from .migrations.migrate import MigrationError, migrate_db_schema
 from .migrations.migrations import (
     create_document_and_ne_id_unique_constraint_tx,
     create_migration_unique_constraint_tx,
+    replace_ne_constraint_on_id_by_index_on_mention_norm_tx,
 )
 
 FIRST_MIGRATION = Migration(
@@ -23,7 +24,12 @@ V_O_2_0 = Migration(
     label="Add uniqueness constraint for documents and named entities",
     migration_fn=create_document_and_ne_id_unique_constraint_tx,
 )
-MIGRATIONS = [FIRST_MIGRATION, V_O_2_0]
+V_O_3_0 = Migration(
+    version="0.3.0",
+    label="Replace named entity unique ID constraint by index on mention norm",
+    migration_fn=replace_ne_constraint_on_id_by_index_on_mention_norm_tx,
+)
+MIGRATIONS = [FIRST_MIGRATION, V_O_2_0, V_O_3_0]
 
 
 def get_neo4j_csv_writer(f: TextIO, header: List[str]) -> csv.DictWriter:

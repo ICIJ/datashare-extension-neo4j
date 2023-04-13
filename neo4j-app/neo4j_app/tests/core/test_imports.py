@@ -38,24 +38,34 @@ async def _populate_es(
     "query,doc_type_field,expected_response",
     [
         # No query, let's check that only documents are inserted and not noise
-        (None, "type", IncrementalImportResponse(n_to_insert=20, n_inserted=20)),
+        (
+            None,
+            "type",
+            IncrementalImportResponse(
+                nodes_imported=20, nodes_created=20, relationships_created=19
+            ),
+        ),
         # Match all query, let's check that only documents are inserted and not noise
         (
             {"match_all": {}},
             "type",
-            IncrementalImportResponse(n_to_insert=20, n_inserted=20),
+            IncrementalImportResponse(
+                nodes_imported=20, nodes_created=20, relationships_created=19
+            ),
         ),
         # Term query, let's check that only the right doc is inserted
         (
             {"ids": {"values": ["doc-0"]}},
             "type",
-            IncrementalImportResponse(n_to_insert=1, n_inserted=1),
+            IncrementalImportResponse(
+                nodes_imported=1, nodes_created=1, relationships_created=0
+            ),
         ),
         # Let's check that the doc_type_field is taken into account
         (
             None,
             "fieldThatDoesNotExists",
-            IncrementalImportResponse(n_to_insert=0, n_inserted=0),
+            IncrementalImportResponse(),
         ),
     ],
 )
@@ -70,9 +80,7 @@ async def test_import_documents(
     # Given
     es_client = _populate_es
     neo4j_driver = neo4j_test_driver
-    # There are 20 records, let's insert by batch of 5, a maximum of 2 batches at a time
-    # and transactions of 3 by batch
-    neo4j_concurrency = 2
+    # There are 20 records, let's insert by batch of 5 with transactions of 3 by batch
     neo4j_import_batch_size = 5
     max_records_in_memory = 10
     neo4j_transaction_batch_size = 3
@@ -84,7 +92,6 @@ async def test_import_documents(
         es_keep_alive="10s",
         es_doc_type_field=doc_type_field,
         neo4j_driver=neo4j_driver,
-        neo4j_concurrency=neo4j_concurrency,
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
@@ -102,25 +109,39 @@ async def test_import_documents(
         (
             None,
             "type",
-            IncrementalImportResponse(n_to_insert=10, n_inserted=10),
+            IncrementalImportResponse(
+                nodes_imported=12,
+                nodes_created=int(12 / 3 * 2),
+                relationships_created=int(12 / 3 * 2),
+            ),
         ),
         # Match all query, let's check that only ents with doc are inserted
         (
             {"match_all": {}},
             "type",
-            IncrementalImportResponse(n_to_insert=10, n_inserted=10),
+            IncrementalImportResponse(
+                nodes_imported=12,
+                nodes_created=int(12 / 3 * 2),
+                relationships_created=int(12 / 3 * 2),
+            ),
         ),
         # Term query, let's check that only the right entity is inserted
         (
             {"ids": {"values": ["named-entity-0"]}},
             "type",
-            IncrementalImportResponse(n_to_insert=1, n_inserted=1),
+            IncrementalImportResponse(
+                nodes_imported=1,
+                nodes_created=1,
+                relationships_created=1,
+            ),
         ),
         # Let's check that the doc_type_field is taken into account
         (
             None,
             "fieldThatDoesNotExists",
-            IncrementalImportResponse(n_to_insert=0, n_inserted=0),
+            IncrementalImportResponse(
+                nodes_imported=0, nodes_created=0, relationships_created=0
+            ),
         ),
     ],
 )
@@ -138,9 +159,7 @@ async def test_import_named_entities(
     # Given
     es_client = _populate_es
     neo4j_driver = neo4j_test_driver_session
-    # There are 20 records, let's insert by batch of 5, a maximum of 2 batches at a time
-    # and transactions of 3 by batch
-    neo4j_concurrency = 2
+    # There are 20 records, let's insert by batch of 5 with transactions of 3 by batch
     neo4j_import_batch_size = 5
     max_records_in_memory = 10
     neo4j_transaction_batch_size = 3
@@ -152,7 +171,6 @@ async def test_import_named_entities(
         es_keep_alive="10s",
         es_doc_type_field=doc_type_field,
         neo4j_driver=neo4j_driver,
-        neo4j_concurrency=neo4j_concurrency,
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
@@ -160,3 +178,53 @@ async def test_import_named_entities(
 
     # Then
     assert response == expected_response
+
+
+@pytest.mark.asyncio
+async def test_should_aggregate_named_entities_attributes_on_relationship(
+    _populate_es: ESClient,
+    insert_docs_in_neo4j: neo4j.AsyncSession,
+    neo4j_test_driver_session: neo4j.AsyncDriver,
+    # Wipe neo4j named entities at each test_client
+    wipe_named_entities,
+):
+    # pylint: disable=invalid-name,unused-argument
+    # Given
+    num_ent = 3
+    query = {"ids": {"values": [f"named-entity-{i}" for i in range(num_ent)]}}
+    es_client = _populate_es
+    neo4j_driver = neo4j_test_driver_session
+    neo4j_import_batch_size = 1
+    max_records_in_memory = 10
+    neo4j_transaction_batch_size = 1
+
+    # When
+    await import_named_entities(
+        es_client=es_client,
+        es_query=query,
+        es_keep_alive="10s",
+        es_doc_type_field="type",
+        neo4j_driver=neo4j_driver,
+        neo4j_import_batch_size=neo4j_import_batch_size,
+        neo4j_transaction_batch_size=neo4j_transaction_batch_size,
+        max_records_in_memory=max_records_in_memory,
+    )
+    query = "MATCH (:NamedEntity)-[rel]->(:Document) RETURN rel ORDER BY rel.ids"
+    neo4j_session = insert_docs_in_neo4j
+    res = await neo4j_session.run(query)
+    rels = [dict(rel["rel"].items()) async for rel in res]
+
+    # Then
+    expected_rels = [
+        {
+            "offsets": [0],
+            "mentionExtractors": ["core-nlp"],
+            "mentionIds": ["named-entity-0"],
+        },
+        {
+            "offsets": [0, 1, 2],
+            "mentionExtractors": ["spacy", "core-nlp"],
+            "mentionIds": ["named-entity-1", "named-entity-2"],
+        },
+    ]
+    assert rels == expected_rels

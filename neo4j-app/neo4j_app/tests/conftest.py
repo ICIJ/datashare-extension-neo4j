@@ -210,7 +210,7 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
         yield {
             "_id": f"doc-{i}",
             "_source": {
-                "rootId": None,
+                "rootId": f"doc-{i -1}" if i else None,
                 "dirname": f"dirname-{i}",
                 "contentType": f"content-type-{i}",
                 "contentLength": i**2,
@@ -224,12 +224,21 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
 
 def make_named_entities(n: int) -> Generator[Dict, None, None]:
     for i in range(n):
+        ne_id = f"named-entity-{i}"
+        mention_norm = f"mention-{i // 3}"
+        category = "Location" if i % 3 == 0 else "Person"
+        extractor = "spacy" if i % 3 == 1 else "core-nlp"
+        parent = f"doc-{i - i % 3}"
         yield {
-            "_id": f"named-entity-{i}",
+            "_id": ne_id,
             "_source": {
-                "join": {"name": "NamedEntity", "parent": f"doc-{i}"},
+                "join": {"name": "NamedEntity", "parent": parent},
                 "type": "NamedEntity",
-                "offsets": list(range(1, max(i, 1, 2))),
+                "offsets": list(range(i + 1)),
+                "extractor": extractor,
+                "category": category,
+                "mentionNorm": mention_norm,
+                "mention": ne_id,
             },
         }
 
