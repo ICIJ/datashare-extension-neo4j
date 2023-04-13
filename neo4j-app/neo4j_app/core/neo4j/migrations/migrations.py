@@ -6,6 +6,7 @@ from neo4j_app.constants import (
     MIGRATION_NODE,
     MIGRATION_VERSION,
     NE_ID,
+    NE_MENTION_NORM,
     NE_NODE,
 )
 
@@ -32,3 +33,17 @@ FOR (ent:{NE_NODE})
 REQUIRE (ent.{NE_ID}) IS UNIQUE
 """
     await tx.run(ne_query)
+
+
+async def replace_ne_constraint_on_id_by_index_on_mention_norm_tx(
+    tx: neo4j.AsyncTransaction,
+):
+    delete_constraint_on_id = """DROP CONSTRAINT constraint_named_entity_unique_id
+IF EXISTS"""
+    await tx.run(delete_constraint_on_id)
+    create_constraint_on_mention_norm = f"""
+CREATE INDEX index_ne_mention_norm IF NOT EXISTS
+FOR (ent:{NE_NODE})
+ON (ent.{NE_MENTION_NORM})
+"""
+    await tx.run(create_constraint_on_mention_norm)

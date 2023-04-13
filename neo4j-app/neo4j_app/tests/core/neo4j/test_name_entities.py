@@ -23,14 +23,16 @@ async def test_import_named_entities(
     # When
     n_created_first = 0
     if n_existing:
-        records = [es_to_neo4j_named_entity(ent) for ent in ents[:n_existing]]
+        records = [
+            row for ent in ents[:n_existing] for row in es_to_neo4j_named_entity(ent)
+        ]
         summary = await import_named_entity_rows(
             neo4j_test_session,
             records=records,
             transaction_batch_size=transaction_batch_size,
         )
         n_created_first = summary.counters.nodes_created
-    records = [es_to_neo4j_named_entity(ent) for ent in ents]
+    records = [row for ent in ents for row in es_to_neo4j_named_entity(ent)]
     summary = await import_named_entity_rows(
         neo4j_test_session,
         records=records,
@@ -69,7 +71,7 @@ CREATE (n:NamedEntity {id: 'named-entity-0', offsets: [1, 2], documentId: 'doc-0
     await neo4j_test_session.run(query)
 
     # When
-    records = [es_to_neo4j_named_entity(ent) for ent in ents]
+    records = [row for ent in ents for row in es_to_neo4j_named_entity(ent)]
     await import_named_entity_rows(
         neo4j_test_session,
         records=records,
