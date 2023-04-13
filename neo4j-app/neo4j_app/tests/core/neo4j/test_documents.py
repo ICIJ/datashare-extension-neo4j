@@ -4,7 +4,7 @@ import neo4j
 import pytest
 from neo4j.time import DateTime
 
-from neo4j_app.core.elasticsearch.to_neo4j import es_to_neo4j_row
+from neo4j_app.core.elasticsearch.to_neo4j import es_to_neo4j_doc_row
 from neo4j_app.core.neo4j import write_neo4j_csv
 from neo4j_app.core.neo4j.documents import (
     import_document_rows,
@@ -31,7 +31,7 @@ async def test_write_neo4j_csv():
     ]
 
     # When
-    docs = (row for doc in docs for row in es_to_neo4j_row(doc))
+    docs = (row for doc in docs for row in es_to_neo4j_doc_row(doc))
     write_neo4j_csv(f, rows=docs, header=headers, write_header=True)
     csv = f.getvalue()
 
@@ -57,14 +57,14 @@ async def test_import_documents(
     n_created_first = 0
     transaction_batch_size = 3
     if n_existing:
-        records = [row for doc in docs[:n_existing] for row in es_to_neo4j_row(doc)]
+        records = [row for doc in docs[:n_existing] for row in es_to_neo4j_doc_row(doc)]
         summary = await import_document_rows(
             neo4j_session=neo4j_test_session,
             records=records,
             transaction_batch_size=transaction_batch_size,
         )
         n_created_first = summary.counters.nodes_created
-    records = [row for doc in docs for row in es_to_neo4j_row(doc)]
+    records = [row for doc in docs for row in es_to_neo4j_doc_row(doc)]
     summary = await import_document_rows(
         neo4j_session=neo4j_test_session,
         records=records,
@@ -98,7 +98,7 @@ CREATE (n:Document {id: 'doc-0', contentType: 'someContentType'})
     await neo4j_test_session.run(query)
 
     # When
-    records = [row for doc in docs for row in es_to_neo4j_row(doc)]
+    records = [row for doc in docs for row in es_to_neo4j_doc_row(doc)]
     await import_document_rows(
         neo4j_session=neo4j_test_session,
         records=records,
