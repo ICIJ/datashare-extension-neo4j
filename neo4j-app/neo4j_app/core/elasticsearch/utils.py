@@ -60,6 +60,10 @@ def match_all() -> Dict:
     return {MATCH_ALL: {}}
 
 
+def ids_query(ids: List[str]) -> Dict:
+    return {IDS: {VALUES: ids}}
+
+
 def get_scroll_id(res: Dict) -> str:
     scroll_id = res.get(SCROLL_ID)
     if scroll_id is None:

@@ -7,16 +7,19 @@ import java.util.HashMap;
 public class Objects {
     static class IncrementalImportResponse {
         //CHECKSTYLE.OFF: MemberName
-        public final long nToInsert;
-        public final long nInserted;
+        public final long nodesImported;
+        public final long nodesCreated;
+        public final long relationshipsCreated;
         //CHECKSTYLE.ON: MemberName
 
         //CHECKSTYLE.OFF: ParameterName
         @JsonCreator
-        IncrementalImportResponse(@JsonProperty("nToInsert") long nToInsert,
-                                  @JsonProperty("nInserted") long nInserted) {
-            this.nToInsert = nToInsert;
-            this.nInserted = nInserted;
+        IncrementalImportResponse(@JsonProperty("nodesImported") long nodesImported,
+                                  @JsonProperty("nodesCreated") long nodesCreated,
+                                  @JsonProperty("relationshipsCreated") long relationshipsCreated) {
+            this.nodesImported = nodesImported;
+            this.nodesCreated = nodesCreated;
+            this.relationshipsCreated = relationshipsCreated;
         }
         //CHECKSTYLE.ON: ParameterName
     }

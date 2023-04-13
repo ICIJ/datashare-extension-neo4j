@@ -7,6 +7,7 @@ DOC_EXTRACTION_DATE = "extractionDate"
 DOC_NODE = "Document"
 DOC_PATH = "path"
 DOC_ROOT_ID = "rootId"
+DOC_ROOT_REL_LABEL = "HAS_PARENT"
 DOC_COLUMNS = {
     DOC_ID,
     DOC_ROOT_ID,
@@ -25,10 +26,13 @@ MIGRATION_STATUS = "status"
 MIGRATION_VERSION = "version"
 
 # TODO: replicate other named entities attributes
+NE_APPEARS_IN_DOC = "APPEARS_IN"
 NE_ID = "id"
+NE_IDS = "mentionIds"
 NE_CATEGORY = "category"
 NE_DOC_ID = "documentId"
 NE_EXTRACTOR = "extractor"
+NE_EXTRACTORS = "mentionExtractors"
 NE_EXTRACTOR_LANG = "extractorLanguage"
 NE_MENTION = "mention"
 NE_MENTION_NORM = "mentionNorm"

@@ -71,8 +71,8 @@ public class Neo4jClientTest {
                 new org.icij.datashare.Objects.IncrementalImportRequest(null);
             org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
             // Then
-            assertThat(res.nToInsert).isEqualTo(3);
-            assertThat(res.nInserted).isEqualTo(3);
+            assertThat(res.nodesImported).isEqualTo(3);
+            assertThat(res.nodesCreated).isEqualTo(3);
         }
 
         @Test
@@ -89,8 +89,8 @@ public class Neo4jClientTest {
             // When
             org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
             // Then
-            assertThat(res.nToInsert).isEqualTo(3);
-            assertThat(res.nInserted).isEqualTo(1);
+            assertThat(res.nodesImported).isEqualTo(3);
+            assertThat(res.nodesCreated).isEqualTo(1);
         }
 
         @Test
@@ -143,8 +143,8 @@ public class Neo4jClientTest {
             org.icij.datashare.Objects.IncrementalImportResponse res =
                 client.importNamedEntities(body);
             // Then
-            assertThat(res.nToInsert).isEqualTo(3);
-            assertThat(res.nInserted).isEqualTo(3);
+            assertThat(res.nodesImported).isEqualTo(3);
+            assertThat(res.nodesCreated).isEqualTo(3);
         }
 
         @Test
@@ -162,8 +162,8 @@ public class Neo4jClientTest {
             org.icij.datashare.Objects.IncrementalImportResponse res =
                 client.importNamedEntities(body);
             // Then
-            assertThat(res.nToInsert).isEqualTo(3);
-            assertThat(res.nInserted).isEqualTo(1);
+            assertThat(res.nodesImported).isEqualTo(3);
+            assertThat(res.nodesCreated).isEqualTo(1);
         }
     }
 }
