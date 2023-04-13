@@ -365,7 +365,7 @@ public class Neo4jResourceTest {
                 routes -> routes.post(
                     "/documents",
                     context -> new Payload("application/json",
-                        "{\"nToInsert\": 10,\"nInserted\": 8}")
+                        "{\"nodesImported\": 10,\"nodesCreated\": 8}")
                 )
             );
             // When
@@ -378,8 +378,9 @@ public class Neo4jResourceTest {
                 response.content(),
                 Objects.IncrementalImportResponse.class,
                 res -> {
-                    assertThat(res.nToInsert).isEqualTo(10);
-                    assertThat(res.nInserted).isEqualTo(8);
+                    assertThat(res.nodesImported).isEqualTo(10);
+                    assertThat(res.nodesCreated).isEqualTo(8);
+                    assertThat(res.relationshipsCreated).isEqualTo(0);
                 }
             );
         }
@@ -413,7 +414,7 @@ public class Neo4jResourceTest {
                 routes -> routes.post(
                     "/named-entities",
                     context -> new Payload("application/json",
-                        "{\"nToInsert\": 10,\"nInserted\": 8}")
+                        "{\"nodesImported\": 10,\"nodesCreated\": 8}")
                 )
             );
             // When
@@ -426,8 +427,9 @@ public class Neo4jResourceTest {
                 response.content(),
                 Objects.IncrementalImportResponse.class,
                 res -> {
-                    assertThat(res.nToInsert).isEqualTo(10);
-                    assertThat(res.nInserted).isEqualTo(8);
+                    assertThat(res.nodesImported).isEqualTo(10);
+                    assertThat(res.nodesCreated).isEqualTo(8);
+                    assertThat(res.relationshipsCreated).isEqualTo(0);
                 }
             );
         }

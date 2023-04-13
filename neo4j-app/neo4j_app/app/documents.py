@@ -85,7 +85,6 @@ def documents_router() -> APIRouter:
                 es_keep_alive=config.es_keep_alive,
                 es_doc_type_field=config.es_doc_type_field,
                 neo4j_driver=neo4j_driver,
-                neo4j_concurrency=config.neo4j_concurrency,
                 neo4j_import_batch_size=config.neo4j_import_batch_size,
                 neo4j_transaction_batch_size=config.neo4j_transaction_batch_size,
                 max_records_in_memory=config.neo4j_app_max_records_in_memory,

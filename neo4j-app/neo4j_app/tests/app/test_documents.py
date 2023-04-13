@@ -23,11 +23,18 @@ async def _populate_es(es_test_client_module: ESClient):
     "query,expected_response",
     [
         # Without query
-        (None, IncrementalImportResponse(n_to_insert=10, n_inserted=10)),
+        (
+            None,
+            IncrementalImportResponse(
+                nodes_imported=10, nodes_created=10, relationships_created=9
+            ),
+        ),
         # With query
         (
             {"term": {"_id": "doc-2"}},
-            IncrementalImportResponse(n_to_insert=1, n_inserted=1),
+            IncrementalImportResponse(
+                nodes_imported=1, nodes_created=2, relationships_created=1
+            ),
         ),
     ],
 )
