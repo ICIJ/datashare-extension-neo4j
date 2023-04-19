@@ -2,8 +2,10 @@
 import asyncio
 import contextlib
 import os
+import random
+import tarfile
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, Generator, Tuple
+from typing import Any, AsyncGenerator, Dict, Generator, Tuple, Union
 
 import neo4j
 import pytest
@@ -206,7 +208,8 @@ async def neo4j_test_session(
 
 
 def make_docs(n: int) -> Generator[Dict, None, None]:
-    for i in range(n):
+    random.seed(a=777)
+    for i in random.sample(list(range(n)), k=n):
         yield {
             "_id": f"doc-{i}",
             "_source": {
@@ -223,7 +226,8 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
 
 
 def make_named_entities(n: int) -> Generator[Dict, None, None]:
-    for i in range(n):
+    random.seed(a=777)
+    for i in random.sample(list(range(n)), k=n):
         ne_id = f"named-entity-{i}"
         mention_norm = f"mention-{i // 3}"
         category = "Location" if i % 3 == 0 else "Person"
@@ -236,6 +240,7 @@ def make_named_entities(n: int) -> Generator[Dict, None, None]:
                 "type": "NamedEntity",
                 "offsets": list(range(i + 1)),
                 "extractor": extractor,
+                "extractorLanguage": "en",
                 "category": category,
                 "mentionNorm": mention_norm,
                 "mention": ne_id,
@@ -357,3 +362,45 @@ async def wipe_db(session: neo4j.AsyncSession):
 DETACH DELETE n
     """
     await session.run(query)
+
+
+async def populate_es_with_doc_and_named_entities(
+    es_test_client_module: ESClient, n: int
+):
+    es_client = es_test_client_module
+    index_name = es_client.project_index
+    # Index some Documents
+    async for _ in index_docs(es_client, index_name=index_name, n=n):
+        pass
+    # Index entities
+    async for _ in index_named_entities(es_client, index_name=index_name, n=n):
+        pass
+
+
+def assert_content(
+    path: Path,
+    expected_content: Union[bytes, str],
+    sort_lines=False,
+    decompress: bool = False,
+):
+    if decompress:
+        old_path = str(path.absolute())
+        path = Path(old_path.replace(".gz", ""))
+        with tarfile.open(old_path) as tar:
+            tar.extractall(path.parent)
+    if isinstance(expected_content, bytes):
+        if sort_lines:
+            with path.open("rb") as f:
+                content = b"".join(sorted(f))
+        else:
+            expected_content = path.read_bytes()
+    elif isinstance(expected_content, str):
+        if sort_lines:
+            with path.open() as f:
+                content = "".join(sorted(f))
+        else:
+            content = path.read_text()
+    else:
+        raise TypeError(f"Expected Union[bytes, str], found: {expected_content}")
+
+    assert content == expected_content

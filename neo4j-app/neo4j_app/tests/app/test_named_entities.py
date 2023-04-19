@@ -7,20 +7,12 @@ from starlette.testclient import TestClient
 
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.objects import IncrementalImportResponse
-from neo4j_app.tests.conftest import index_docs, index_named_entities
+from neo4j_app.tests.conftest import populate_es_with_doc_and_named_entities
 
 
 @pytest_asyncio.fixture(scope="module")
 async def _populate_es(es_test_client_module: ESClient):
-    es_client = es_test_client_module
-    index_name = es_client.project_index
-    n = 10
-    # Index some Documents
-    async for _ in index_docs(es_client, index_name=index_name, n=n):
-        pass
-    # Index entities
-    async for _ in index_named_entities(es_client, index_name=index_name, n=n):
-        pass
+    await populate_es_with_doc_and_named_entities(es_test_client_module, n=10)
 
 
 @pytest.mark.parametrize(
