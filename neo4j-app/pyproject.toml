@@ -20,6 +20,8 @@ pyyaml = ">=5.4.0" # For security
 uvicorn = { version = "^0.20.0", extras = ["standard"] }
 elasticsearch = {version = "<7.14", extras = ["async"]}
 neo4j = "^5.5.0"
+setuptools = "^67.6.1"
+datrie = "^0.8.2"
 
 [tool.poetry.group.dev.dependencies]
 fastapi = { version = "^0.89.1", extras = ["all"] }
@@ -30,6 +32,10 @@ tomli = { version = "^2.0.1", markers = 'python_version < "3.11"' }
 
 [tool.poetry.group.opensearch.dependencies]
 opensearch-py = "^2.2.0"
+
+
+
+[tool.poetry.group.admin.dependencies]
 
 [build-system]
 requires = ["poetry-core"]

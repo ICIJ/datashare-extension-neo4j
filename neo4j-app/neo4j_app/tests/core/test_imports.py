@@ -1,13 +1,22 @@
-from typing import AsyncGenerator, Dict, Optional
+import itertools
+from pathlib import Path
+from typing import AsyncGenerator, Dict, List, Optional
 
 import neo4j
 import pytest
 import pytest_asyncio
 
+from neo4j_app.constants import DOC_NODE, DOC_ROOT_REL_LABEL, NE_APPEARS_IN_DOC, NE_NODE
 from neo4j_app.core.elasticsearch import ESClient
-from neo4j_app.core.imports import import_documents, import_named_entities
+from neo4j_app.core.elasticsearch.to_neo4j import make_ne_hit_id
+from neo4j_app.core.imports import (
+    import_documents,
+    import_named_entities,
+    to_neo4j_csvs,
+)
 from neo4j_app.core.objects import IncrementalImportResponse
 from neo4j_app.tests.conftest import (
+    assert_content,
     index_docs,
     index_named_entities,
     index_noise,
@@ -228,3 +237,178 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
         },
     ]
     assert rels == expected_rels
+
+
+def _expected_ne_nodes_lines() -> str:
+    data = itertools.product((f"mention-{i}" for i in range(3)), ["Person", "Location"])
+    lines = (
+        f"{make_ne_hit_id(mention_norm=m, category=c)},{m},{NE_NODE}|{c}"
+        for m, c in data
+    )
+    return "\n".join(sorted(lines)) + "\n"
+
+
+def _make_ne_doc_rel_line(
+    *,
+    mention_norm: str,
+    category: str,
+    doc_id: int,
+    ne_ids: List[int],
+    extractors: List[str],
+    max_offset: int,
+) -> str:
+    extractors = "|".join(sorted(extractors))
+    ne_ids = "|".join(f"named-entity-{i}" for i in ne_ids)
+    offsets = "|".join(str(o) for o in range(max_offset))
+    ne_hash = make_ne_hit_id(mention_norm=mention_norm, category=category)
+    return f"{extractors},en,{ne_ids},{offsets},{ne_hash},doc-{doc_id},APPEARS_IN"
+
+
+def _expected_ne_doc_rel_lines() -> str:
+    # Doc 0
+    l_0_0 = _make_ne_doc_rel_line(
+        mention_norm="mention-0",
+        category="Location",
+        doc_id=0,
+        ne_ids=[0],
+        extractors=["core-nlp"],
+        max_offset=1,
+    )
+    l_0_1 = _make_ne_doc_rel_line(
+        mention_norm="mention-0",
+        category="Person",
+        doc_id=0,
+        ne_ids=[1, 2],
+        extractors=["core-nlp", "spacy"],
+        max_offset=3,
+    )
+    # Doc 3
+    l_3_0 = _make_ne_doc_rel_line(
+        mention_norm="mention-1",
+        category="Location",
+        doc_id=3,
+        ne_ids=[3],
+        extractors=["core-nlp"],
+        max_offset=4,
+    )
+    l_3_1 = _make_ne_doc_rel_line(
+        mention_norm="mention-1",
+        category="Person",
+        doc_id=3,
+        ne_ids=[4, 5],
+        extractors=["core-nlp", "spacy"],
+        max_offset=6,
+    )
+    # Doc 6
+    l_6_0 = _make_ne_doc_rel_line(
+        mention_norm="mention-2",
+        category="Location",
+        doc_id=6,
+        ne_ids=[6],
+        extractors=["core-nlp"],
+        max_offset=7,
+    )
+    l_6_1 = _make_ne_doc_rel_line(
+        mention_norm="mention-2",
+        category="Person",
+        doc_id=6,
+        ne_ids=[7, 8],
+        extractors=["core-nlp", "spacy"],
+        max_offset=9,
+    )
+
+    lines = [l_0_0, l_0_1, l_3_0, l_3_1, l_6_0, l_6_1]
+    return "\n".join(sorted(lines)) + "\n"
+
+
+@pytest.mark.asyncio
+async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
+    # pylint: disable=line-too-long,invalid-name
+    # Given
+    export_dir = Path(tmpdir)
+    es_doc_type_field = "type"
+    es_client = _populate_es
+    ids = [f"doc-{i}" for i in range(0, 3 * 3, 3)]
+    # Let's add doc-1 to have at least 1 doc-root
+    ids.append("doc-1")
+    es_query = {"ids": {"values": ids}}
+
+    # When
+    res = await to_neo4j_csvs(
+        es_query=es_query,
+        export_dir=export_dir,
+        es_client=es_client,
+        es_concurrency=None,
+        es_keep_alive="1m",
+        es_doc_type_field=es_doc_type_field,
+    )
+
+    # Then
+    assert len(res.nodes) == 2
+
+    doc_nodes_export = res.nodes[0]
+    assert doc_nodes_export.n_nodes == 4
+    assert doc_nodes_export.labels == [DOC_NODE]
+
+    expected_doc_header = """\
+id:ID(Document),dirname,contentType,contentLength:LONG,extractionDate:DATETIME,path,:LABEL
+"""
+    doc_nodes_header_path = export_dir / doc_nodes_export.header_path
+    assert_content(doc_nodes_header_path, expected_doc_header)
+
+    expected_doc_nodes = """doc-0,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,dirname-0,Document
+doc-1,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1,Document
+doc-3,dirname-3,content-type-3,9,2023-02-06T13:48:22.3866,dirname-3,Document
+doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
+"""
+    doc_root_rels_path = export_dir / doc_nodes_export.node_paths[0]
+    assert_content(
+        doc_root_rels_path, expected_doc_nodes, sort_lines=True, decompress=True
+    )
+
+    ne_nodes_export = res.nodes[1]
+    assert ne_nodes_export.n_nodes == 3 * 2
+    assert ne_nodes_export.labels == []
+
+    ne_nodes_header_path = export_dir / ne_nodes_export.header_path
+    expected_ne_header = """:ID,mentionNorm,:LABEL
+"""
+    assert_content(ne_nodes_header_path, expected_ne_header)
+
+    ne_nodes_path = export_dir / ne_nodes_export.node_paths[0]
+    expected_ne = _expected_ne_nodes_lines()
+    assert_content(ne_nodes_path, expected_ne, sort_lines=True, decompress=True)
+
+    assert len(res.relationships) == 2
+
+    doc_root_rel_export = res.relationships[0]
+    assert doc_root_rel_export.n_relationships == 4 - 1
+    assert doc_root_rel_export.types == [DOC_ROOT_REL_LABEL]
+
+    expected_doc_root_rels_header = """:START_ID(Document),:END_ID(Document)
+"""
+    doc_root_rels_header_path = export_dir / doc_root_rel_export.header_path
+    assert_content(doc_root_rels_header_path, expected_doc_root_rels_header)
+
+    expected_doc_root_rels = """doc-1,doc-0
+doc-3,doc-2
+doc-6,doc-5
+"""
+    doc_root_rels_path = export_dir / doc_root_rel_export.relationship_paths[0]
+    assert_content(
+        doc_root_rels_path, expected_doc_root_rels, sort_lines=True, decompress=True
+    )
+
+    ne_doc_rels_export = res.relationships[1]
+    assert ne_doc_rels_export.n_relationships == 3 * 2
+    assert ne_doc_rels_export.types == [NE_APPEARS_IN_DOC]
+
+    ne_doc_rels_header_path = export_dir / ne_doc_rels_export.header_path
+    expected_ne_doc_rels_header = """mentionExtractors:STRING[],extractorLanguage,\
+mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYPE
+"""
+    assert_content(ne_doc_rels_header_path, expected_ne_doc_rels_header)
+
+    ne_doc_rels_path = export_dir / ne_doc_rels_export.relationship_paths[0]
+    ne_doc_rels = _expected_ne_doc_rel_lines()
+    assert_content(ne_doc_rels_path, ne_doc_rels, sort_lines=True, decompress=True)

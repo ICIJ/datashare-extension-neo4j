@@ -3,8 +3,19 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from copy import copy, deepcopy
+from distutils.version import StrictVersion
 from functools import cached_property
-from typing import Any, AsyncGenerator, Callable, Dict, List, Mapping, Optional, TextIO
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    TextIO,
+    Tuple,
+)
 
 import neo4j
 from elasticsearch import AsyncElasticsearch
@@ -21,6 +32,7 @@ from neo4j_app.core.elasticsearch.utils import (
     PIT,
     QUERY,
     SEARCH_AFTER,
+    SHARD_DOC_,
     SLICE,
     SORT,
     match_all,
@@ -32,6 +44,9 @@ from neo4j_app.core.utils.logging import log_elapsed_time_cm
 logger = logging.getLogger(__name__)
 
 PointInTime = Dict[str, Any]
+
+_ES_VERSION_8 = StrictVersion("8.0")
+_OS_VERSION_2 = StrictVersion("2.0")
 
 
 class ESClientABC(metaclass=abc.ABCMeta):
@@ -67,6 +82,16 @@ class ESClientABC(metaclass=abc.ABCMeta):
     def keep_alive(self) -> str:
         return self._keep_alive
 
+    @cached_property
+    async def version(self) -> StrictVersion:
+        info = await self.info()
+        return StrictVersion(info["version"]["number"])
+
+    @cached_property
+    async def version(self) -> StrictVersion:
+        info = await self.info()
+        return StrictVersion(info["version"]["number"])
+
     async def search(self, **kwargs) -> Dict[str, Any]:
         # pylint: disable=arguments-differ
         if PIT not in kwargs and PIT not in kwargs.get("body", {}):
@@ -74,11 +99,14 @@ class ESClientABC(metaclass=abc.ABCMeta):
             kwargs[INDEX] = self.project_index
         return await super().search(**kwargs)
 
-    async def _poll_search_pages(
+    async def poll_search_pages(
         self, sort: Optional[List[Dict]] = None, size: Optional[int] = None, **kwargs
     ) -> AsyncGenerator[Dict[str, Any], None]:
         if sort is None:
-            sort = f"{DOC_}:{ASC}"
+            if PIT in kwargs["body"]:
+                sort = f"{SHARD_DOC_}:{ASC}"
+            else:
+                sort = f"{DOC_}:{ASC}"
         if size is None:
             size = self.pagination_size
         if not size:
@@ -129,23 +157,19 @@ class ESClientABC(metaclass=abc.ABCMeta):
 
     async def to_neo4j(
         self,
-        query: Optional[Mapping[str, Any]],
+        bodies: List[Mapping[str, Any]],
         *,
-        pit: PointInTime,
         neo4j_import_worker_factory: Callable[[str], Neo4jImportWorker],
         num_neo4j_workers: int,
         concurrency: Optional[int] = None,
         max_records_in_memory: int,
         import_batch_size: int,
-        keep_alive: Optional[str] = None,
         imported_entity_label: str,
     ) -> [int, List[neo4j.ResultSummary]]:
         if num_neo4j_workers <= 0:
             raise ValueError("num_neo4j_workers must be > 0")
         if concurrency is None:
             concurrency = self.max_concurrency
-        if keep_alive is None:
-            keep_alive = self.keep_alive
         logger.info(
             "Starting nodes import with %s neo4j and %s elasticsearch workers",
             num_neo4j_workers,
@@ -171,16 +195,6 @@ class ESClientABC(metaclass=abc.ABCMeta):
             task.add_done_callback(neo4j_tasks.discard)
         # 1 slice is not supported...
         concurrency = max(concurrency, 2)
-        bodies = [
-            sliced_search_with_pit(
-                query,
-                pit=pit,
-                id_=i,
-                max_=concurrency,
-                keep_alive=keep_alive,
-            )
-            for i in range(concurrency)
-        ]
         with log_elapsed_time_cm(
             logger,
             logging.INFO,
@@ -191,6 +205,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 import_batch_size=import_batch_size,
                 bodies=bodies,
                 queue=queue,
+                max_concurrency=concurrency,
             )
         # Wait for the queue to be fully consumed
         await queue.join()
@@ -203,55 +218,70 @@ class ESClientABC(metaclass=abc.ABCMeta):
         summaries = sum(summaries, [])
         return n_imported, summaries
 
-    async def write_concurrently_neo4j_csv(
+    async def write_concurrently_neo4j_csvs(
         self,
         query: Optional[Mapping[str, Any]],
-        csv_f: TextIO,
-        header: List[str],
         *,
-        es_to_neo4j: Callable[[Dict[str, Any]], Dict[str, str]],
+        pit: PointInTime,
+        nodes_f: Optional[TextIO],
+        relationships_f: Optional[TextIO],
+        nodes_header: Optional[List[str]],
+        relationships_header: Optional[List[str]],
+        to_neo4j_nodes: Optional[Callable[[Dict], List[Dict[str, str]]]],
+        to_neo4j_relationships: Optional[Callable[[Dict], List[Dict[str, str]]]],
         concurrency: Optional[int] = None,
         keep_alive: Optional[str] = None,
-    ) -> int:
+    ) -> [Optional[int], Optional[int]]:
         if concurrency is None:
             concurrency = self.max_concurrency
         if keep_alive is None:
             keep_alive = self.keep_alive
         # 1 slice is not supported...
         concurrency = max(concurrency, 2)
-        async with self.pit(keep_alive=keep_alive) as pit:
-            # Max should be at least 2
-            bodies = (
-                sliced_search_with_pit(
-                    query,
-                    pit=pit,
-                    id_=i,
-                    max_=concurrency,
-                    keep_alive=keep_alive,
-                )
-                for i in range(concurrency)
+        # Max should be at least 2
+        bodies = (
+            sliced_search_with_pit(
+                query,
+                pit=pit,
+                id_=i,
+                max_=concurrency,
+                keep_alive=keep_alive,
             )
-            lock = asyncio.Lock()
-            tasks = (
-                self._write_search_to_neo4j_csv_with_lock(
-                    f=csv_f,
-                    header=header,
-                    lock=lock,
-                    es_to_neo4j=es_to_neo4j,
-                    body=body,
-                )
-                for body in bodies
+            for i in range(concurrency)
+        )
+        lock = asyncio.Lock()
+        tasks = (
+            self._write_search_to_neo4j_csvs_with_lock(
+                body=body,
+                nodes_f=nodes_f,
+                relationships_f=relationships_f,
+                nodes_header=nodes_header,
+                relationships_header=relationships_header,
+                to_neo4j_nodes=to_neo4j_nodes,
+                to_neo4j_relationships=to_neo4j_relationships,
+                lock=lock,
             )
-            total_hits = await asyncio.gather(*tasks)
-            total_hits = sum(total_hits)
-        return total_hits
+            for body in bodies
+        )
+        res = await asyncio.gather(*tasks)
+        if not res:
+            total_nodes = None if nodes_header is None else []
+            total_rels = None if relationships_header is None else []
+            return total_nodes, total_rels
+        total_nodes, total_rels = res[0]
+        for node_count, rel_count in res[1:]:
+            if node_count is not None:
+                total_nodes += node_count
+            if rel_count is not None:
+                total_rels += rel_count
+        return total_nodes, total_rels
 
     async def _fill_import_queue(
         self,
         queue: asyncio.Queue,
         *,
         import_batch_size: int,
-        bodies: List[Dict],
+        bodies: List[Mapping],
         max_concurrency: Optional[int] = None,
     ) -> int:
         lock = asyncio.Lock()
@@ -293,7 +323,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         # Since we can't provide an async generator to the neo4j client, let's store
         # results into a list fitting in memory, which will then be split into
         # transaction batches
-        async for res in self._poll_search_pages(**kwargs):
+        async for res in self.poll_search_pages(**kwargs):
             buffer.extend(res[HITS][HITS])
             async with lock:
                 if len(buffer) >= import_batch_size:
@@ -302,25 +332,71 @@ class ESClientABC(metaclass=abc.ABCMeta):
                     buffer.clear()
         return imported
 
-    async def _write_search_to_neo4j_csv_with_lock(
+    async def _write_search_to_neo4j_csvs_with_lock(
         self,
         *,
-        f: TextIO,
-        header: List[str],
+        nodes_f: Optional[TextIO],
+        relationships_f: Optional[TextIO],
+        nodes_header: Optional[List[str]],
+        relationships_header: Optional[List[str]],
+        to_neo4j_nodes: Optional[Callable[[Dict], List[Dict[str, str]]]],
+        to_neo4j_relationships: Optional[Callable[[Dict], List[Dict[str, str]]]],
         lock: asyncio.Lock,
-        es_to_neo4j: Callable[[Dict[str, Any]], Dict[str, str]],
         **kwargs,
-    ) -> int:
-        total_hits = 0
-        async for res in self._poll_search_pages(**kwargs):
-            total_hits += len(res[HITS][HITS])
+    ) -> Tuple[Optional[int], Optional[int]]:
+        total_nodes = None
+        total_rels = None
+        if bool(nodes_f) != bool(to_neo4j_nodes):
+            msg = (
+                "A function to extract nodes from ES records must be provided when a"
+                " csv node file is provided and vice versa"
+            )
+            raise ValueError(msg)
+        if bool(relationships_f) != bool(to_neo4j_relationships):
+            msg = (
+                "A function to extract relationships from ES must be provided when a"
+                " csv relationships file is provided and vice versa"
+            )
+            raise ValueError(msg)
+        if nodes_f is not None:
+            total_nodes = 0
+        if relationships_f is not None:
+            total_rels = 0
+        async for res in self.poll_search_pages(**kwargs):
             # Let's not lock the while converting the rows even if that implies using
             # some memory
-            rows = [es_to_neo4j(hit) for hit in res[HITS][HITS]]
+            nodes_rows = None
+            rels_rows = None
+            if to_neo4j_nodes is not None:
+                nodes_rows = [
+                    row for hit in res[HITS][HITS] for row in to_neo4j_nodes(hit)
+                ]
+                total_nodes += len(nodes_rows)
+            if to_neo4j_relationships is not None:
+                rels_rows = [
+                    row
+                    for hit in res[HITS][HITS]
+                    for row in to_neo4j_relationships(hit)
+                ]
+                total_rels += len(rels_rows)
             async with lock:
-                write_neo4j_csv(f, rows=rows, header=header, write_header=False)
-                f.flush()
-        return total_hits
+                if nodes_rows is not None:
+                    write_neo4j_csv(
+                        nodes_f,
+                        rows=nodes_rows,
+                        header=nodes_header,
+                        write_header=False,
+                    )
+                    nodes_f.flush()
+                if rels_rows is not None:
+                    write_neo4j_csv(
+                        relationships_f,
+                        rows=rels_rows,
+                        header=relationships_header,
+                        write_header=False,
+                    )
+                    relationships_f.flush()
+        return total_nodes, total_rels
 
 
 async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]):

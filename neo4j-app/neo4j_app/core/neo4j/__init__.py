@@ -32,6 +32,21 @@ V_O_3_0 = Migration(
 MIGRATIONS = [FIRST_MIGRATION, V_O_2_0, V_O_3_0]
 
 
+def get_neo4j_csv_reader(
+    f: TextIO, fieldnames: Optional[List[str]] = None
+) -> csv.DictReader:
+    writer = csv.DictReader(
+        f,
+        fieldnames=fieldnames,
+        dialect="excel",
+        doublequote=True,
+        escapechar=None,
+        quoting=csv.QUOTE_MINIMAL,
+        lineterminator="\n",
+    )
+    return writer
+
+
 def get_neo4j_csv_writer(f: TextIO, header: List[str]) -> csv.DictWriter:
     writer = csv.DictWriter(
         f,

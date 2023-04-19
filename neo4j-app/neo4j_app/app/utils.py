@@ -11,6 +11,7 @@ from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
+from neo4j_app.app.admin import admin_router
 from neo4j_app.app.documents import documents_router
 from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
 from neo4j_app.app.main import main_router
@@ -102,6 +103,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.include_router(main_router())
     app.include_router(documents_router())
     app.include_router(named_entities_router())
+    app.include_router(admin_router())
     return app
 
 

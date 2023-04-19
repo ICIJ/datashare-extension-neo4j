@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import pytest
 import pytest_asyncio
@@ -20,11 +20,11 @@ async def _index_noise(es_test_client_module: ESClient) -> ESClient:
     yield es_client
 
 
-def _noise_to_neo4j(noise_hit: Dict) -> Dict[str, str]:
+def _noise_to_neo4j(noise_hit: Dict) -> List[Dict[str, str]]:
     noise = {"noiseId": noise_hit["_id"]}
     hit_source = noise_hit["_source"]
     noise["someAttribute"] = hit_source["someAttribute"]
-    return noise
+    return [noise]
 
 
 @pytest.mark.asyncio
@@ -61,14 +61,19 @@ async def test_write_concurrently_neo4j_csv(
     with (tmp_path / "import.csv").open("w") as f:
         writer = get_neo4j_csv_writer(f, header)
         writer.writeheader()
-        total_hits = await es_client.write_concurrently_neo4j_csv(
-            query,
-            f,
-            header=header,
-            keep_alive="2m",
-            concurrency=concurrency,
-            es_to_neo4j=_noise_to_neo4j,
-        )
+        async with es_client.pit(keep_alive="1m") as pit:
+            total_hits, _ = await es_client.write_concurrently_neo4j_csvs(
+                query,
+                pit=pit,
+                nodes_f=f,
+                nodes_header=header,
+                keep_alive="2m",
+                concurrency=concurrency,
+                to_neo4j_nodes=_noise_to_neo4j,
+                relationships_f=None,
+                relationships_header=None,
+                to_neo4j_relationships=None,
+            )
         f.flush()
         with (tmp_path / "import.csv").open() as rf:
             num_lines = sum(1 for _ in rf)
