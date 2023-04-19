@@ -321,6 +321,41 @@ files = [
 ]
 
 [[package]]
+name = "datrie"
+version = "0.8.2"
+description = "Super-fast, efficiently stored Trie for Python."
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+files = [
+    {file = "datrie-0.8.2-cp27-cp27m-macosx_10_7_x86_64.whl", hash = "sha256:53969643e2794c37f024d5edaa42d5e6e2627d9937ddcc18d99128e9df700e4c"},
+    {file = "datrie-0.8.2-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:6c9b333035312b79e6e9a10356d033e3d29aadbae6365007f706c854b3a94674"},
+    {file = "datrie-0.8.2-cp27-cp27m-win32.whl", hash = "sha256:c783e2c1e28964b2b045a951eb9606833a188c4bd4a780da68d22f557e03e429"},
+    {file = "datrie-0.8.2-cp27-cp27m-win_amd64.whl", hash = "sha256:f826e843138698501cbf1a21233f724b851b1e475fad532b638ac5904e115f10"},
+    {file = "datrie-0.8.2-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:bf5c956c0a9a9d0f07e3c8923746279171096de18a8a51685e22d9817f8755a6"},
+    {file = "datrie-0.8.2-cp34-cp34m-manylinux1_x86_64.whl", hash = "sha256:2de594d84a2f43a09ddc15316a8afd48aae0fdc456f9279d0940aa59c473d9d5"},
+    {file = "datrie-0.8.2-cp35-cp35m-macosx_10_6_x86_64.whl", hash = "sha256:651c63325056347b86c5de7ffeea8529230a5787c61ee6dcabc5b6c644bd3252"},
+    {file = "datrie-0.8.2-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:0e3b76676abbae2368cce6bf605bb0ba7cfd11f2c420b96d67959f353d5d423f"},
+    {file = "datrie-0.8.2-cp35-cp35m-win32.whl", hash = "sha256:3a3e360a765cc95410898dc222f8585ea1b1bba0538a1af4d8630a5bc3ad6ee7"},
+    {file = "datrie-0.8.2-cp35-cp35m-win_amd64.whl", hash = "sha256:fa9f39ac88dc6286672b9dd286fe459646da48133c877a927af24803eaea441e"},
+    {file = "datrie-0.8.2-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:b6fd6c7c149b410a87d46072c1c98f6e87ec557802e1d0e09db7b858746e8550"},
+    {file = "datrie-0.8.2-cp36-cp36m-manylinux1_x86_64.whl", hash = "sha256:327d9c17efaebc66d1956dca047b76fdd0e5b989d63cb55b9038ec09d8769089"},
+    {file = "datrie-0.8.2-cp36-cp36m-win32.whl", hash = "sha256:ee7cd8470a982356e104e62148f2dbe2d3e17545cafaa3ada29f2548984f1e89"},
+    {file = "datrie-0.8.2-cp36-cp36m-win_amd64.whl", hash = "sha256:31e316ba305cdd7b8a42f8e4af5a0a15a628aee270d2f392c41329a709eeda6d"},
+    {file = "datrie-0.8.2-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:dbe04704eb41b8440ca61416d3670ca6ddeea847d19731cf121889bac2962d07"},
+    {file = "datrie-0.8.2-cp37-cp37m-manylinux1_x86_64.whl", hash = "sha256:e1d704ee4fdc03f02d7dacc4d92052dbd490dba551509fccfd8ee52c9039d4ad"},
+    {file = "datrie-0.8.2-cp37-cp37m-win32.whl", hash = "sha256:25e9e07ecfceaef78d23bde8d7278e4d6f63e1e3dc5ac00ccb4bec3062f0a8e0"},
+    {file = "datrie-0.8.2-cp37-cp37m-win_amd64.whl", hash = "sha256:bf9f34f7c63797219b32713b561c4f94e777ff6c22beecfcd6bdf6b6c25b8518"},
+    {file = "datrie-0.8.2-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:e0582435a4adef1a2fce53aeedb656bf769b0f113b524f98be51d3e3d40720cb"},
+    {file = "datrie-0.8.2-cp38-cp38-manylinux1_x86_64.whl", hash = "sha256:b2d80fa687173cb8f8bae224ef00d1ad6bda8f8597bbb1a63f85182c7d91aeb3"},
+    {file = "datrie-0.8.2-cp38-cp38-win32.whl", hash = "sha256:67603594f5db5c0029b1cf86a08e89cde015fe64cf0c4ae4e539c61114396729"},
+    {file = "datrie-0.8.2-cp38-cp38-win_amd64.whl", hash = "sha256:f61cf2726f04c08828bfb4e7af698b0b16bdf2777c3993d042f2898b8e118f21"},
+    {file = "datrie-0.8.2-pp273-pypy_73-win32.whl", hash = "sha256:b07bd5fdfc3399a6dab86d6e35c72b1dbd598e80c97509c7c7518ab8774d3fda"},
+    {file = "datrie-0.8.2-pp373-pypy36_pp73-win32.whl", hash = "sha256:89ff3d41df4f899387aa07b4b066f5da36e3a10b67b8aeae631c950502ff4503"},
+    {file = "datrie-0.8.2.tar.gz", hash = "sha256:525b08f638d5cf6115df6ccd818e5a01298cd230b2dac91c8ff2e6499d18765d"},
+]
+
+[[package]]
 name = "dill"
 version = "0.3.6"
 description = "serialize all of python"
@@ -1319,6 +1354,23 @@ socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
+name = "setuptools"
+version = "67.7.0"
+description = "Easily download, build, install, upgrade, and uninstall Python packages"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "setuptools-67.7.0-py3-none-any.whl", hash = "sha256:888be97fde8cc3afd60f7784e678fa29ee13c4e5362daa7104a93bba33646c50"},
+    {file = "setuptools-67.7.0.tar.gz", hash = "sha256:b7e53a01c6c654d26d2999ee033d8c6125e5fa55f03b7b193f937ae7ac999f22"},
+]
+
+[package.extras]
+docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-hoverxref (<2)", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (==0.8.3)", "sphinx-reredirects", "sphinxcontrib-towncrier"]
+testing = ["build[virtualenv]", "filelock (>=3.4.0)", "flake8 (<5)", "flake8-2020", "ini2toml[lite] (>=0.9)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pip (>=19.1)", "pip-run (>=8.8)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)", "pytest-perf", "pytest-timeout", "pytest-xdist", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
+testing-integration = ["build[virtualenv]", "filelock (>=3.4.0)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pytest", "pytest-enabler", "pytest-xdist", "tomli", "virtualenv (>=13.0.0)", "wheel"]
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -1851,4 +1903,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "00080932852360bac7298b6c8c5dc32c68cf5cd0d1f60bbde096e115e48907af"
+content-hash = "9de708262236944b1c527e8e627a8a377cd9bd72ccdd85860a05cc96faa9d2e0"

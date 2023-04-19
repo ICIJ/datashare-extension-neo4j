@@ -10,6 +10,8 @@ DEFAULT_SCROLL_DURATION = "1m"
 DOC_ = "_doc"
 ES_DOCUMENT_TYPE = "Document"
 ES_NAMED_ENTITY_TYPE = "NamedEntity"
+FIELD = "field"
+FUNCTION_SCORE = "function_score"
 HAS_PARENT = "has_parent"
 HITS = "hits"
 ID_ = "_id"
@@ -25,8 +27,15 @@ PARENT = "parent"
 PARENT_TYPE = "parent_type"
 PIT = "pit"
 QUERY = "query"
+SCORE = "score"
+SCORE_ = "_score"
+SCORE_MODE = "SCORE_MODE"
+SCRIPT = "script"
+SCRIPT_SCORE = "script_score"
 SCROLL_ID = "_scroll_id"
 SEARCH_AFTER = "search_after"
+SEED = "seed"
+SHARD_DOC_ = "_shard_doc"
 SLICE = "slice"
 SORT = "sort"
 SOURCE = "_source"
@@ -40,6 +49,12 @@ def and_query(*queries: Dict) -> Dict:
     return {QUERY: {BOOL: {MUST: list(queries)}}}
 
 
+def with_sort(*, query: Dict, sort: Dict) -> Dict:
+    if SORT not in query:
+        query[SORT] = []
+    return query[SORT].append(sort)
+
+
 def has_type(*, type_field: str, type_value: str) -> Dict:
     return {TERM: {type_field: type_value}}
 
@@ -48,8 +63,18 @@ def has_id(ids: List[str]) -> Dict:
     return {IDS: {VALUES: ids}}
 
 
-def has_parent(parent_type: str, query: Dict) -> Dict:
-    return {HAS_PARENT: {PARENT_TYPE: parent_type, QUERY: query}}
+def function_score(*, query: Dict, **kwargs) -> Dict:
+    query = {FUNCTION_SCORE: {QUERY: query}}
+    if kwargs:
+        query[FUNCTION_SCORE].update(kwargs)
+    return query
+
+
+def has_parent(parent_type: str, query: Dict, *, score: bool = False) -> Dict:
+    query = {HAS_PARENT: {PARENT_TYPE: parent_type, QUERY: query}}
+    if score:
+        query[HAS_PARENT][SCORE] = True
+    return query
 
 
 def match_all_query() -> Dict:
