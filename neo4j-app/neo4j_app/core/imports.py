@@ -1,7 +1,13 @@
 import asyncio
 import functools
+import io
+import itertools
+import json
 import logging
+import os
 import sys
+import tarfile
+import tempfile
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
@@ -85,6 +91,7 @@ from neo4j_app.core.neo4j.named_entities import (
 from neo4j_app.core.objects import (
     IncrementalImportResponse,
     Neo4jCSVResponse,
+    Neo4jCSVs,
     NodeCSVs,
     RelationshipCSVs,
 )
@@ -315,9 +322,13 @@ async def to_neo4j_csvs(
         )
         nodes.append(ne_nodes_csvs)
         relationships.append(ne_rels_csvs)
-    res = Neo4jCSVResponse(nodes=nodes, relationships=relationships)
-    res = res.gz(root_dir=export_dir, destructively=True)
-    return res
+    metadata = Neo4jCSVs(nodes=nodes, relationships=relationships)
+    _, targz_path = tempfile.mkstemp(
+        prefix="neo4j-export", suffix=".tar.gz", dir=export_dir
+    )
+    targz_path = Path(targz_path)
+    _compress_csvs_destructively(export_dir, metadata, targz_path=targz_path)
+    return Neo4jCSVResponse(path=str(targz_path), metadata=metadata)
 
 
 _DOC_REL_END_CSV_COL = f"{NEO4J_CSV_END_ID}({DOC_NODE})"
@@ -705,3 +716,29 @@ def _make_header_and_mapping(
         header.append(col_header)
         mapping[col] = col_header
     return header, mapping
+
+
+def _compress_csvs_destructively(
+    export_dir: Path, metadata: Neo4jCSVs, *, targz_path: Path
+):
+    with tarfile.open(targz_path, "w:gz") as tar:
+        json_index = json.dumps(metadata.dict()).encode()
+        index = io.BytesIO(json_index)
+        index_info = tarfile.TarInfo(name="metadata.json")
+        index_info.size = len(json_index)
+        tar.addfile(index_info, index)
+        nodes = (p for nodes in metadata.nodes for p in nodes.node_paths)
+        relationships = (
+            p for rels in metadata.relationships for p in rels.relationship_paths
+        )
+        to_compress = itertools.chain(nodes, relationships)
+        for path in to_compress:
+            _compress_and_destroy(
+                tar, root_dir=export_dir, path=export_dir.joinpath(path)
+            )
+    return targz_path
+
+
+def _compress_and_destroy(tar: tarfile.TarFile, *, root_dir: Path, path: Path):
+    tar.add(path, arcname=str(path.relative_to(root_dir)))
+    os.remove(path)

@@ -1,4 +1,5 @@
 import itertools
+import tarfile
 from pathlib import Path
 from typing import AsyncGenerator, Dict, List, Optional
 
@@ -14,7 +15,7 @@ from neo4j_app.core.imports import (
     import_named_entities,
     to_neo4j_csvs,
 )
-from neo4j_app.core.objects import IncrementalImportResponse
+from neo4j_app.core.objects import IncrementalImportResponse, Neo4jCSVs
 from neo4j_app.tests.conftest import (
     assert_content,
     index_docs,
@@ -342,11 +343,18 @@ async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
         es_keep_alive="1m",
         es_doc_type_field=es_doc_type_field,
     )
+    with tarfile.open(res.path, "r:gz") as f:
+        f.extractall(export_dir)
 
     # Then
-    assert len(res.nodes) == 2
+    metadata_path = export_dir / "metadata.json"
+    assert metadata_path.exists()
+    metadata = Neo4jCSVs.parse_file(metadata_path)
+    assert metadata == res.metadata
 
-    doc_nodes_export = res.nodes[0]
+    assert len(metadata.nodes) == 2
+
+    doc_nodes_export = metadata.nodes[0]
     assert doc_nodes_export.n_nodes == 4
     assert doc_nodes_export.labels == [DOC_NODE]
 
@@ -362,11 +370,9 @@ doc-3,dirname-3,content-type-3,9,2023-02-06T13:48:22.3866,dirname-3,Document
 doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
 """
     doc_root_rels_path = export_dir / doc_nodes_export.node_paths[0]
-    assert_content(
-        doc_root_rels_path, expected_doc_nodes, sort_lines=True, decompress=True
-    )
+    assert_content(doc_root_rels_path, expected_doc_nodes, sort_lines=True)
 
-    ne_nodes_export = res.nodes[1]
+    ne_nodes_export = metadata.nodes[1]
     assert ne_nodes_export.n_nodes == 3 * 2
     assert ne_nodes_export.labels == []
 
@@ -377,11 +383,11 @@ doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
 
     ne_nodes_path = export_dir / ne_nodes_export.node_paths[0]
     expected_ne = _expected_ne_nodes_lines()
-    assert_content(ne_nodes_path, expected_ne, sort_lines=True, decompress=True)
+    assert_content(ne_nodes_path, expected_ne, sort_lines=True)
 
-    assert len(res.relationships) == 2
+    assert len(metadata.relationships) == 2
 
-    doc_root_rel_export = res.relationships[0]
+    doc_root_rel_export = metadata.relationships[0]
     assert doc_root_rel_export.n_relationships == 4 - 1
     assert doc_root_rel_export.types == [DOC_ROOT_REL_LABEL]
 
@@ -395,11 +401,9 @@ doc-3,doc-2
 doc-6,doc-5
 """
     doc_root_rels_path = export_dir / doc_root_rel_export.relationship_paths[0]
-    assert_content(
-        doc_root_rels_path, expected_doc_root_rels, sort_lines=True, decompress=True
-    )
+    assert_content(doc_root_rels_path, expected_doc_root_rels, sort_lines=True)
 
-    ne_doc_rels_export = res.relationships[1]
+    ne_doc_rels_export = metadata.relationships[1]
     assert ne_doc_rels_export.n_relationships == 3 * 2
     assert ne_doc_rels_export.types == [NE_APPEARS_IN_DOC]
 
@@ -411,4 +415,4 @@ mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYP
 
     ne_doc_rels_path = export_dir / ne_doc_rels_export.relationship_paths[0]
     ne_doc_rels = _expected_ne_doc_rel_lines()
-    assert_content(ne_doc_rels_path, ne_doc_rels, sort_lines=True, decompress=True)
+    assert_content(ne_doc_rels_path, ne_doc_rels, sort_lines=True)
