@@ -207,87 +207,6 @@ class ESClientABC(metaclass=abc.ABCMeta):
         summaries = sum(summaries, [])
         return es_ids, summaries
 
-    async def to_neo4j_relationships(
-        self,
-        query: Optional[Mapping[str, Any]],
-        ids: List[str],
-        *,
-        pit: PointInTime,
-        neo4j_driver: neo4j.AsyncDriver,
-        neo4j_import_fn: Neo4Import,
-        to_neo4j_relationship: Optional[Callable[[Any], Optional[List[Dict]]]] = None,
-        concurrency: Optional[int] = None,
-        max_records_in_memory: int,
-        import_batch_size: int,
-        transaction_batch_size: int,
-        keep_alive: Optional[str] = None,
-        imported_entity_label: str,
-    ) -> List[neo4j.ResultSummary]:
-        if not ids:
-            return []
-        if concurrency is None:
-            concurrency = self.max_concurrency
-        if keep_alive is None:
-            keep_alive = self.keep_alive
-        logger.info(
-            "Starting relationships import with %s elasticsearch workers",
-            concurrency,
-        )
-        queue_size = max_records_in_memory // import_batch_size
-        if not queue_size:
-            raise ValueError("import_batch_size must be >= max_records_in_memory")
-        queue = asyncio.Queue(maxsize=queue_size)
-
-        worker = Neo4jImportWorker(
-            name="neo4j-rel-worker",
-            neo4j_driver=neo4j_driver,
-            import_fn=neo4j_import_fn,
-            transaction_batch_size=transaction_batch_size,
-            to_neo4j=to_neo4j_relationship,
-        )
-        neo4j_tasks = {asyncio.create_task(worker(queue), name="neo4j-rel-worker")}
-        # To prevent keeping references to finished tasks forever, make each task remove
-        # its own reference from the set after completion
-        next(iter(neo4j_tasks)).add_done_callback(neo4j_tasks.discard)
-        # 1 slice is not supported...
-        concurrency = max(concurrency, 2)
-        # Since n_batch_ids = len(ids) / concurrency might huge, we don't want to send
-        # this huge list through the network for each page. On the opposite, changing
-        # the list of value each time prevents from benefiting from ES caching.
-        # Taking that into account we decide to leverage the cache for 10 pages,
-        # which should reasonably size list of values sent through the network
-        es_batch_size = self._pagination_size * 10
-        bodies = (
-            search_by_id_with_pit(
-                ids=id_batch,
-                query=query,
-                pit=pit,
-                keep_alive=keep_alive,
-            )
-            for id_batch in batch(ids, batch_size=es_batch_size)
-        )
-        with log_elapsed_time_cm(
-            logger,
-            logging.INFO,
-            f"Retrieved all {imported_entity_label} from elasticsearch in"
-            f" {{elapsed_time}} !",
-        ):
-            await self._fill_import_queue(
-                import_batch_size=import_batch_size,
-                bodies=list(bodies),
-                queue=queue,
-                max_concurrency=concurrency,
-            )
-        # Wait for the queue to be fully consumed
-        await queue.join()
-        # Cancel consumer tasks which will make them break their infinite loop and
-        # return the result summaries
-        next(iter(neo4j_tasks)).cancel()
-        # Wait for all results to be there
-        summaries = await asyncio.gather(*neo4j_tasks)
-        summaries = sum(summaries, [])
-        return summaries
-
     async def write_concurrently_neo4j_csv(
         self,
         query: Optional[Mapping[str, Any]],
@@ -505,25 +424,6 @@ def sliced_search_with_pit(
     else:
         query = deepcopy(query)
     update = {PIT: pit, SLICE: {ID: id_, MAX: max_}}
-    if keep_alive is not None:
-        update[PIT][KEEP_ALIVE] = keep_alive
-    query.update(update)
-    return query
-
-
-def search_by_id_with_pit(
-    ids: List[str],
-    query: Optional[Dict[str, Any]] = None,
-    *,
-    pit: PointInTime,
-    keep_alive: Optional[str] = None,
-) -> Dict:
-    ids_query_ = ids_query(ids)
-    if query is not None:
-        query = and_query(query, ids_query_)
-    else:
-        query = {QUERY: ids_query_}
-    update = {PIT: pit}
     if keep_alive is not None:
         update[PIT][KEEP_ALIVE] = keep_alive
     query.update(update)
