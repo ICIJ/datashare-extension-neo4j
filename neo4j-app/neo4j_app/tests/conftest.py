@@ -3,7 +3,6 @@ import asyncio
 import contextlib
 import os
 import random
-import tarfile
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, Tuple, Union
 
@@ -377,17 +376,7 @@ async def populate_es_with_doc_and_named_entities(
         pass
 
 
-def assert_content(
-    path: Path,
-    expected_content: Union[bytes, str],
-    sort_lines=False,
-    decompress: bool = False,
-):
-    if decompress:
-        old_path = str(path.absolute())
-        path = Path(old_path.replace(".gz", ""))
-        with tarfile.open(old_path) as tar:
-            tar.extractall(path.parent)
+def assert_content(path: Path, expected_content: Union[bytes, str], sort_lines=False):
     if isinstance(expected_content, bytes):
         if sort_lines:
             with path.open("rb") as f:
