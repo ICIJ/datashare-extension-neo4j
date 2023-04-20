@@ -87,11 +87,6 @@ class ESClientABC(metaclass=abc.ABCMeta):
         info = await self.info()
         return StrictVersion(info["version"]["number"])
 
-    @cached_property
-    async def version(self) -> StrictVersion:
-        info = await self.info()
-        return StrictVersion(info["version"]["number"])
-
     async def search(self, **kwargs) -> Dict[str, Any]:
         # pylint: disable=arguments-differ
         if PIT not in kwargs and PIT not in kwargs.get("body", {}):
