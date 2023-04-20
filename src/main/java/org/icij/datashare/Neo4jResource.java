@@ -2,7 +2,6 @@ package org.icij.datashare;
 
 
 import static java.io.File.createTempFile;
-import static java.nio.file.Files.createTempDirectory;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
