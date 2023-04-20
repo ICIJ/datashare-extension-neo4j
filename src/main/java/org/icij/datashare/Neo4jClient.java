@@ -43,13 +43,27 @@ public class Neo4jClient {
         );
     }
 
+    //CHECKSTYLE.OFF: AbbreviationAsWordInName
+    public Objects.Neo4jCSVResponse exportNeo4jCSVs(Objects.Neo4jAppNeo4jCSVRequest body) {
+        String url = buildNeo4jUrl("/admin/neo4j-csvs");
+        logger.debug("Exporting data to neo4j csv with request: {}",
+            lazy(() -> MAPPER.writeValueAsString(body)));
+        return doHttpRequest(
+            Unirest.post(url).socketTimeout(importTimeout).body(body)
+                .header("Content-Type", "application/json"),
+            Objects.Neo4jCSVResponse.class
+        );
+    }
+    //CHECKSTYLE.ON: AbbreviationAsWordInName
+
+
     public String ping() {
         String url = buildNeo4jUrl("/ping");
         logger.debug("Pinging neo4j app");
         return doHttpRequest(Unirest.get(url), String.class);
     }
 
-    private <T, R extends HttpRequest> T doHttpRequest(HttpRequest<R> request, Class<T> clazz)
+    private <T, R extends HttpRequest<R>> T doHttpRequest(HttpRequest<R> request, Class<T> clazz)
         throws Neo4jAppError {
         // TODO: ideally we would like to avoid to pass the class and
         //  request.asObject(new GenericType<T>() {}) by it does not seem to work
