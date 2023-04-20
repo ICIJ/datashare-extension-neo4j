@@ -2,16 +2,21 @@ package org.icij.datashare;
 
 
 import static java.io.File.createTempFile;
+import static java.nio.file.Files.createTempDirectory;
 import static org.icij.datashare.LoggingUtils.lazy;
+import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.Cleaner;
 import java.net.Socket;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -141,7 +146,7 @@ public class Neo4jResource implements AutoCloseable {
         // TODO: this should throw a bad request when not parsed correcly...
         org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
             context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
-        return doImport(() -> this.importDocuments(project, incrementalImportRequest));
+        return wrapNeo4jAppCall(() -> this.importDocuments(project, incrementalImportRequest));
     }
 
     @Post("/named-entities?project=:project")
@@ -150,8 +155,24 @@ public class Neo4jResource implements AutoCloseable {
         // TODO: this should throw a bad request when not parsed correcly...
         org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
             context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
-        return doImport(() -> this.importNamedEntities(project, incrementalImportRequest));
+        return wrapNeo4jAppCall(() -> this.importNamedEntities(project, incrementalImportRequest));
     }
+
+    //CHECKSTYLE.OFF: AbbreviationAsWordInName
+    @Post("/admin/neo4j-csvs?project=:project")
+    public Payload postNeo4jCSVs(String project, Context context) throws IOException {
+        checkAccess(project, context);
+        org.icij.datashare.Objects.Neo4jCSVRequest request =
+            context.extract(org.icij.datashare.Objects.Neo4jCSVRequest.class);
+        return wrapNeo4jAppCall(() -> {
+            try {
+                return this.exportNeo4jCSVs(request);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+    //CHECKSTYLE.ON: AbbreviationAsWordInName
 
     @Get("/ping")
     public Payload getPingMethod() {
@@ -220,7 +241,8 @@ public class Neo4jResource implements AutoCloseable {
                 logger.debug("Copying neo4j app to {}", tmpServerBinaryPath);
                 try (OutputStream serverBinaryOutputStream = Files.newOutputStream(
                     tmpServerBinaryPath)) {
-                    serverBinaryOutputStream.write(serverBytesStream.readAllBytes());
+                    serverBinaryOutputStream.write(
+                        Objects.requireNonNull(serverBytesStream).readAllBytes());
                     serverBinaryOutputStream.flush();
                     appBinaryPath = tmpServerBinaryPath;
                 }
@@ -305,6 +327,27 @@ public class Neo4jResource implements AutoCloseable {
         return client.importNamedEntities(request);
     }
 
+    //CHECKSTYLE.OFF: AbbreviationAsWordInName
+    protected InputStream exportNeo4jCSVs(org.icij.datashare.Objects.Neo4jCSVRequest request)
+        throws IOException {
+        // Define a temp dir
+        Path tmpDir = createTempDirectory(
+            Path.of(FileSystems.getDefault().getSeparator(), "tmp"), "neo4j-export");
+        org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest neo4jAppRequest = request.toNeo4j(
+            tmpDir.toAbsolutePath().toString());
+        try {
+            org.icij.datashare.Objects.Neo4jCSVResponse res =
+                client.exportNeo4jCSVs(neo4jAppRequest);
+            logger.info("Exported data from ES to neo4j, statistics: {}",
+                lazy(() -> MAPPER.writeValueAsString(res.metadata)));
+            InputStream is = new FileInputStream(res.path);
+            return new BufferedInputStream(is);
+        } finally {
+            Files.delete(tmpDir);
+        }
+    }
+    //CHECKSTYLE.ON: AbbreviationAsWordInName
+
     @Override
     public void close() {
         if (this.cleanPythonProcess != null) {
@@ -312,8 +355,7 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    private Payload doImport(
-        Provider<org.icij.datashare.Objects.IncrementalImportResponse> importProvider) {
+    private <T> Payload wrapNeo4jAppCall(Provider<T> importProvider) {
         try {
             return new Payload(importProvider.get()).withCode(200);
         } catch (InvalidProjectError e) {
