@@ -29,11 +29,11 @@ function _commands() {
     }
 
     function _install_python_dev() {
-        sudo apt-get -y install python3.8-dev
+        sudo apt-get -y install python3.9-dev
     }
 
     function _install_poetry() {
-        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$ROOT_DIR"/.poetry /usr/bin/python3.8
+        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$ROOT_DIR"/.poetry /usr/bin/python3.9
     }
 }
 

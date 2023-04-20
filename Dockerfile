@@ -15,11 +15,11 @@ RUN --mount=type=cache,target=/var/cache/apt  \
         libssl-dev \
         maven \
         git-all \
-        python3.8 \
-        python3.8-dev \
+        python3.9 \
+        python3.9-dev \
 	    openjdk-11-jdk \
-        python3.8-distutils \
-        python3.8-venv \
+        python3.9-distutils \
+        python3.9-venv \
         wget
 
 # Python
@@ -27,7 +27,7 @@ RUN wget https://bootstrap.pypa.io/get-pip.py \
     && python3 get-pip.py \
     && python3 -m pip install --upgrade pip \
     && python3 -m pip install virtualenv
-RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=$HOME/.local/share/pypoetry POETRY_VERSION=1.3.1 python3.8 -
+RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=$HOME/.local/share/pypoetry POETRY_VERSION=1.3.1 python3.9 -
 ENV PATH="$HOME/.local/share/pypoetry/bin:$PATH"
 
 ENV LANGUAGE="en"

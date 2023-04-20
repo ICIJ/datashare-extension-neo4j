@@ -17,15 +17,15 @@ function _commands() {
     }
 
     function _install_poetry() {
-        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$ROOT_DIR"/.poetry python3.8
+        command -v poetry 1>/dev/null 2>&1 || "$ROOT_DIR"/neo4j install_poetry "$ROOT_DIR"/.poetry python3.9
     }
 
     function _install_python_universal2() {
         if ! [[ $(python3 -c "import sysconfig;print(sysconfig.get_platform())") == *-universal2 ]];then
-            wget https://www.python.org/ftp/python/3.8.10/python-3.8.10-macos11.pkg
-            sudo installer -pkg python-3.8.10-macos11.pkg -target $HOME
-            /Applications/Python\ 3.8/Install\ Certificates.command
-            /Applications/Python\ 3.8/Update\ Shell\ Profile.command
+            wget https://www.python.org/ftp/python/3.9.10/python-3.9.10-macos11.pkg
+            sudo installer -pkg python-3.9.10-macos11.pkg -target $HOME
+            /Applications/Python\ 3.9/Install\ Certificates.command
+            /Applications/Python\ 3.9/Update\ Shell\ Profile.command
             source "$HOME/.bash_profile"
         fi
     }
