@@ -2,11 +2,14 @@ package org.icij.datashare;
 
 
 import static java.io.File.createTempFile;
+import static java.nio.file.Files.createTempDirectory;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
+import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -28,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import kong.unirest.Unirest;
 import kong.unirest.apache.ApacheClient;
 import net.codestory.http.Context;
@@ -147,23 +151,51 @@ public class Neo4jResource {
 
     @Post("/documents?project=:project")
     public Payload postDocuments(String project, Context context)
-        throws IOException, InterruptedException {
+        throws IOException {
         checkAccess(project, context);
         // TODO: this should throw a bad request when not parsed correcly...
         org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
             context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
-        return doImport(this.importDocuments(project, incrementalImportRequest));
+        return wrapNeo4jAppCall(() -> {
+            try {
+                return this.importDocuments(project, incrementalImportRequest);
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Post("/named-entities?project=:project")
     public Payload postNamedEntities(String project, Context context)
-        throws IOException, InterruptedException {
+        throws IOException {
         checkAccess(project, context);
         // TODO: this should throw a bad request when not parsed correcly...
         org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
             context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
-        return doImport(this.importNamedEntities(project, incrementalImportRequest));
+        return wrapNeo4jAppCall(() -> {
+            try {
+                return this.importNamedEntities(project, incrementalImportRequest);
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
+
+    //CHECKSTYLE.OFF: AbbreviationAsWordInName
+    @Post("/admin/neo4j-csvs?project=:project")
+    public Payload postNeo4jCSVs(String project, Context context) throws IOException {
+        checkAccess(project, context);
+        org.icij.datashare.Objects.Neo4jCSVRequest request =
+            context.extract(org.icij.datashare.Objects.Neo4jCSVRequest.class);
+        return wrapNeo4jAppCall(() -> {
+            try {
+                return this.exportNeo4jCSVs(request);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+    //CHECKSTYLE.ON: AbbreviationAsWordInName
 
     @Get("/ping")
     public Payload getPingMethod() throws IOException, InterruptedException {
@@ -227,7 +259,8 @@ public class Neo4jResource {
                 logger.debug("Copying neo4j app binary to {}", tmpServerBinaryPath);
                 try (OutputStream serverBinaryOutputStream = Files.newOutputStream(
                     tmpServerBinaryPath)) {
-                    serverBinaryOutputStream.write(serverBytesStream.readAllBytes());
+                    serverBinaryOutputStream.write(
+                        Objects.requireNonNull(serverBytesStream).readAllBytes());
                     serverBinaryOutputStream.flush();
                     appBinaryPath = tmpServerBinaryPath;
                 }
@@ -352,14 +385,39 @@ public class Neo4jResource {
         return client.importNamedEntities(request);
     }
 
-    private Payload doImport(Object imported) {
+    //CHECKSTYLE.OFF: AbbreviationAsWordInName
+    protected InputStream exportNeo4jCSVs(org.icij.datashare.Objects.Neo4jCSVRequest request)
+        throws IOException {
+        // Define a temp dir
+        Path tmpDir = createTempDirectory(
+            Path.of(FileSystems.getDefault().getSeparator(), "tmp"), "neo4j-export");
+        org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest neo4jAppRequest = request.toNeo4j(
+            tmpDir.toAbsolutePath().toString());
         try {
-            return new Payload(imported).withCode(200);
+            org.icij.datashare.Objects.Neo4jCSVResponse res =
+                client.exportNeo4jCSVs(neo4jAppRequest);
+            logger.info("Exported data from ES to neo4j, statistics: {}",
+                lazy(() -> MAPPER.writeValueAsString(res.metadata)));
+            InputStream is = new FileInputStream(res.path);
+            return new BufferedInputStream(is);
+        } finally {
+            Files.delete(tmpDir);
+        }
+    }
+    //CHECKSTYLE.ON: AbbreviationAsWordInName
+
+    private <T> Payload wrapNeo4jAppCall(Provider<T> responseProvider) {
+        try {
+            return new Payload(responseProvider.get()).withCode(200);
         } catch (InvalidProjectError e) {
             return new Payload("application/problem+json", e).withCode(401);
         } catch (Neo4jNotRunningError e) {
             return new Payload("application/problem+json", e).withCode(503);
         } catch (Neo4jClient.Neo4jAppError e) { // TODO: this should be done automatically...
+            logger.error("internal error on the python app side {}", e.getMessage());
+            return new Payload("application/problem+json", e).withCode(500);
+        } catch (Exception e) { // TODO: this should be done automatically...
+            logger.error("internal error on the java extension side {}", e.getMessage());
             return new Payload("application/problem+json", e).withCode(500);
         }
     }

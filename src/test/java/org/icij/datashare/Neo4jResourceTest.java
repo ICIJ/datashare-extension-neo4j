@@ -4,6 +4,8 @@ import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.TestUtils.assertJson;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import net.codestory.http.filters.basic.BasicAuthFilter;
 import net.codestory.http.payload.Payload;
@@ -449,6 +451,57 @@ public class Neo4jResourceTest {
             // When
             Response response = post(
                 "/api/neo4j/named-entities?project=foo-datashare").withPreemptiveAuthentication(
+                "unauthorized", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_admin_neo4j_csvs_should_return_200()
+            throws IOException, InterruptedException {
+            // Given
+            Path exportPath = null;
+            byte[] exportContent = "exportbytescompressedintoatargz".getBytes();
+            try {
+                exportPath = Files.createTempFile("neo4j-export", ".tar.gz").toAbsolutePath();
+                Files.write(exportPath, exportContent);
+                String exportPathAsString = exportPath.toString();
+
+                neo4jAppResource.startServerProcess(false);
+                neo4jApp.configure(
+                    routes -> routes.post(
+                        "/admin/neo4j-csvs",
+                        context -> new Payload(
+                            "application/json",
+                            "{" +
+                                "\"path\": \"" + exportPathAsString + "\"," +
+                                "\"metadata\": {\"nodes\": [], \"relationships\": []}" +
+                                "}"
+                        )
+                    )
+                );
+
+                // When
+                Response response = post("/api/neo4j/admin/neo4j-csvs?project=foo-datashare", "{}")
+                    .withPreemptiveAuthentication("foo", "null")
+                    .response();
+
+                // Then
+                assertThat(response.code()).isEqualTo(200);
+                assertThat(response.contentType()).isEqualTo("application/octet-stream");
+                assertThat(response.content()).isEqualTo(new String(exportContent));
+            } finally {
+                if (exportPath != null) {
+                    Files.deleteIfExists(exportPath);
+                }
+            }
+        }
+
+        @Test
+        public void test_post_admin_neo4j_csvs_should_return_401_for_unauthorized_users() {
+            // When
+            Response response = post(
+                "/api/neo4j/admin/neo4j-csvs?project=foo-datashare").withPreemptiveAuthentication(
                 "unauthorized", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(401);
