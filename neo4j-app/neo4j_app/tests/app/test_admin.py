@@ -20,7 +20,7 @@ async def _populate_es(es_test_client_module: ESClient):
 
 
 @pytest.mark.asyncio
-def test_post_named_entities_import_should_return_200(
+async def test_post_named_entities_import_should_return_200(
     test_client_module: TestClient,
     _populate_es,
     tmpdir,

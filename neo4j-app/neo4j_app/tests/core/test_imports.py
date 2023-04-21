@@ -1,5 +1,10 @@
 import itertools
+import json
+import os
+import shutil
+import subprocess
 import tarfile
+from copy import deepcopy
 from pathlib import Path
 from typing import AsyncGenerator, Dict, List, Optional
 
@@ -7,6 +12,7 @@ import neo4j
 import pytest
 import pytest_asyncio
 
+from neo4j_app import ROOT_DIR
 from neo4j_app.constants import DOC_NODE, DOC_ROOT_REL_LABEL, NE_APPEARS_IN_DOC, NE_NODE
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.elasticsearch.to_neo4j import make_ne_hit_id
@@ -15,7 +21,12 @@ from neo4j_app.core.imports import (
     import_named_entities,
     to_neo4j_csvs,
 )
-from neo4j_app.core.objects import IncrementalImportResponse, Neo4jCSVs
+from neo4j_app.core.objects import (
+    IncrementalImportResponse,
+    Neo4jCSVs,
+    NodeCSVs,
+    RelationshipCSVs,
+)
 from neo4j_app.tests.conftest import (
     assert_content,
     index_docs,
@@ -416,3 +427,94 @@ mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYP
     ne_doc_rels_path = export_dir / ne_doc_rels_export.relationship_paths[0]
     ne_doc_rels = _expected_ne_doc_rel_lines()
     assert_content(ne_doc_rels_path, ne_doc_rels, sort_lines=True)
+
+    assert export_dir.joinpath("bulk-import.sh").exists()
+
+
+@pytest.mark.parametrize(
+    "neo4j_home,database,expected_cmd",
+    [
+        (
+            ".",
+            None,
+            './bin/neo4j-admin import full \
+--skip-bad-relationships \
+--database neo4j \
+--nodes=Document="docs-header.csv,docs.csv" \
+--nodes="entities-header.csv,entities.csv" \
+--relationships=HAS_PARENT="doc-roots-header.csv,doc-roots.csv" \
+--relationships=APPEARS_IN="entity-docs-header.csv,entity-docs.csv"\n',
+        ),
+        (
+            ".",
+            "some-db",
+            './bin/neo4j-admin import full \
+--skip-bad-relationships \
+--database some-db \
+--nodes=Document="docs-header.csv,docs.csv" \
+--nodes="entities-header.csv,entities.csv" \
+--relationships=HAS_PARENT="doc-roots-header.csv,doc-roots.csv" \
+--relationships=APPEARS_IN="entity-docs-header.csv,entity-docs.csv"\n',
+        ),
+        (
+            "some-neo4j-home",
+            None,
+            'some-neo4j-home/bin/neo4j-admin import full \
+--skip-bad-relationships \
+--database neo4j \
+--nodes=Document="docs-header.csv,docs.csv" \
+--nodes="entities-header.csv,entities.csv" \
+--relationships=HAS_PARENT="doc-roots-header.csv,doc-roots.csv" \
+--relationships=APPEARS_IN="entity-docs-header.csv,entity-docs.csv"\n',
+        ),
+    ],
+)
+def test_neo4j_bulk_import_script(
+    neo4j_home: str, database: Optional[str], tmpdir, expected_cmd: str
+):
+    # Given
+    tmpdir = Path(tmpdir)
+    metadata = Neo4jCSVs(
+        nodes=[
+            NodeCSVs(
+                labels=["Document"],
+                header_path="docs-header.csv",
+                node_paths=["docs.csv"],
+                n_nodes=4,
+            ),
+            NodeCSVs(
+                labels=[],
+                header_path="entities-header.csv",
+                node_paths=["entities.csv"],
+                n_nodes=6,
+            ),
+        ],
+        relationships=[
+            RelationshipCSVs(
+                types=["HAS_PARENT"],
+                header_path="doc-roots-header.csv",
+                relationship_paths=["doc-roots.csv"],
+                n_relationships=3,
+            ),
+            RelationshipCSVs(
+                types=["APPEARS_IN"],
+                header_path="entity-docs-header.csv",
+                relationship_paths=["entity-docs.csv"],
+                n_relationships=6,
+            ),
+        ],
+    )
+    tmpdir.joinpath("metadata.json").write_text(json.dumps(metadata.dict(), indent=2))
+    script_path = tmpdir.joinpath("bulk-import.sh")
+    shutil.copy(ROOT_DIR.joinpath("scripts", "bulk-import.sh"), script_path)
+    cmd = [script_path, "--dry-run"]
+    if database is not None:
+        cmd.extend(("--database", database))
+    env = deepcopy(os.environ)
+    env["NEO4J_HOME"] = neo4j_home
+
+    # When
+    neo4j_cmd = subprocess.check_output(cmd, env=env).decode()
+
+    # Then
+    assert neo4j_cmd == expected_cmd
