@@ -325,7 +325,7 @@ async def to_neo4j_csvs(
         relationships.append(ne_rels_csvs)
     metadata = Neo4jCSVs(nodes=nodes, relationships=relationships)
     _, targz_path = tempfile.mkstemp(
-        prefix="neo4j-export", suffix=".tar.gz", dir=export_dir
+        prefix="neo4j-export-", suffix=".tar.gz", dir=export_dir
     )
     targz_path = Path(targz_path)
     _compress_csvs_destructively(export_dir, metadata, targz_path=targz_path)
