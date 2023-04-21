@@ -9,6 +9,6 @@ class IncrementalImportRequest(LowerCamelCaseModel):
 
 
 class IncrementalImportResponse(LowerCamelCaseModel):
-    nodes_imported: int = 0
+    imported: int = 0
     nodes_created: int = 0
     relationships_created: int = 0

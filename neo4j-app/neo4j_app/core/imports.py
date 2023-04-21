@@ -25,7 +25,10 @@ from neo4j_app.core.neo4j.documents import (
     documents_ids_tx,
     import_document_rows,
 )
-from neo4j_app.core.neo4j.named_entities import import_named_entity_rows
+from neo4j_app.core.neo4j.named_entities import (
+    ne_creation_stats_tx,
+    import_named_entity_rows,
+)
 from neo4j_app.core.objects import IncrementalImportResponse
 
 logger = logging.getLogger(__name__)
@@ -33,9 +36,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ImportSummary:
+    imported: int
     nodes_created: int
     relationships_created: int
-    es_ids: Optional[List[str]] = None
 
 
 class ImportTransactionFunction(Protocol):
@@ -91,7 +94,7 @@ async def import_documents(
             imported_entity_label="document nodes",
         )
     res = IncrementalImportResponse(
-        nodes_imported=len(import_summary.es_ids),
+        imported=import_summary.imported,
         nodes_created=import_summary.nodes_created,
         relationships_created=import_summary.relationships_created,
     )
@@ -112,6 +115,11 @@ async def import_named_entities(
 ) -> IncrementalImportResponse:
     async with neo4j_driver.session() as neo4j_session:
         document_ids = await neo4j_session.execute_read(documents_ids_tx)
+        # Because of this neo4j limitation (https://github.com/neo4j/neo4j/issues/13139)
+        # we have to count the number of relation created manually
+        initial_n_nodes, initial_n_rels = await neo4j_session.execute_read(
+            ne_creation_stats_tx
+        )
     # Since this is an incremental import we consider it reasonable to use an ES join,
     # however for named entities bulk import join should be avoided and post filtering
     # on the documentId will probably be much more efficient !
@@ -141,11 +149,13 @@ async def import_named_entities(
             max_records_in_memory=max_records_in_memory,
             imported_entity_label="named entity nodes",
         )
-        res = IncrementalImportResponse(
-            nodes_imported=len(import_summary.es_ids),
-            nodes_created=import_summary.nodes_created,
-            relationships_created=import_summary.relationships_created,
-        )
+    async with neo4j_driver.session() as neo4j_session:
+        n_nodes, n_rels = await neo4j_session.execute_read(ne_creation_stats_tx)
+    res = IncrementalImportResponse(
+        imported=import_summary.imported,
+        nodes_created=n_nodes - initial_n_nodes,
+        relationships_created=n_rels - initial_n_rels,
+    )
     return res
 
 
@@ -188,7 +198,7 @@ async def _es_to_neo4j_import(
         transaction_batch_size=neo4j_transaction_batch_size,
         to_neo4j_row=to_neo4j_row,
     )
-    es_ids, summaries = await es_client.to_neo4j(
+    imported, summaries = await es_client.to_neo4j(
         es_query,
         pit=es_pit,
         neo4j_import_worker_factory=neo4j_import_worker_factory,
@@ -204,8 +214,8 @@ async def _es_to_neo4j_import(
         summary.counters.relationships_created for summary in summaries
     )
     summary = ImportSummary(
+        imported=imported,
         nodes_created=nodes_created,
-        es_ids=es_ids,
         relationships_created=relationships_created,
     )
     return summary

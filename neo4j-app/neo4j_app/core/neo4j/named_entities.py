@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import neo4j
 
@@ -49,3 +49,18 @@ CALL {{
     res = await neo4j_session.run(query, rows=records, batchSize=transaction_batch_size)
     summary = await res.consume()
     return summary
+
+
+async def ne_creation_stats_tx(tx: neo4j.AsyncTransaction) -> Tuple[int, int]:
+    query = f"""MATCH (mention:{NE_NODE})
+WITH count(mention) as numMentions
+OPTIONAL MATCH (:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->(:{DOC_NODE})
+RETURN numMentions, count(rel) as numRels
+"""
+    res = await tx.run(query)
+    count = await res.single()
+    if count is None:
+        return 0, 0
+    node_count = count["numMentions"]
+    rel_count = count["numRels"]
+    return node_count, rel_count
