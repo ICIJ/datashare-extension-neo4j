@@ -19,7 +19,6 @@ from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.utils.pydantic import BaseICIJModel
 
-
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
 #  let's try to find a way to define the scope dynamically:
 #  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
@@ -212,7 +211,7 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
         yield {
             "_id": f"doc-{i}",
             "_source": {
-                "rootId": f"doc-{i -1}" if i else None,
+                "rootId": f"doc-{i - 1}" if i else None,
                 "dirname": f"dirname-{i}",
                 "contentType": f"content-type-{i}",
                 "contentLength": i**2,

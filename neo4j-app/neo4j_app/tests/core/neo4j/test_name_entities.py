@@ -38,9 +38,7 @@ async def test_import_named_entities(
         )
         n_existing_nodes = len(keys)
         records = [
-            row
-            for ent in created_first
-            for row in es_to_neo4j_named_entity_row(ent)
+            row for ent in created_first for row in es_to_neo4j_named_entity_row(ent)
         ]
         await import_named_entity_rows(
             neo4j_test_session,
