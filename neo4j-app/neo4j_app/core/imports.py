@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, TextI
 import neo4j
 from datrie import BaseTrie
 
+from neo4j_app import ROOT_DIR
 from neo4j_app.constants import (
     DOC_COLUMNS,
     DOC_ID,
@@ -722,11 +723,17 @@ def _compress_csvs_destructively(
     export_dir: Path, metadata: Neo4jCSVs, *, targz_path: Path
 ):
     with tarfile.open(targz_path, "w:gz") as tar:
+        # Index
         json_index = json.dumps(metadata.dict()).encode()
         index = io.BytesIO(json_index)
         index_info = tarfile.TarInfo(name="metadata.json")
         index_info.size = len(json_index)
         tar.addfile(index_info, index)
+        # Import script
+        tar.add(
+            ROOT_DIR.joinpath("scripts", "bulk-import.sh"), arcname="bulk-import.sh"
+        )
+        # CSVs
         nodes = (p for nodes in metadata.nodes for p in nodes.node_paths)
         relationships = (
             p for rels in metadata.relationships for p in rels.relationship_paths
