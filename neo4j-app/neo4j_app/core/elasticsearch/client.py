@@ -15,7 +15,6 @@ from neo4j_app.core.elasticsearch.utils import (
     DOC_,
     HITS,
     ID,
-    ID_,
     INDEX,
     KEEP_ALIVE,
     MAX,
@@ -24,12 +23,9 @@ from neo4j_app.core.elasticsearch.utils import (
     SEARCH_AFTER,
     SLICE,
     SORT,
-    and_query,
-    ids_query,
     match_all,
 )
-from neo4j_app.core.neo4j import Neo4Import, Neo4jImportWorker, write_neo4j_csv
-from neo4j_app.core.utils import batch
+from neo4j_app.core.neo4j import Neo4jImportWorker, write_neo4j_csv
 from neo4j_app.core.utils.asyncio import run_with_concurrency
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
@@ -143,7 +139,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         import_batch_size: int,
         keep_alive: Optional[str] = None,
         imported_entity_label: str,
-    ) -> [List[str], List[neo4j.ResultSummary]]:
+    ) -> [int, List[neo4j.ResultSummary]]:
         if num_neo4j_workers <= 0:
             raise ValueError("num_neo4j_workers must be > 0")
         if concurrency is None:
@@ -191,7 +187,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
             f"Retrieved all {imported_entity_label} from elasticsearch in"
             f" {{elapsed_time}} !",
         ):
-            es_ids = await self._fill_import_queue(
+            n_imported = await self._fill_import_queue(
                 import_batch_size=import_batch_size,
                 bodies=bodies,
                 queue=queue,
@@ -205,7 +201,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         # Wait for all results to be there
         summaries = await asyncio.gather(*neo4j_tasks)
         summaries = sum(summaries, [])
-        return es_ids, summaries
+        return n_imported, summaries
 
     async def write_concurrently_neo4j_csv(
         self,
@@ -253,10 +249,11 @@ class ESClientABC(metaclass=abc.ABCMeta):
     async def _fill_import_queue(
         self,
         queue: asyncio.Queue,
+        *,
         import_batch_size: int,
         bodies: List[Dict],
         max_concurrency: Optional[int] = None,
-    ) -> List[str]:
+    ) -> int:
         lock = asyncio.Lock()
         buffer = []
         futures = [
@@ -270,19 +267,16 @@ class ESClientABC(metaclass=abc.ABCMeta):
             for body in bodies
         ]
         if max_concurrency is None:
-            ids = await asyncio.gather(*futures)
-        else:
-            ids = [
-                res
-                async for res in run_with_concurrency(
-                    futures, max_concurrency=max_concurrency
-                )
-            ]
-        ids = sum(ids, [])
+            max_concurrency = len(futures)
+        imported = 0
+        async for n_imported in run_with_concurrency(
+            futures, max_concurrency=max_concurrency
+        ):
+            imported += n_imported
         if buffer:
-            ids += [rec[ID_] for rec in buffer]
+            imported += len(buffer)
             await _enqueue_import_batch(queue, buffer)
-        return ids
+        return imported
 
     async def _fill_import_buffer(
         self,
@@ -292,10 +286,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
         lock: asyncio.Lock,
         buffer: List[Dict],
         **kwargs,
-    ) -> List[str]:
+    ) -> int:
         # TODO: use https://github.com/jd/tenacity to implement retry with backoff in
         #  case of network error
-        ids = []
+        imported = 0
         # Since we can't provide an async generator to the neo4j client, let's store
         # results into a list fitting in memory, which will then be split into
         # transaction batches
@@ -304,9 +298,9 @@ class ESClientABC(metaclass=abc.ABCMeta):
             async with lock:
                 if len(buffer) >= import_batch_size:
                     await _enqueue_import_batch(queue, buffer)
-                    ids += [rec[ID_] for rec in buffer]
+                    imported += len(buffer)
                     buffer.clear()
-        return ids
+        return imported
 
     async def _write_search_to_neo4j_csv_with_lock(
         self,

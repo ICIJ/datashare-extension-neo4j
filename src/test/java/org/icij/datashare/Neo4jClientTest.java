@@ -45,9 +45,9 @@ public class Neo4jClientTest {
         private Payload mockImport(Context context) throws IOException {
             String body;
             if (Objects.equals(context.request().content(), "{}")) {
-                body = "{\"nToInsert\": 3,\"nInserted\": 3}";
+                body = "{\"imported\": 3,\"nodesCreated\": 3,\"relationshipsCreated\": 3}";
             } else {
-                body = "{\"nToInsert\": 3,\"nInserted\": 1}";
+                body = "{\"imported\": 3,\"nodesCreated\": 1,\"relationshipsCreated\": 1}";
             }
             return new Payload("application/json", body);
         }
@@ -71,8 +71,9 @@ public class Neo4jClientTest {
                 new org.icij.datashare.Objects.IncrementalImportRequest(null);
             org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
             // Then
-            assertThat(res.nodesImported).isEqualTo(3);
+            assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(3);
+            assertThat(res.relationshipsCreated).isEqualTo(3);
         }
 
         @Test
@@ -89,8 +90,9 @@ public class Neo4jClientTest {
             // When
             org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
             // Then
-            assertThat(res.nodesImported).isEqualTo(3);
+            assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(1);
+            assertThat(res.relationshipsCreated).isEqualTo(1);
         }
 
         @Test
@@ -143,8 +145,9 @@ public class Neo4jClientTest {
             org.icij.datashare.Objects.IncrementalImportResponse res =
                 client.importNamedEntities(body);
             // Then
-            assertThat(res.nodesImported).isEqualTo(3);
+            assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(3);
+            assertThat(res.relationshipsCreated).isEqualTo(3);
         }
 
         @Test
@@ -162,8 +165,9 @@ public class Neo4jClientTest {
             org.icij.datashare.Objects.IncrementalImportResponse res =
                 client.importNamedEntities(body);
             // Then
-            assertThat(res.nodesImported).isEqualTo(3);
+            assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(1);
+            assertThat(res.relationshipsCreated).isEqualTo(1);
         }
     }
 }

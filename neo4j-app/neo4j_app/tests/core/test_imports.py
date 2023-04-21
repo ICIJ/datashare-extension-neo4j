@@ -42,7 +42,7 @@ async def _populate_es(
             None,
             "type",
             IncrementalImportResponse(
-                nodes_imported=20, nodes_created=20, relationships_created=19
+                imported=20, nodes_created=20, relationships_created=19
             ),
         ),
         # Match all query, let's check that only documents are inserted and not noise
@@ -50,7 +50,7 @@ async def _populate_es(
             {"match_all": {}},
             "type",
             IncrementalImportResponse(
-                nodes_imported=20, nodes_created=20, relationships_created=19
+                imported=20, nodes_created=20, relationships_created=19
             ),
         ),
         # Term query, let's check that only the right doc is inserted
@@ -58,7 +58,7 @@ async def _populate_es(
             {"ids": {"values": ["doc-0"]}},
             "type",
             IncrementalImportResponse(
-                nodes_imported=1, nodes_created=1, relationships_created=0
+                imported=1, nodes_created=1, relationships_created=0
             ),
         ),
         # Let's check that the doc_type_field is taken into account
@@ -110,7 +110,7 @@ async def test_import_documents(
             None,
             "type",
             IncrementalImportResponse(
-                nodes_imported=12,
+                imported=12,
                 nodes_created=int(12 / 3 * 2),
                 relationships_created=int(12 / 3 * 2),
             ),
@@ -120,7 +120,7 @@ async def test_import_documents(
             {"match_all": {}},
             "type",
             IncrementalImportResponse(
-                nodes_imported=12,
+                imported=12,
                 nodes_created=int(12 / 3 * 2),
                 relationships_created=int(12 / 3 * 2),
             ),
@@ -130,7 +130,7 @@ async def test_import_documents(
             {"ids": {"values": ["named-entity-0"]}},
             "type",
             IncrementalImportResponse(
-                nodes_imported=1,
+                imported=1,
                 nodes_created=1,
                 relationships_created=1,
             ),
@@ -140,7 +140,7 @@ async def test_import_documents(
             None,
             "fieldThatDoesNotExists",
             IncrementalImportResponse(
-                nodes_imported=0, nodes_created=0, relationships_created=0
+                imported=0, nodes_created=0, relationships_created=0
             ),
         ),
     ],
