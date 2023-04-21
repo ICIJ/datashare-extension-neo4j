@@ -1,2 +1,3 @@
 .github/CODEOWNERS @ICIJ/developers
 src/main/resources/manifest.txt @ICIJ/developers
+neo4j-app/neo4j_app/scripts @ICIJ/developers
