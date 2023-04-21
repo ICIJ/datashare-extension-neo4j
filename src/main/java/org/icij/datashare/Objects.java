@@ -7,17 +7,17 @@ import java.util.HashMap;
 public class Objects {
     static class IncrementalImportResponse {
         //CHECKSTYLE.OFF: MemberName
-        public final long nodesImported;
+        public final long imported;
         public final long nodesCreated;
         public final long relationshipsCreated;
         //CHECKSTYLE.ON: MemberName
 
         //CHECKSTYLE.OFF: ParameterName
         @JsonCreator
-        IncrementalImportResponse(@JsonProperty("nodesImported") long nodesImported,
+        IncrementalImportResponse(@JsonProperty("imported") long imported,
                                   @JsonProperty("nodesCreated") long nodesCreated,
                                   @JsonProperty("relationshipsCreated") long relationshipsCreated) {
-            this.nodesImported = nodesImported;
+            this.imported = imported;
             this.nodesCreated = nodesCreated;
             this.relationshipsCreated = relationshipsCreated;
         }
