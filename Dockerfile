@@ -12,6 +12,7 @@ RUN add-apt-repository --yes ppa:deadsnakes/ppa
 RUN --mount=type=cache,target=/var/cache/apt  \
     apt-get -y update && \
     apt-get -y install \
+        build-essential \
         libssl-dev \
         maven \
         git-all \
