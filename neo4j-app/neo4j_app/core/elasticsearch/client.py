@@ -87,6 +87,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
         info = await self.info()
         return StrictVersion(info["version"]["number"])
 
+    @abc.abstractmethod
+    def default_sort(self, pit_search: bool) -> str:
+        pass
+
     async def search(self, **kwargs) -> Dict[str, Any]:
         # pylint: disable=arguments-differ
         if PIT not in kwargs and PIT not in kwargs.get("body", {}):
@@ -98,10 +102,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         self, sort: Optional[List[Dict]] = None, size: Optional[int] = None, **kwargs
     ) -> AsyncGenerator[Dict[str, Any], None]:
         if sort is None:
-            if PIT in kwargs["body"]:
-                sort = f"{SHARD_DOC_}:{ASC}"
-            else:
-                sort = f"{DOC_}:{ASC}"
+            sort = self.default_sort(pit_search=PIT in kwargs["body"])
         if size is None:
             size = self.pagination_size
         if not size:
@@ -427,6 +428,11 @@ class ESClient(ESClientABC, AsyncElasticsearch):
     def _pit_id(self) -> str:
         return ID
 
+    def default_sort(self, pit_search: bool) -> str:
+        if pit_search:
+            return f"{SHARD_DOC_}:{ASC}"
+        return f"{DOC_}:{ASC}"
+
     async def _close_pit(self, pit_id: str):
         await self.close_point_in_time(body={ID: pit_id})
 
@@ -457,6 +463,11 @@ try:
         @cached_property
         def _pit_id(self) -> str:
             return "pid_id"
+
+        def default_sort(
+            self, pit_search: bool
+        ) -> str:  # pylint: disable=unused-argument
+            return f"{DOC_}:{ASC}"
 
         async def open_point_in_time(
             self, index: str, keep_alive: str, **kwargs

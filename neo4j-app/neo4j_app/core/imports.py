@@ -66,7 +66,6 @@ from neo4j_app.core.elasticsearch.utils import (
     QUERY,
     SCORE_,
     SEED,
-    SHARD_DOC_,
     SORT,
     and_query,
     function_score,
@@ -487,7 +486,7 @@ async def _export_es_named_entities_as_csvs(
     # We order results by doc id in order to be able to buffer in an efficient way
     # emptying the buffer when we find new document ids, we use the _shard_doc as a
     # tie breaker
-    sort = [f"{SCORE_}:{ASC}", f"{SHARD_DOC_}:{ASC}"]
+    sort = [f"{SCORE_}:{ASC}", es_client.default_sort(pit_search=True)]
     # https://github.com/elastic/elasticsearch/issues/2917#issuecomment-239662433
     pit = deepcopy(es_pit)
     pit[KEEP_ALIVE] = es_keep_alive
