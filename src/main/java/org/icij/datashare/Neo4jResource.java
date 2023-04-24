@@ -189,7 +189,7 @@ public class Neo4jResource {
             context.extract(org.icij.datashare.Objects.Neo4jCSVRequest.class);
         return wrapNeo4jAppCall(() -> {
             try {
-                return this.exportNeo4jCSVs(request);
+                return this.exportNeo4jCSVs(project, request);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -386,8 +386,15 @@ public class Neo4jResource {
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
-    protected InputStream exportNeo4jCSVs(org.icij.datashare.Objects.Neo4jCSVRequest request)
+    protected InputStream exportNeo4jCSVs(
+        String projectId, org.icij.datashare.Objects.Neo4jCSVRequest request
+    )
         throws IOException {
+        // TODO: the database should be chosen dynamically with the Mode (local vs. server) and
+        //  the project
+        checkExtensionProject(projectId);
+        checkNeo4jAppStarted();
+        String database = "neo4j";
         // Define a temp dir
         Path tmpDir = createTempDirectory(
             Path.of(FileSystems.getDefault().getSeparator(), "tmp"), "neo4j-export");
@@ -395,7 +402,7 @@ public class Neo4jResource {
             tmpDir.toAbsolutePath().toString());
         try {
             org.icij.datashare.Objects.Neo4jCSVResponse res =
-                client.exportNeo4jCSVs(neo4jAppRequest);
+                client.exportNeo4jCSVs(database, neo4jAppRequest);
             logger.info("Exported data from ES to neo4j, statistics: {}",
                 lazy(() -> MAPPER.writeValueAsString(res.metadata)));
             InputStream is = new FileInputStream(res.path);

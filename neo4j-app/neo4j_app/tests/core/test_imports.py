@@ -353,6 +353,7 @@ async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
         es_concurrency=None,
         es_keep_alive="1m",
         es_doc_type_field=es_doc_type_field,
+        neo4j_db="neo4j",
     )
     with tarfile.open(res.path, "r:gz") as f:
         f.extractall(export_dir)
@@ -362,6 +363,7 @@ async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
     assert metadata_path.exists()
     metadata = Neo4jCSVs.parse_file(metadata_path)
     assert metadata == res.metadata
+    assert metadata.db == "neo4j"
 
     assert len(metadata.nodes) == 2
 
@@ -432,25 +434,14 @@ mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYP
 
 
 @pytest.mark.parametrize(
-    "neo4j_home,database,expected_cmd",
+    "neo4j_home,db,expected_cmd",
     [
         (
             ".",
-            None,
+            "some-specific-db",
             './bin/neo4j-admin import full \
 --skip-bad-relationships \
---database neo4j \
---nodes=Document="docs-header.csv,docs.csv" \
---nodes="entities-header.csv,entities.csv" \
---relationships=HAS_PARENT="doc-roots-header.csv,doc-roots.csv" \
---relationships=APPEARS_IN="entity-docs-header.csv,entity-docs.csv"\n',
-        ),
-        (
-            ".",
-            "some-db",
-            './bin/neo4j-admin import full \
---skip-bad-relationships \
---database some-db \
+--database some-specific-db \
 --nodes=Document="docs-header.csv,docs.csv" \
 --nodes="entities-header.csv,entities.csv" \
 --relationships=HAS_PARENT="doc-roots-header.csv,doc-roots.csv" \
@@ -458,7 +449,7 @@ mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYP
         ),
         (
             "some-neo4j-home",
-            None,
+            "neo4j",
             'some-neo4j-home/bin/neo4j-admin import full \
 --skip-bad-relationships \
 --database neo4j \
@@ -470,11 +461,12 @@ mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYP
     ],
 )
 def test_neo4j_bulk_import_script(
-    neo4j_home: str, database: Optional[str], tmpdir, expected_cmd: str
+    neo4j_home: str, db: Optional[str], tmpdir, expected_cmd: str
 ):
     # Given
     tmpdir = Path(tmpdir)
     metadata = Neo4jCSVs(
+        db=db,
         nodes=[
             NodeCSVs(
                 labels=["Document"],
@@ -508,8 +500,6 @@ def test_neo4j_bulk_import_script(
     script_path = tmpdir.joinpath("bulk-import.sh")
     shutil.copy(ROOT_DIR.joinpath("scripts", "bulk-import.sh"), script_path)
     cmd = [script_path, "--dry-run"]
-    if database is not None:
-        cmd.extend(("--database", database))
     env = deepcopy(os.environ)
     env["NEO4J_HOME"] = neo4j_home
 

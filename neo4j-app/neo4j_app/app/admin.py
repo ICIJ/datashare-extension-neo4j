@@ -33,6 +33,7 @@ def admin_router() -> APIRouter:
         description=DOC_NEO4J_CSV_DESC,
     )
     async def _neo4j_csv(
+        database: str,
         payload: Neo4jCSVRequest,
         request: Request,
         es_client: ESClientABC = Depends(es_client_dep),
@@ -49,6 +50,7 @@ def admin_router() -> APIRouter:
                 es_concurrency=config.es_max_concurrency,
                 es_keep_alive=config.es_keep_alive,
                 es_doc_type_field=config.es_doc_type_field,
+                neo4j_db=database,
             )
         return res
 

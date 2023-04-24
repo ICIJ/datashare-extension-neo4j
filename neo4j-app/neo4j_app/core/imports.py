@@ -290,6 +290,7 @@ async def to_neo4j_csvs(
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
     es_doc_type_field: str,
+    neo4j_db: str,
 ) -> Neo4jCSVResponse:
     nodes = []
     relationships = []
@@ -323,7 +324,7 @@ async def to_neo4j_csvs(
         )
         nodes.append(ne_nodes_csvs)
         relationships.append(ne_rels_csvs)
-    metadata = Neo4jCSVs(nodes=nodes, relationships=relationships)
+    metadata = Neo4jCSVs(db=neo4j_db, nodes=nodes, relationships=relationships)
     _, targz_path = tempfile.mkstemp(
         prefix="neo4j-export-", suffix=".tar.gz", dir=export_dir
     )
