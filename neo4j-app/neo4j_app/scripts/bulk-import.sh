@@ -7,7 +7,7 @@ function _export_global_variables() {
 
 function _helpers() {
     function _check_jq() {
-        command -v poetry 1>/dev/null 2>&1 || _exit_with_message "jq is not installed"
+        command -v jq 1>/dev/null 2>&1 || _exit_with_message "jq is not installed"
     }
 
     function _check_neo4j_home() {
