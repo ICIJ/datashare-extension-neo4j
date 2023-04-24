@@ -59,7 +59,7 @@ function _commands() {
     function _parse_admin_import_cmd() {
         local parsed
         # We skip bad relationships since doc root relationship might point to non imported document
-        parsed="$NEO4J_HOME/bin/neo4j-admin import full --skip-bad-relationships $(_parse_db)$(_parse_nodes)$(_parse_relationships)"
+        parsed="$NEO4J_HOME/bin/neo4j-admin database import full --skip-bad-relationships $(_parse_db)$(_parse_nodes)$(_parse_relationships)"
         echo "$parsed"
     }
 }
