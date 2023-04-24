@@ -33,10 +33,6 @@ tomli = { version = "^2.0.1", markers = 'python_version < "3.11"' }
 [tool.poetry.group.opensearch.dependencies]
 opensearch-py = "^2.2.0"
 
-
-
-[tool.poetry.group.admin.dependencies]
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
