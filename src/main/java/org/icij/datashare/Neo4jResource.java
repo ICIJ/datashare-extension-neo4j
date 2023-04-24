@@ -339,7 +339,7 @@ public class Neo4jResource implements AutoCloseable {
         String database = "neo4j";
         // Define a temp dir
         Path tmpDir = createTempDirectory(
-            Path.of(FileSystems.getDefault().getSeparator(), "tmp"), "neo4j-export");
+            Path.of(FileSystems.getDefault().getSeparator(), "tmp"), "neo4j-export-");
         org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest neo4jAppRequest = request.toNeo4j(
             tmpDir.toAbsolutePath().toString());
         try {
@@ -350,7 +350,7 @@ public class Neo4jResource implements AutoCloseable {
             InputStream is = new FileInputStream(res.path);
             return new BufferedInputStream(is);
         } finally {
-            Files.delete(tmpDir);
+            Files.deleteIfExists(tmpDir);
         }
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
