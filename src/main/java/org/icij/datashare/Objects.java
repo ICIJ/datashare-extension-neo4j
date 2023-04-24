@@ -110,9 +110,9 @@ public class Objects {
 
         @JsonCreator
         RelationshipCSVs(@JsonProperty("types") List<String> types,
-                 @JsonProperty("headerPath") String headerPath,
-                 @JsonProperty("relationshipPaths") List<String> relationshipPaths,
-                 @JsonProperty("nNodes") long nRelationships) {
+                         @JsonProperty("headerPath") String headerPath,
+                         @JsonProperty("relationshipPaths") List<String> relationshipPaths,
+                         @JsonProperty("nNodes") long nRelationships) {
             this.types = types;
             this.headerPath = headerPath;
             this.relationshipPaths = relationshipPaths;
