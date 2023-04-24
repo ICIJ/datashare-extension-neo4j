@@ -33,7 +33,9 @@ def es_to_neo4j_doc_row(document_hit: Dict) -> List[Dict[str, str]]:
     doc = {DOC_ID: document_hit["_id"]}
     hit_source = document_hit[SOURCE]
     doc.update({k: hit_source[k] for k in hit_source if k in DOC_COLUMNS})
-    doc[DOC_ROOT_ID] = hit_source[DOC_ROOT_ID]
+    root_id = hit_source.get(DOC_ROOT_ID)
+    if root_id is not None:
+        doc[DOC_ROOT_ID] = root_id
     return [doc]
 
 
