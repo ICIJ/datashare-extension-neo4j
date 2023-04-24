@@ -394,7 +394,7 @@ doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
 
     ne_nodes_export = metadata.nodes[1]
     assert ne_nodes_export.n_nodes == 3 * 2
-    assert ne_nodes_export.labels == []
+    assert ne_nodes_export.labels == [NE_NODE]
 
     ne_nodes_header_path = archive_dir / ne_nodes_export.header_path
     expected_ne_header = """:ID,mentionNorm,:LABEL
@@ -429,7 +429,7 @@ doc-6,doc-5
 
     ne_doc_rels_header_path = archive_dir / ne_doc_rels_export.header_path
     expected_ne_doc_rels_header = """mentionExtractors:STRING[],extractorLanguage,\
-mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYPE
+mentionIds:STRING[],offsets:LONG[],:START_ID,:END_ID(Document),:TYPE
 """
     assert_content(ne_doc_rels_header_path, expected_ne_doc_rels_header)
 
@@ -447,23 +447,25 @@ mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYP
             ".",
             "some-specific-db",
             './bin/neo4j-admin database import full \
+--array-delimiter="|" \
 --skip-bad-relationships \
---database some-specific-db \
 --nodes=Document="docs-header.csv,docs.csv" \
 --nodes="entities-header.csv,entities.csv" \
 --relationships=HAS_PARENT="doc-roots-header.csv,doc-roots.csv" \
---relationships=APPEARS_IN="entity-docs-header.csv,entity-docs.csv"\n',
+--relationships=APPEARS_IN="entity-docs-header.csv,entity-docs.csv" \
+some-specific-db\n',
         ),
         (
             "some-neo4j-home",
             "neo4j",
             'some-neo4j-home/bin/neo4j-admin database import full \
+--array-delimiter="|" \
 --skip-bad-relationships \
---database neo4j \
 --nodes=Document="docs-header.csv,docs.csv" \
 --nodes="entities-header.csv,entities.csv" \
 --relationships=HAS_PARENT="doc-roots-header.csv,doc-roots.csv" \
---relationships=APPEARS_IN="entity-docs-header.csv,entity-docs.csv"\n',
+--relationships=APPEARS_IN="entity-docs-header.csv,entity-docs.csv" \
+neo4j\n',
         ),
     ],
 )

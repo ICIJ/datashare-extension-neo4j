@@ -99,14 +99,13 @@ def es_to_neo4j_named_entity_csv(
     return [ne]
 
 
-_NE_DOC_REL_START_COL = f"{NEO4J_CSV_START_ID}({NE_NODE})"
 _NE_DOC_REL_END_COL = f"{NEO4J_CSV_END_ID}({DOC_NODE})"
 
 
 def es_to_neo4j_named_entity_doc_rel_csv(ne_hit: Dict) -> List[Dict[str, str]]:
     rel = es_to_neo4j_named_entity_row(ne_hit)
     item = rel[0]
-    item[_NE_DOC_REL_START_COL] = make_ne_hit_id(
+    item[NEO4J_CSV_START_ID] = make_ne_hit_id(
         mention_norm=ne_hit[SOURCE][NE_MENTION_NORM],
         category=ne_hit[SOURCE][NE_CATEGORY],
     )
