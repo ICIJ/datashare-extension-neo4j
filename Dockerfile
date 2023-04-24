@@ -13,9 +13,10 @@ RUN --mount=type=cache,target=/var/cache/apt  \
     apt-get -y update && \
     apt-get -y install \
         build-essential \
+        git-all \
+        jq \
         libssl-dev \
         maven \
-        git-all \
         python3.9 \
         python3.9-dev \
 	    openjdk-11-jdk \
