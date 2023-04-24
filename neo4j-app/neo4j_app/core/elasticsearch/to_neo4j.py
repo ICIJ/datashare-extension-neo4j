@@ -43,7 +43,7 @@ def es_to_neo4j_doc_csv(
     document_hit: Dict, *, prop_to_col_header: Dict[str, str]
 ) -> List[Dict[str, str]]:
     doc = es_to_neo4j_doc_row(document_hit)[0]
-    doc.pop(DOC_ROOT_ID)
+    doc.pop(DOC_ROOT_ID, None)
     doc = {prop_to_col_header[prop]: value for prop, value in doc.items()}
     doc[NEO4J_CSV_LABEL] = DOC_NODE
     return [doc]
