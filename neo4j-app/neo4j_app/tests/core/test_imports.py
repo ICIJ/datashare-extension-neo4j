@@ -234,6 +234,9 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
     neo4j_session = insert_docs_in_neo4j
     res = await neo4j_session.run(query)
     rels = [dict(rel["rel"].items()) async for rel in res]
+    for rel in rels:
+        rel["mentionIds"] = sorted(rel["mentionIds"])
+        rel["mentionExtractors"] = sorted(rel["mentionExtractors"])
 
     # Then
     expected_rels = [
@@ -245,7 +248,7 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
         },
         {
             "offsets": [0, 1, 2],
-            "mentionExtractors": ["spacy", "core-nlp"],
+            "mentionExtractors": ["core-nlp", "spacy"],
             "mentionIds": ["named-entity-1", "named-entity-2"],
             "extractorLanguage": "en",
         },
