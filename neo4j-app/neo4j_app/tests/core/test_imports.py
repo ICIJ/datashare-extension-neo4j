@@ -360,11 +360,13 @@ async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
         es_doc_type_field=es_doc_type_field,
         neo4j_db="neo4j",
     )
+    archive_dir = export_dir.joinpath("archive")
+    archive_dir.mkdir()
     with tarfile.open(res.path, "r:gz") as f:
-        f.extractall(export_dir)
+        f.extractall(archive_dir)
 
     # Then
-    metadata_path = export_dir / "metadata.json"
+    metadata_path = archive_dir / "metadata.json"
     assert metadata_path.exists()
     metadata = Neo4jCSVs.parse_file(metadata_path)
     assert metadata == res.metadata
@@ -379,7 +381,7 @@ async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
     expected_doc_header = """\
 id:ID(Document),dirname,contentType,contentLength:LONG,extractionDate:DATETIME,path,:LABEL
 """
-    doc_nodes_header_path = export_dir / doc_nodes_export.header_path
+    doc_nodes_header_path = archive_dir / doc_nodes_export.header_path
     assert_content(doc_nodes_header_path, expected_doc_header)
 
     expected_doc_nodes = """doc-0,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,dirname-0,Document
@@ -387,19 +389,19 @@ doc-1,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1,Document
 doc-3,dirname-3,content-type-3,9,2023-02-06T13:48:22.3866,dirname-3,Document
 doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
 """
-    doc_root_rels_path = export_dir / doc_nodes_export.node_paths[0]
+    doc_root_rels_path = archive_dir / doc_nodes_export.node_paths[0]
     assert_content(doc_root_rels_path, expected_doc_nodes, sort_lines=True)
 
     ne_nodes_export = metadata.nodes[1]
     assert ne_nodes_export.n_nodes == 3 * 2
     assert ne_nodes_export.labels == []
 
-    ne_nodes_header_path = export_dir / ne_nodes_export.header_path
+    ne_nodes_header_path = archive_dir / ne_nodes_export.header_path
     expected_ne_header = """:ID,mentionNorm,:LABEL
 """
     assert_content(ne_nodes_header_path, expected_ne_header)
 
-    ne_nodes_path = export_dir / ne_nodes_export.node_paths[0]
+    ne_nodes_path = archive_dir / ne_nodes_export.node_paths[0]
     expected_ne = _expected_ne_nodes_lines()
     assert_content(ne_nodes_path, expected_ne, sort_lines=True)
 
@@ -411,31 +413,31 @@ doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
 
     expected_doc_root_rels_header = """:START_ID(Document),:END_ID(Document)
 """
-    doc_root_rels_header_path = export_dir / doc_root_rel_export.header_path
+    doc_root_rels_header_path = archive_dir / doc_root_rel_export.header_path
     assert_content(doc_root_rels_header_path, expected_doc_root_rels_header)
 
     expected_doc_root_rels = """doc-1,doc-0
 doc-3,doc-2
 doc-6,doc-5
 """
-    doc_root_rels_path = export_dir / doc_root_rel_export.relationship_paths[0]
+    doc_root_rels_path = archive_dir / doc_root_rel_export.relationship_paths[0]
     assert_content(doc_root_rels_path, expected_doc_root_rels, sort_lines=True)
 
     ne_doc_rels_export = metadata.relationships[1]
     assert ne_doc_rels_export.n_relationships == 3 * 2
     assert ne_doc_rels_export.types == [NE_APPEARS_IN_DOC]
 
-    ne_doc_rels_header_path = export_dir / ne_doc_rels_export.header_path
+    ne_doc_rels_header_path = archive_dir / ne_doc_rels_export.header_path
     expected_ne_doc_rels_header = """mentionExtractors:STRING[],extractorLanguage,\
 mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYPE
 """
     assert_content(ne_doc_rels_header_path, expected_ne_doc_rels_header)
 
-    ne_doc_rels_path = export_dir / ne_doc_rels_export.relationship_paths[0]
+    ne_doc_rels_path = archive_dir / ne_doc_rels_export.relationship_paths[0]
     ne_doc_rels = _expected_ne_doc_rel_lines()
     assert_content(ne_doc_rels_path, ne_doc_rels, sort_lines=True)
 
-    assert export_dir.joinpath("bulk-import.sh").exists()
+    assert archive_dir.joinpath("bulk-import.sh").exists()
 
 
 @pytest.mark.parametrize(
@@ -444,7 +446,7 @@ mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYP
         (
             ".",
             "some-specific-db",
-            './bin/neo4j-admin import full \
+            './bin/neo4j-admin database import full \
 --skip-bad-relationships \
 --database some-specific-db \
 --nodes=Document="docs-header.csv,docs.csv" \
@@ -455,7 +457,7 @@ mentionIds:STRING[],offsets:LONG[],:START_ID(NamedEntity),:END_ID(Document),:TYP
         (
             "some-neo4j-home",
             "neo4j",
-            'some-neo4j-home/bin/neo4j-admin import full \
+            'some-neo4j-home/bin/neo4j-admin database import full \
 --skip-bad-relationships \
 --database neo4j \
 --nodes=Document="docs-header.csv,docs.csv" \
