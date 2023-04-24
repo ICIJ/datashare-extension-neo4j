@@ -46,7 +46,8 @@ The `<docFieldType>` defaults to `type` and is supposed to be forwarded from the
 app to the Python one through configuration. 
 """
 
-DOC_NEO4J_CSV = "Export data from elasticsearch into a neo4j"
+DOC_NEO4J_CSV = "Export data from elasticsearch into CSVs which can then be used to" \
+" call the `neo4j-admin import` CLI"
 DOC_NEO4J_CSV_DESC = """Documents are searched for in `elasticsearch` using the \
 optionally provided query they are then dumped into a CSV. 
 
@@ -89,7 +90,16 @@ then the query which will actually be performed will be:
 ```
 
 The `<docFieldType>` defaults to `type` and is supposed to be forwarded from the Java \
-app to the Python one through configuration. 
+app to the Python one through configuration.
+
+When the export is complete a archive containing the CSVs and a import script is 
+available at the returned path. 
+
+After decompressing the archive the import can be done as described above:
+```
+./bulk-import.sh --dry-run
+./bulk-import.sh
+``` 
 """
 
 
