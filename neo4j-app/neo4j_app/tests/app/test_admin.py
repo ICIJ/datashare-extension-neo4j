@@ -50,7 +50,7 @@ async def test_post_named_entities_import_should_return_200(
                 n_nodes=1,
             ),
             NodeCSVs(
-                labels=[],
+                labels=["NamedEntity"],
                 header_path="entities-header.csv",
                 node_paths=["entities.csv"],
                 n_nodes=2,

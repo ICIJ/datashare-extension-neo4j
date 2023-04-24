@@ -399,8 +399,7 @@ async def _to_neo4j_doc_csvs(
     return node, rel
 
 
-_NE_DOC_REL_START_CSV_COL = f"{NEO4J_CSV_START_ID}({NE_NODE})"
-_NE_DOC_REL_HEADER = [_NE_DOC_REL_START_CSV_COL, _DOC_REL_END_CSV_COL, NEO4J_CSV_TYPE]
+_NE_DOC_REL_HEADER = [NEO4J_CSV_START_ID, _DOC_REL_END_CSV_COL, NEO4J_CSV_TYPE]
 
 
 async def _to_neo4j_ne_csvs(
@@ -449,7 +448,7 @@ async def _to_neo4j_ne_csvs(
                     es_doc_type_field=es_doc_type_field,
                 )
     node = NodeCSVs(
-        labels=[],
+        labels=[NE_NODE],
         header_path=ne_nodes_header_path.name,
         node_paths=[ne_nodes_path.name],
         n_nodes=n_ne_nodes,
@@ -613,8 +612,8 @@ def _fill_ne_aggregation_buffer(
     item = buffer[key]
     if NEO4J_CSV_TYPE not in item:
         item[NEO4J_CSV_TYPE] = NE_APPEARS_IN_DOC
-    if _NE_DOC_REL_START_CSV_COL not in item:
-        item[_NE_DOC_REL_START_CSV_COL] = rel[_NE_DOC_REL_START_CSV_COL]
+    if NEO4J_CSV_START_ID not in item:
+        item[NEO4J_CSV_START_ID] = rel[NEO4J_CSV_START_ID]
     if _DOC_REL_END_CSV_COL not in item:
         item[_DOC_REL_END_CSV_COL] = rel[_DOC_REL_END_CSV_COL]
     if NE_EXTRACTOR_LANG not in item:
