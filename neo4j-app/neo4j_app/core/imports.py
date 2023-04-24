@@ -743,6 +743,11 @@ def _compress_csvs_destructively(
             _compress_and_destroy(
                 tar, root_dir=export_dir, path=export_dir.joinpath(path)
             )
+        nodes_headers = (n.header_path for n in metadata.nodes)
+        rels_headers = (r.header_path for r in metadata.relationships)
+        headers = itertools.chain(nodes_headers, rels_headers)
+        for header in headers:
+            tar.add(export_dir.joinpath(header), arcname=header)
     return targz_path
 
 
