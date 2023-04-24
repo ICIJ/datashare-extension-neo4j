@@ -20,6 +20,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -350,7 +351,10 @@ public class Neo4jResource implements AutoCloseable {
             InputStream is = new FileInputStream(res.path);
             return new BufferedInputStream(is);
         } finally {
-            Files.deleteIfExists(tmpDir);
+            Files.walk(tmpDir)
+                .sorted(Comparator.reverseOrder())
+                .map(Path::toFile)
+                .forEach(File::delete);
         }
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
