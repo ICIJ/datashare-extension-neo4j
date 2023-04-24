@@ -30,7 +30,7 @@ async def test_post_named_entities_import_should_return_200(
     test_client = test_client_module
     export_dir = Path(tmpdir)
     query = {"ids": {"values": ["doc-0"]}}
-    url = "/admin/neo4j-csvs"
+    url = "/admin/neo4j-csvs?database=neo4j"
     payload = {"exportDir": str(export_dir), "query": query}
 
     # When
@@ -41,6 +41,7 @@ async def test_post_named_entities_import_should_return_200(
     res = Neo4jCSVResponse.parse_obj(res.json())
     assert Path(res.path).exists()
     expected_metadata = Neo4jCSVs(
+        db="neo4j",
         nodes=[
             NodeCSVs(
                 labels=["Document"],

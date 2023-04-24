@@ -20,27 +20,33 @@ function _helpers() {
     }
 
     function _parse_nodes() {
-        local cmd
-        cmd=
+        local parsed
+        parsed=
         local nodes
         nodes=$(jq -r '.nodes[] | "\(if .labels | length > 0 then .labels | join("|") + "=" else "" end)\"\(.headerPath),\(.nodePaths | join(","))\""' "$ROOT_DIR"/metadata.json)
         for n in $nodes;do
-            cmd+=" --nodes=$n"
+            parsed+=" --nodes=$n"
         done
-        echo "$cmd"
+        echo "$parsed"
     }
 
     function _parse_relationships() {
-        local cmd
-        cmd=
+        local parsed
+        parsed=
         local rels
         rels=$(
             jq -r '.relationships[] | "\(if .types | length > 0 then .types | join("|") + "=" else "" end)\"\(.headerPath),\(.relationshipPaths | join(","))\""' "$ROOT_DIR"/metadata.json
         )
         for r in $rels;do
-            cmd+=" --relationships=$r"
+            parsed+=" --relationships=$r"
         done
-        echo "$cmd"
+        echo "$parsed"
+    }
+
+    function _parse_db() {
+        local parsed
+        parsed="--database $(jq -r '.db' "$ROOT_DIR"/metadata.json)"
+        echo "$parsed"
     }
 
     function _perform_sanity_checks() {
@@ -51,34 +57,27 @@ function _helpers() {
 
 function _commands() {
     function _parse_admin_import_cmd() {
-        local cmd
-        local database
-        database="${DB:=neo4j}"
+        local parsed
         # We skip bad relationships since doc root relationship might point to non imported document
-        cmd="$NEO4J_HOME/bin/neo4j-admin import full --skip-bad-relationships --database $database$(_parse_nodes)$(_parse_relationships)"
-        echo "$cmd"
+        parsed="$NEO4J_HOME/bin/neo4j-admin import full --skip-bad-relationships $(_parse_db)$(_parse_nodes)$(_parse_relationships)"
+        echo "$parsed"
     }
 }
 
 
 function _main() {
     FLAG_DRY_RUN=
-    DB=
 
     function _parse_args() {
         # Unless specified we run commands for all projects
         local arg
-        local arg_value
         local skip
         for i in $(seq 1 $#); do
             j=$((i + 1))
             if [[ -z "$skip" ]]; then
                 arg="${!i}"
-                arg_value="${!j}"
                 if [[ $arg == "--dry-run" ]]; then
                     FLAG_DRY_RUN=1
-                elif [[ $arg == "--database" ]]; then
-                    DB=$arg_value
                 fi
             else
                 unset skip

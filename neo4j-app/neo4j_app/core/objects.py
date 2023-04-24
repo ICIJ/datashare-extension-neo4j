@@ -40,6 +40,7 @@ class RelationshipCSVs(LowerCamelCaseModel):
 
 
 class Neo4jCSVs(LowerCamelCaseModel):
+    db: str
     nodes: List[NodeCSVs]
     relationships: List[RelationshipCSVs]
 

@@ -44,8 +44,9 @@ public class Neo4jClient {
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
-    public Objects.Neo4jCSVResponse exportNeo4jCSVs(Objects.Neo4jAppNeo4jCSVRequest body) {
-        String url = buildNeo4jUrl("/admin/neo4j-csvs");
+    public Objects.Neo4jCSVResponse exportNeo4jCSVs(
+        String database, Objects.Neo4jAppNeo4jCSVRequest body) {
+        String url = buildNeo4jUrl("/admin/neo4j-csvs?database=" + database);
         logger.debug("Exporting data to neo4j csv with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
