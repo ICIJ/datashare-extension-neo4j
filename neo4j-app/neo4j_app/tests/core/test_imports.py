@@ -241,11 +241,13 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
             "offsets": [0],
             "mentionExtractors": ["core-nlp"],
             "mentionIds": ["named-entity-0"],
+            "extractorLanguage": "en",
         },
         {
             "offsets": [0, 1, 2],
             "mentionExtractors": ["spacy", "core-nlp"],
             "mentionIds": ["named-entity-1", "named-entity-2"],
+            "extractorLanguage": "en",
         },
     ]
     assert rels == expected_rels
