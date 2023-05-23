@@ -53,16 +53,6 @@ public class Neo4jClientTest {
         }
 
         @Test
-        public void test_get_ping() {
-            // Given
-            neo4jApp.configure(routes -> routes.get("/ping", (context) -> "pong"));
-            // When
-            String ping = client.ping();
-            // Then
-            assertThat(ping).isEqualTo("pong");
-        }
-
-        @Test
         public void test_should_import_documents() {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents", this::mockImport));

@@ -197,19 +197,6 @@ public class Neo4jResource {
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
-    @Get("/ping")
-    public Payload getPingMethod() throws IOException, InterruptedException {
-        try {
-            return new Payload(this.ping());
-        } catch (Neo4jNotRunningError e) {
-            return new Payload("application/problem+json", e).withCode(503);
-        }
-    }
-
-    private String ping() throws IOException, InterruptedException {
-        checkNeo4jAppStarted();
-        return client.ping();
-    }
 
     private void checkNeo4jAppStarted() throws IOException, InterruptedException {
         if (neo4jAppPid() == null) {
