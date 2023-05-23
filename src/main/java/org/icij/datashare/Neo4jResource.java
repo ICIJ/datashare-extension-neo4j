@@ -59,8 +59,6 @@ public class Neo4jResource {
         {
             put("neo4jAppPort", "8008");
             put("neo4jHost", "neo4j");
-            put("neo4jImportDir", "/home/dev/.neo4j/import");
-            put("neo4jImportPrefix", "/.neo4j/import");
             put("neo4jPort", "7687");
             put("neo4jProject", "local-datashare");
             put("neo4jAppSyslogFacility", "LOCAL7");
