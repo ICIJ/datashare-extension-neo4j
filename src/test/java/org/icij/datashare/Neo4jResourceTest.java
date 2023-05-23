@@ -136,18 +136,6 @@ public class Neo4jResourceTest {
             assertThat(status.isRunning).isFalse();
         }
 
-        @Test
-        public void test_get_ping() throws IOException, InterruptedException {
-            // When
-            neo4jAppResource.startServerProcess(false);
-            neo4jApp.configure(routes -> routes.get("/ping", (context) -> "pong"));
-            Response res =
-                get("/api/neo4j/ping").withPreemptiveAuthentication("foo", "null").response();
-            // Then
-            assertThat(res.code()).isEqualTo(200);
-            assertThat(res.content()).isEqualTo("pong");
-        }
-
 
         // TODO: test auth
 
@@ -188,21 +176,10 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_ping_should_return_200() throws IOException, InterruptedException {
-            // When
-            neo4jAppResource.startServerProcess(false);
-            Response response =
-                get("/api/neo4j/ping").withPreemptiveAuthentication("foo", "null").response();
-            // Then
-            assertThat(response.code()).isEqualTo(200);
-            assertThat(response.content()).isEqualTo("pong");
-        }
-
-        @Test
-        public void test_get_ping_should_return_503_when_neo4j_server_is_not_started() {
+        public void test_get_status_should_return_503_when_neo4j_server_is_not_started() {
             // When
             Response response =
-                get("/api/neo4j/ping").withPreemptiveAuthentication("foo", "null").response();
+                get("/api/neo4j/status").withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(503);
             assertJson(

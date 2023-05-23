@@ -58,12 +58,6 @@ public class Neo4jClient {
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
 
-    public String ping() {
-        String url = buildNeo4jUrl("/ping");
-        logger.debug("Pinging neo4j app");
-        return doHttpRequest(Unirest.get(url), String.class);
-    }
-
     private <T, R extends HttpRequest<R>> T doHttpRequest(HttpRequest<R> request, Class<T> clazz)
         throws Neo4jAppError {
         // TODO: ideally we would like to avoid to pass the class and
