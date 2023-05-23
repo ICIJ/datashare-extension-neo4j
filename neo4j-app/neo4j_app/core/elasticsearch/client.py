@@ -19,7 +19,6 @@ from typing import (
 
 import neo4j
 from elasticsearch import AsyncElasticsearch
-from elasticsearch._async.helpers import async_scan
 
 from neo4j_app.core.elasticsearch.utils import (
     ASC,
@@ -31,6 +30,9 @@ from neo4j_app.core.elasticsearch.utils import (
     MAX,
     PIT,
     QUERY,
+    SCROLL,
+    SCROLL_ID,
+    SCROLL_ID_,
     SEARCH_AFTER,
     SHARD_DOC_,
     SLICE,
@@ -45,11 +47,13 @@ logger = logging.getLogger(__name__)
 
 PointInTime = Dict[str, Any]
 
-_ES_VERSION_8 = StrictVersion("8.0")
-_OS_VERSION_2 = StrictVersion("2.0")
+_ES_PIT_VERSION = StrictVersion("7.11")
+_OS_PIT_VERSION = StrictVersion("1.3")
 
 
 class ESClientABC(metaclass=abc.ABCMeta):
+    min_pit_version: StrictVersion
+
     def __init__(
         self,
         project_index: str,
@@ -65,6 +69,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         self._pagination_size = pagination
         self._keep_alive = keep_alive
         self._max_concurrency = max_concurrency
+        self._version: Optional[StrictVersion] = None
 
     @cached_property
     def project_index(self) -> str:
@@ -82,10 +87,16 @@ class ESClientABC(metaclass=abc.ABCMeta):
     def keep_alive(self) -> str:
         return self._keep_alive
 
-    @cached_property
+    @property
     async def version(self) -> StrictVersion:
-        info = await self.info()
-        return StrictVersion(info["version"]["number"])
+        if self._version is None:
+            info = await self.info()
+            self._version = StrictVersion(info["version"]["number"])
+        return self._version
+
+    @property
+    async def supports_pit(self) -> bool:
+        return await self.version > type(self).min_pit_version
 
     @abc.abstractmethod
     def default_sort(self, pit_search: bool) -> str:
@@ -99,10 +110,23 @@ class ESClientABC(metaclass=abc.ABCMeta):
         return await super().search(**kwargs)
 
     async def poll_search_pages(
+        self, body: Dict, **kwargs
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        if await self.supports_pit:
+            results = self._poll_pit_search_pages(body=body, **kwargs)
+        else:
+            scroll = kwargs.pop(SCROLL, self.keep_alive)
+            results = self._poll_scroll_search_pages(
+                query=body, scroll=scroll, **kwargs
+            )
+        async for res in results:
+            yield res
+
+    async def _poll_pit_search_pages(
         self, sort: Optional[List[Dict]] = None, size: Optional[int] = None, **kwargs
     ) -> AsyncGenerator[Dict[str, Any], None]:
         if sort is None:
-            sort = self.default_sort(pit_search=PIT in kwargs["body"])
+            sort = self.default_sort(pit_search=True)
         if size is None:
             size = self.pagination_size
         if not size:
@@ -124,32 +148,48 @@ class ESClientABC(metaclass=abc.ABCMeta):
             yield res
             page_hits = res[HITS][HITS]
 
-    async def async_scan(
+    async def _poll_scroll_search_pages(
         self,
-        query: Optional[Mapping[str, Any]],
-        *,
+        query: Dict,
         scroll: str,
-        scroll_size: int,
+        sort: Optional[List[Dict]] = None,
+        size: Optional[int] = None,
         **kwargs,
-    ) -> AsyncGenerator[Dict, None]:
-        async for res in async_scan(
-            self, query=query, scroll=scroll, size=scroll_size, **kwargs
-        ):
-            yield res
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        if sort is None:
+            sort = self.default_sort(pit_search=False)
+        res = await self.search(
+            body=query, scroll=scroll, size=size, sort=sort, **kwargs
+        )
+        scroll_id = res.get(SCROLL_ID_)
+        try:
+            while scroll_id and res[HITS][HITS]:
+                yield res
+                res = await self.scroll(body={SCROLL_ID: scroll_id, SCROLL: scroll})
+                scroll_id = res.get(SCROLL_ID_)
+        finally:
+            await self.clear_scroll(
+                body={SCROLL_ID: [scroll_id]},
+                ignore=(404,),
+                params={"__elastic_client_meta": (("h", "s"),)},
+            )
 
     @asynccontextmanager
-    async def pit(
+    async def pit_if_supported(
         self, *, keep_alive: str, **kwargs
-    ) -> AsyncGenerator[PointInTime, None]:
+    ) -> AsyncGenerator[Optional[PointInTime], None]:
         pit_id = None
-        try:
-            pit = await self.open_point_in_time(
-                index=self.project_index, keep_alive=keep_alive, **kwargs
-            )
-            yield pit
-        finally:
-            if pit_id is not None:
-                await self._close_pit(pit_id)
+        if await self.supports_pit:
+            try:
+                pit = await self.open_point_in_time(
+                    index=self.project_index, keep_alive=keep_alive, **kwargs
+                )
+                yield pit
+            finally:
+                if pit_id is not None:
+                    await self._close_pit(pit_id)
+        else:
+            yield None
 
     async def to_neo4j(
         self,
@@ -236,7 +276,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         concurrency = max(concurrency, 2)
         # Max should be at least 2
         bodies = (
-            sliced_search_with_pit(
+            sliced_search(
                 query,
                 pit=pit,
                 id_=i,
@@ -405,6 +445,8 @@ async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]):
 
 
 class ESClient(ESClientABC, AsyncElasticsearch):
+    min_pit_version = _ES_PIT_VERSION
+
     def __init__(
         self,
         project_index: str,
@@ -441,6 +483,8 @@ try:
     from opensearchpy import AsyncOpenSearch
 
     class OSClient(ESClientABC, AsyncOpenSearch):
+        min_pit_version = _OS_PIT_VERSION
+
         def __init__(
             self,
             project_index: str,
@@ -487,10 +531,10 @@ except ImportError:
     pass
 
 
-def sliced_search_with_pit(
+def sliced_search(
     query: Optional[Dict[str, Any]],
     *,
-    pit: PointInTime,
+    pit: Optional[PointInTime],
     id_: int,
     max_: int,
     keep_alive: Optional[str] = None,
@@ -499,8 +543,10 @@ def sliced_search_with_pit(
         query = {QUERY: match_all()}
     else:
         query = deepcopy(query)
-    update = {PIT: pit, SLICE: {ID: id_, MAX: max_}}
-    if keep_alive is not None:
-        update[PIT][KEEP_ALIVE] = keep_alive
+    update = {SLICE: {ID: id_, MAX: max_}}
+    if pit is not None:
+        update[PIT] = pit
+        if keep_alive is not None:
+            update[PIT][KEEP_ALIVE] = keep_alive
     query.update(update)
     return query

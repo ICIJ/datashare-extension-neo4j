@@ -44,7 +44,7 @@ from neo4j_app.constants import (
     NE_OFFSETS,
 )
 from neo4j_app.core.elasticsearch import ESClientABC
-from neo4j_app.core.elasticsearch.client import PointInTime, sliced_search_with_pit
+from neo4j_app.core.elasticsearch.client import PointInTime, sliced_search
 from neo4j_app.core.elasticsearch.to_neo4j import (
     es_to_neo4j_doc_csv,
     es_to_neo4j_doc_root_rel_csv,
@@ -85,8 +85,8 @@ from neo4j_app.core.neo4j.documents import (
     import_document_rows,
 )
 from neo4j_app.core.neo4j.named_entities import (
-    ne_creation_stats_tx,
     import_named_entity_rows,
+    ne_creation_stats_tx,
 )
 from neo4j_app.core.objects import (
     IncrementalImportResponse,
@@ -135,12 +135,12 @@ async def import_documents(
     es_query = _make_document_query(es_query, es_doc_type_field)
     if es_concurrency is None:
         es_concurrency = es_client.max_concurrency
-    async with es_client.pit(keep_alive=es_keep_alive) as pit:
+    async with es_client.pit_if_supported(keep_alive=es_keep_alive) as pit:
         # Since we're merging relationships we need to set the import concurrency to 1
         # to avoid deadlocks...
         neo4j_concurrency = 1
         bodies = [
-            sliced_search_with_pit(
+            sliced_search(
                 es_query, pit=pit, id_=i, max_=es_concurrency, keep_alive=es_keep_alive
             )
             for i in range(es_concurrency)
@@ -190,8 +190,9 @@ async def import_named_entities(
     # on the documentId will probably be much more efficient !
     # TODO: if joining is too slow, switch to post filtering
     # TODO: project document fields here in order to reduce the ES payloads...
-    async with es_client.pit(keep_alive=es_keep_alive) as pit:
-        pit[KEEP_ALIVE] = es_keep_alive
+    async with es_client.pit_if_supported(keep_alive=es_keep_alive) as pit:
+        if pit is not None:
+            pit[KEEP_ALIVE] = es_keep_alive
         neo4j_concurrency = 1
         bodies = _make_named_entity_with_parent_queries(
             es_query,
@@ -293,7 +294,7 @@ async def to_neo4j_csvs(
 ) -> Neo4jCSVResponse:
     nodes = []
     relationships = []
-    async with es_client.pit(keep_alive=es_keep_alive) as pit:
+    async with es_client.pit_if_supported(keep_alive=es_keep_alive) as pit:
         doc_nodes_csvs, doc_rels_csvs = await _to_neo4j_doc_csvs(
             export_dir=export_dir,
             es_query=es_query,
@@ -340,7 +341,7 @@ async def _to_neo4j_doc_csvs(
     *,
     export_dir: Path,
     es_query: Optional[Dict],
-    es_pit: PointInTime,
+    es_pit: Optional[PointInTime],
     es_client: ESClientABC,
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
@@ -406,7 +407,7 @@ async def _to_neo4j_ne_csvs(
     *,
     document_ids: List[str],
     export_dir: Path,
-    es_pit: PointInTime,
+    es_pit: Optional[PointInTime],
     es_client: ESClientABC,
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
@@ -471,7 +472,7 @@ async def _export_es_named_entities_as_csvs(
     nodes_header: List[str],
     relationships_header: List[str],
     nodes_col_to_csv_header: Dict[str, str],
-    es_pit: PointInTime,
+    es_pit: Optional[PointInTime],
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
     es_doc_type_field: str,
@@ -485,13 +486,15 @@ async def _export_es_named_entities_as_csvs(
     # We order results by doc id in order to be able to buffer in an efficient way
     # emptying the buffer when we find new document ids, we use the _shard_doc as a
     # tie breaker
-    sort = [f"{SCORE_}:{ASC}", es_client.default_sort(pit_search=True)]
+    supports_pit = await es_client.supports_pit
+    sort = [f"{SCORE_}:{ASC}", es_client.default_sort(pit_search=supports_pit)]
     # https://github.com/elastic/elasticsearch/issues/2917#issuecomment-239662433
-    pit = deepcopy(es_pit)
-    pit[KEEP_ALIVE] = es_keep_alive
+    if es_pit is not None:
+        es_pit = deepcopy(es_pit)
+        es_pit[KEEP_ALIVE] = es_keep_alive
     bodies = _make_named_entity_with_parent_queries(
         es_query=None,
-        es_pit=pit,
+        es_pit=es_pit,
         document_ids=document_ids,
         es_doc_type_field=es_doc_type_field,
         es_page_size=es_client.pagination_size,
@@ -660,7 +663,7 @@ def _make_named_entity_with_parent_queries(
     es_query: Optional[Dict],
     *,
     es_sort: Optional[List[Dict]] = None,
-    es_pit: PointInTime,
+    es_pit: Optional[PointInTime],
     document_ids: List[str],
     es_doc_type_field: str,
     es_page_size: int,
@@ -692,7 +695,8 @@ def _make_named_entity_with_parent_queries(
         if es_query is not None and es_query:
             queries.append(es_query)
         query = and_query(*queries)
-        query[PIT] = es_pit
+        if es_pit is not None:
+            query[PIT] = es_pit
         if es_sort:
             query[SORT] = es_sort
         bodies.append(query)

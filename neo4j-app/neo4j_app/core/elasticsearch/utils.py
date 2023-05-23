@@ -32,7 +32,9 @@ SCORE_ = "_score"
 SCORE_MODE = "SCORE_MODE"
 SCRIPT = "script"
 SCRIPT_SCORE = "script_score"
-SCROLL_ID = "_scroll_id"
+SCROLL = "scroll"
+SCROLL_ID = "scroll_id"
+SCROLL_ID_ = "_scroll_id"
 SEARCH_AFTER = "search_after"
 SEED = "seed"
 SHARD_DOC_ = "_shard_doc"
@@ -90,7 +92,7 @@ def ids_query(ids: List[str]) -> Dict:
 
 
 def get_scroll_id(res: Dict) -> str:
-    scroll_id = res.get(SCROLL_ID)
+    scroll_id = res.get(SCROLL_ID_)
     if scroll_id is None:
         msg = "Missing scroll ID, this response is probably not from a scroll search"
         raise ValueError(msg)
