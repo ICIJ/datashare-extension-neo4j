@@ -414,11 +414,19 @@ Please run ./neo4j format"
     }
 
     function start_all_test_services() (
-        docker compose up --detach \
+        if [[ -z $OLD_ELASTICSEARCH ]]; then
+            docker compose up --detach \
             --wait \
             --build \
             test-elasticsearch \
             test-neo4j
+        else
+            docker compose up --detach \
+            --wait \
+            --build \
+            test-old-elasticsearch \
+            test-neo4j
+        fi
     )
 
     function start_debug_app() (
@@ -436,7 +444,7 @@ Please run ./neo4j format"
     )
 
     function stop_all_test_services() (
-        docker compose stop test-elasticsearch test-neo4j
+        docker compose stop test-elasticsearch test-neo4j test-old-elasticsearch
     )
 
     function stop_test_elasticsearch() (
@@ -493,6 +501,7 @@ function _main() {
     PROJECT=
     PROJECTS=
     OPENSEARCH_SUPPORT=
+    OLD_ELASTICSEARCH=
     PRINT_VERSION=
     PRINT_SHA=
 
@@ -543,6 +552,8 @@ function _main() {
                         SKIP_NEXT_TYPE_ARG=true
                     elif [[ "$TYPE_ARG" == "--opensearch-support" ]]; then
                         OPENSEARCH_SUPPORT=true
+                    elif [[ "$TYPE_ARG" == "--old-elasticsearch" ]]; then
+                        OLD_ELASTICSEARCH=true
                     elif [[ $TYPE_ARG = "--sha" ]]; then
                         PRINT_SHA=1
                     fi
