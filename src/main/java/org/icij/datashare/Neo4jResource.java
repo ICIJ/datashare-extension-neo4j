@@ -139,13 +139,12 @@ public class Neo4jResource {
 
     @Post("/stop")
     public ServerStopResponse postStopNeo4jApp() throws IOException, InterruptedException {
-        // TODO: check that the user is allowed
+        // TODO: ideally user can't stop the extension unless in LOCAL model
         return new ServerStopResponse(stopServerProcess());
     }
 
     @Get("/status")
     public Neo4jAppStatus getStopNeo4jApp() throws IOException, InterruptedException {
-        // TODO: check that the user is allowed
         boolean isRunning = neo4jAppPid() != null;
         return new Neo4jAppStatus(isRunning);
     }
