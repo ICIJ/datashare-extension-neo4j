@@ -19,7 +19,10 @@ from neo4j_app import ROOT_DIR
 from neo4j_app.constants import DOC_NODE, DOC_ROOT_REL_LABEL, NE_APPEARS_IN_DOC, NE_NODE
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.elasticsearch.to_neo4j import make_ne_hit_id
+from neo4j_app.core.elasticsearch.utils import match_all
 from neo4j_app.core.imports import (
+    _make_document_query,
+    _make_named_entity_with_parent_queries,
     import_documents,
     import_named_entities,
     to_neo4j_csvs,
@@ -604,3 +607,47 @@ def test_neo4j_bulk_import_script(
 
     # Then
     assert neo4j_cmd == expected_cmd
+
+
+def test_make_document_query():
+    # Given
+    es_query = match_all()
+
+    # When
+    body = _make_document_query(es_query=es_query, es_doc_type_field="type")
+
+    # Then
+    assert "_source" in body
+    assert body["_source"]
+
+
+def test_make_named_entity_query():
+    # Given
+    es_query = match_all()
+
+    # When
+    body = _make_document_query(es_query=es_query, es_doc_type_field="type")
+
+    # Then
+    assert "_source" in body
+    assert body["_source"]
+
+
+def test_make_named_entity_with_parent_queries():
+    # Given
+    es_query = None
+
+    # When
+    bodies = _make_named_entity_with_parent_queries(
+        es_query=es_query,
+        document_ids=["doc-0"],
+        es_pit=dict(),
+        es_doc_type_field="type",
+        es_page_size=10,
+    )
+
+    # Then
+    assert len(bodies) == 1
+    body = bodies[0]
+    assert "_source" in body
+    assert body["_source"]

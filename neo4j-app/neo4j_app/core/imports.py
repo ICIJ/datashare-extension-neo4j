@@ -20,6 +20,7 @@ from datrie import BaseTrie
 from neo4j_app import ROOT_DIR
 from neo4j_app.constants import (
     DOC_COLUMNS,
+    DOC_ES_SOURCES,
     DOC_ID,
     DOC_ID_CSV,
     DOC_NODE,
@@ -34,6 +35,7 @@ from neo4j_app.constants import (
     NE_APPEARS_IN_DOC_COLS,
     NE_CATEGORY,
     NE_COLUMNS,
+    NE_ES_SOURCES,
     NE_EXTRACTOR,
     NE_EXTRACTORS,
     NE_EXTRACTOR_LANG,
@@ -72,6 +74,7 @@ from neo4j_app.core.elasticsearch.utils import (
     has_id,
     has_parent,
     has_type,
+    with_source,
 )
 from neo4j_app.core.neo4j import (
     Neo4Import,
@@ -142,7 +145,11 @@ async def import_documents(
         neo4j_concurrency = 1
         bodies = [
             sliced_search(
-                es_query, pit=pit, id_=i, max_=es_concurrency, keep_alive=es_keep_alive
+                es_query,
+                pit=pit,
+                id_=i,
+                max_=es_concurrency,
+                keep_alive=es_keep_alive,
             )
             for i in range(es_concurrency)
         ]
@@ -631,6 +638,7 @@ def _make_document_query(es_query: Dict, es_doc_type_field: str) -> Dict:
         es_query = and_query(document_type_query, es_query)
     else:
         es_query = {QUERY: document_type_query}
+    es_query = with_source(es_query, DOC_ES_SOURCES)
     return es_query
 
 
@@ -646,6 +654,7 @@ def _make_named_entity_query(
         es_query = and_query(ne_type_query, es_query)
     else:
         es_query = {QUERY: ne_type_query}
+    es_query = with_source(es_query, NE_ES_SOURCES)
     return es_query
 
 
@@ -685,6 +694,7 @@ def _make_named_entity_with_parent_queries(
         if es_query is not None and es_query:
             queries.append(es_query)
         query = and_query(*queries)
+        query = with_source(query, NE_ES_SOURCES)
         if es_pit is not None:
             query[PIT] = es_pit
         if es_sort:

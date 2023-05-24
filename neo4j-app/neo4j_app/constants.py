@@ -1,3 +1,5 @@
+from neo4j_app.core.elasticsearch.utils import JOIN
+
 NEO4J_CSV_COL = "node_col"
 
 # TODO: replicate other doc attributes
@@ -19,6 +21,9 @@ DOC_COLUMNS = {
     DOC_EXTRACTION_DATE: {NEO4J_CSV_COL: "DATETIME"},
     DOC_PATH: {},
 }
+
+DOC_ES_SOURCES = list(DOC_COLUMNS) + [JOIN, DOC_ROOT_ID]
+
 
 MIGRATION_COMPLETED = "completed"
 MIGRATION_LABEL = "label"
@@ -52,6 +57,7 @@ NE_COLUMNS = {
     NE_MENTION_NORM_TEXT_LENGTH: {NEO4J_CSV_COL: "INT"},
     NE_OFFSETS: {NEO4J_CSV_COL: "LONG[]"},
 }
+NE_ES_SOURCES = list(NE_COLUMNS) + [JOIN, NE_DOC_ID]
 NE_APPEARS_IN_DOC_COLS = {
     NE_EXTRACTORS: {NEO4J_CSV_COL: "STRING[]"},
     NE_EXTRACTOR_LANG: {},
