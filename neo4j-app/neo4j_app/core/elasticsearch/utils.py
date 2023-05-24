@@ -57,6 +57,11 @@ def with_sort(*, query: Dict, sort: Dict) -> Dict:
     return query[SORT].append(sort)
 
 
+def with_source(query: Dict, sources: List[str]) -> Dict:
+    query[SOURCE] = sources
+    return query
+
+
 def has_type(*, type_field: str, type_value: str) -> Dict:
     return {TERM: {type_field: type_value}}
 
