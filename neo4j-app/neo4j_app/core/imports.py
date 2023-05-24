@@ -88,6 +88,7 @@ from neo4j_app.core.neo4j.named_entities import (
     ne_creation_stats_tx,
     import_named_entity_rows,
 )
+from neo4j_app.core.neo4j.utils import check_neo4j_database
 from neo4j_app.core.objects import (
     IncrementalImportResponse,
     Neo4jCSVResponse,
@@ -128,10 +129,12 @@ async def import_documents(
     es_keep_alive: Optional[str] = None,
     es_doc_type_field: str,
     neo4j_driver: neo4j.AsyncDriver,
+    neo4j_db: str,
     neo4j_import_batch_size: int,
     neo4j_transaction_batch_size: int,
     max_records_in_memory: int,
 ) -> IncrementalImportResponse:
+    await check_neo4j_database(neo4j_driver, neo4j_db)
     es_query = _make_document_query(es_query, es_doc_type_field)
     if es_concurrency is None:
         es_concurrency = es_client.max_concurrency
@@ -174,10 +177,12 @@ async def import_named_entities(
     es_keep_alive: Optional[str] = None,
     es_doc_type_field: str,
     neo4j_driver: neo4j.AsyncDriver,
+    neo4j_db: str,
     neo4j_import_batch_size: int,
     neo4j_transaction_batch_size: int,
     max_records_in_memory: int,
 ) -> IncrementalImportResponse:
+    await check_neo4j_database(neo4j_driver, neo4j_db)
     async with neo4j_driver.session() as neo4j_session:
         document_ids = await neo4j_session.execute_read(documents_ids_tx)
         # Because of this neo4j limitation (https://github.com/neo4j/neo4j/issues/13139)

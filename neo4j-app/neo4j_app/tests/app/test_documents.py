@@ -49,7 +49,7 @@ def test_post_documents_import_should_return_200(
     # pylint: disable=invalid-name,unused-argument
     # Given
     test_client = test_client_module
-    url = "/documents"
+    url = "/documents?database=neo4j"
     payload = {}
     if query is not None:
         payload["query"] = query

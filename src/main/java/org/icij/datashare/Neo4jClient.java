@@ -20,8 +20,9 @@ public class Neo4jClient {
     }
 
     public Objects.IncrementalImportResponse importDocuments(
-        Objects.IncrementalImportRequest body) {
-        String url = buildNeo4jUrl("/documents");
+        String database, Objects.IncrementalImportRequest body
+    ) {
+        String url = buildNeo4jUrl("/documents?database=" + database);
         logger.debug("Importing documents to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
@@ -32,8 +33,9 @@ public class Neo4jClient {
     }
 
     public Objects.IncrementalImportResponse importNamedEntities(
-        Objects.IncrementalImportRequest body) {
-        String url = buildNeo4jUrl("/named-entities");
+        String database, Objects.IncrementalImportRequest body
+    ) {
+        String url = buildNeo4jUrl("/named-entities?database=" + database);
         logger.debug("Importing named entities to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
@@ -45,7 +47,8 @@ public class Neo4jClient {
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     public Objects.Neo4jCSVResponse exportNeo4jCSVs(
-        String database, Objects.Neo4jAppNeo4jCSVRequest body) {
+        String database, Objects.Neo4jAppNeo4jCSVRequest body
+    ) {
         String url = buildNeo4jUrl("/admin/neo4j-csvs?database=" + database);
         logger.debug("Exporting data to neo4j csv with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));

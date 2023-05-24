@@ -44,12 +44,17 @@ public class Neo4jClientTest {
 
         private Payload mockImport(Context context) throws IOException {
             String body;
-            if (Objects.equals(context.request().content(), "{}")) {
-                body = "{\"imported\": 3,\"nodesCreated\": 3,\"relationshipsCreated\": 3}";
-            } else {
-                body = "{\"imported\": 3,\"nodesCreated\": 1,\"relationshipsCreated\": 1}";
+            String db = context.query().get("database");
+            if (db.equals("mydb")) {
+                if (Objects.equals(context.request().content(), "{}")) {
+                    body = "{\"imported\": 3,\"nodesCreated\": 3,\"relationshipsCreated\": 3}";
+                } else {
+                    body = "{\"imported\": 3,\"nodesCreated\": 1,\"relationshipsCreated\": 1}";
+                }
+                return new Payload("application/json", body);
             }
-            return new Payload("application/json", body);
+            return new Payload("application/json",
+                TestUtils.makeJsonHttpError("Bad Request", "Invalid DB " + db), 500);
         }
 
         @Test
@@ -59,7 +64,8 @@ public class Neo4jClientTest {
             // When
             org.icij.datashare.Objects.IncrementalImportRequest body =
                 new org.icij.datashare.Objects.IncrementalImportRequest(null);
-            org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
+            org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(
+                "mydb", body);
             // Then
             assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(3);
@@ -78,11 +84,26 @@ public class Neo4jClientTest {
             org.icij.datashare.Objects.IncrementalImportRequest body =
                 new org.icij.datashare.Objects.IncrementalImportRequest(query);
             // When
-            org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(body);
+            org.icij.datashare.Objects.IncrementalImportResponse res =
+                client.importDocuments("mydb", body);
             // Then
             assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(1);
             assertThat(res.relationshipsCreated).isEqualTo(1);
+        }
+
+        @Test
+        public void test_import_documents_should_throw_for_invalid_db() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/documents", this::mockImport));
+            // When
+            org.icij.datashare.Objects.IncrementalImportRequest body =
+                new org.icij.datashare.Objects.IncrementalImportRequest(null);
+            assertThat(assertThrowsExactly(
+                Neo4jClient.Neo4jAppError.class,
+                () -> client.importDocuments("unknown", body)
+            ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid DB unknown");
         }
 
         @Test
@@ -99,7 +120,7 @@ public class Neo4jClientTest {
                 (new Neo4jClient.Neo4jAppError("someTitle", "someErrorDetail")).getMessage();
             assertThat(assertThrowsExactly(
                 Neo4jClient.Neo4jAppError.class,
-                () -> client.importDocuments(null)
+                () -> client.importDocuments("mydb", null)
             ).getMessage()).isEqualTo(expectedMsg);
         }
 
@@ -120,7 +141,7 @@ public class Neo4jClientTest {
                     "sometrace here")).getMessage();
             assertThat(assertThrowsExactly(
                 Neo4jClient.Neo4jAppError.class,
-                () -> client.importDocuments(null)
+                () -> client.importDocuments("mydb", null)
             ).getMessage()).isEqualTo(expectedMsg);
         }
 
@@ -133,7 +154,7 @@ public class Neo4jClientTest {
             org.icij.datashare.Objects.IncrementalImportRequest body =
                 new org.icij.datashare.Objects.IncrementalImportRequest(null);
             org.icij.datashare.Objects.IncrementalImportResponse res =
-                client.importNamedEntities(body);
+                client.importNamedEntities("mydb", body);
             // Then
             assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(3);
@@ -153,11 +174,26 @@ public class Neo4jClientTest {
                 new org.icij.datashare.Objects.IncrementalImportRequest(query);
             // When
             org.icij.datashare.Objects.IncrementalImportResponse res =
-                client.importNamedEntities(body);
+                client.importNamedEntities("mydb", body);
             // Then
             assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(1);
             assertThat(res.relationshipsCreated).isEqualTo(1);
+        }
+
+        @Test
+        public void test_import_named_entities_should_throw_for_invalid_db() {
+            // Given
+            neo4jApp.configure(routes -> routes.post("/named-entities", this::mockImport));
+            // When
+            org.icij.datashare.Objects.IncrementalImportRequest body =
+                new org.icij.datashare.Objects.IncrementalImportRequest(null);
+
+            // Then
+            assertThat(assertThrowsExactly(
+                Neo4jClient.Neo4jAppError.class,
+                () -> client.importNamedEntities("unknown", body)
+            ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid DB unknown");
         }
     }
 }

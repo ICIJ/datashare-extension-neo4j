@@ -34,7 +34,7 @@ public class Neo4jResourceTest {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
                 {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
-                    put("neo4jProject", "foo-datashare");
+                    put("neo4jSingleProject", "foo-datashare");
                     // TODO: fix this path ?
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
                 }
@@ -48,7 +48,7 @@ public class Neo4jResourceTest {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
                 {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
-                    put("neo4jProject", "foo-datashare");
+                    put("neo4jSingleProject", "foo-datashare");
                     // TODO: how to fix the path ?
                     put("neo4jStartServerCmd", "src/test/resources/python_mock " + neo4jAppPort);
                 }
@@ -176,10 +176,10 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_status_should_return_503_when_neo4j_server_is_not_started() {
+        public void test_post_import_doc_should_return_503_when_neo4j_server_is_not_started() {
             // When
-            Response response =
-                get("/api/neo4j/status").withPreemptiveAuthentication("foo", "null").response();
+            Response response = post("/api/neo4j/documents?project=foo-datashare", "{}")
+                    .withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(503);
             assertJson(
