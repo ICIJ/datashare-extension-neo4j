@@ -44,7 +44,7 @@ def test_post_named_entities_import_should_return_200(
     # pylint: disable=invalid-name,unused-argument
     # Given
     test_client = test_client_module
-    url = "/named-entities"
+    url = "/named-entities?database=neo4j"
     payload = {}
     if query is not None:
         payload["query"] = query

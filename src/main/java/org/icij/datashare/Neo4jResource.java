@@ -51,6 +51,7 @@ public class Neo4jResource {
     private static final String NEO4J_APP_BIN = "neo4j-app";
     private static final Path TMP_ROOT = Path.of(
         FileSystems.getDefault().getSeparator(), "tmp");
+    private static final String NEO4J_DEFAULT_DB = "neo4j";
     private static final String SYSLOG_SPLIT_CHAR = "@";
 
     private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
@@ -60,7 +61,7 @@ public class Neo4jResource {
             put("neo4jAppPort", "8008");
             put("neo4jHost", "neo4j");
             put("neo4jPort", "7687");
-            put("neo4jProject", "local-datashare");
+            put("neo4jSingleProject", "local-datashare");
             put("neo4jAppSyslogFacility", "LOCAL7");
         }
     };
@@ -72,7 +73,7 @@ public class Neo4jResource {
     private final PropertiesProvider propertiesProvider;
     private final int port;
     private final String host = "127.0.0.1";
-    private final String projectId;
+    private String neo4jSingleProjectId;
     private final Neo4jAppLoader appLoader;
     protected Path appBinaryPath;
 
@@ -90,12 +91,13 @@ public class Neo4jResource {
         if (cleaner == null) {
             cleaner = Cleaner.create();
         }
-        // TODO: for now we support a single project for the extension, we'll figure out later
-        //  how to support multiple ones
-        projectId = propertiesProvider
-            .get("neo4jProject")
-            .orElseThrow(
-                (() -> new IllegalArgumentException("neo4jProject is missing from properties")));
+        propertiesProvider
+            .get("neo4jSingleProject")
+            .ifPresent(projectId -> {
+                if (!projectId.isEmpty()) {
+                    neo4jSingleProjectId = projectId;
+                }
+            });
         Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
     }
 
@@ -359,7 +361,8 @@ public class Neo4jResource {
     ) throws IOException, InterruptedException {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        return client.importDocuments(request);
+        String db = neo4jProjectDatabase(projectId);
+        return client.importDocuments(db, request);
     }
 
     protected org.icij.datashare.Objects.IncrementalImportResponse importNamedEntities(
@@ -367,7 +370,8 @@ public class Neo4jResource {
     ) throws IOException, InterruptedException {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        return client.importNamedEntities(request);
+        String db = neo4jProjectDatabase(projectId);
+        return client.importNamedEntities(db, request);
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
@@ -379,7 +383,7 @@ public class Neo4jResource {
         //  the project
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        String database = "neo4j";
+        String database = neo4jProjectDatabase(projectId);
         // Define a temp dir
         Path exportDir = null;
         try {
@@ -423,14 +427,28 @@ public class Neo4jResource {
         }
     }
 
-    // TODO: remove this for multiple projects support
-    private void checkExtensionProject(String candidateProject) {
-        if (!Objects.equals(this.projectId, candidateProject)) {
-            InvalidProjectError error = new InvalidProjectError(this.projectId, candidateProject);
-            logger.error(error.getMessage());
-            throw error;
+    protected String neo4jProjectDatabase(String projectId) {
+        // For the neo4j community edition a single neo4j DB is available and its called neo4j,
+        // in this case the neo4jSingleProject is provided in the properties
+        if (this.neo4jSingleProjectId != null) {
+            return NEO4J_DEFAULT_DB;
+        }
+        return projectId;
+    }
+
+    protected void checkExtensionProject(String candidateProject) {
+        // When a single neo4j DB is available check that the current project is the one supported
+        // by the DB
+        if (this.neo4jSingleProjectId != null) {
+            if (!Objects.equals(this.neo4jSingleProjectId, candidateProject)) {
+                InvalidProjectError error = new InvalidProjectError(
+                    this.neo4jSingleProjectId, candidateProject);
+                logger.error(error.getMessage());
+                throw error;
+            }
         }
     }
+
 
     static class KillPythonProcess implements Runnable {
         private final Neo4jResource resource;

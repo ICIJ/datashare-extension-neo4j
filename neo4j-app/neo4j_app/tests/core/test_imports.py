@@ -113,6 +113,7 @@ async def test_import_documents(
         es_keep_alive="10s",
         es_doc_type_field=doc_type_field,
         neo4j_driver=neo4j_driver,
+        neo4j_db="neo4j",
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
@@ -120,6 +121,29 @@ async def test_import_documents(
 
     # Then
     assert response == expected_response
+
+
+@pytest.mark.asyncio
+async def test_import_documents_should_raise_for_invalid_db(
+    neo4j_test_driver_session: neo4j.AsyncDriver,
+    es_test_client_session: ESClient,
+):
+    # Given
+    invalid_db = "db-which-do-not-exist"
+    # When/Then
+    expected_msg = 'Invalid neo4j database "db-which-do-not-exist"'
+    with pytest.raises(RuntimeError, match=expected_msg):
+        await import_documents(
+            es_client=es_test_client_session,
+            es_query=dict(),
+            es_keep_alive="10s",
+            es_doc_type_field="type",
+            neo4j_driver=neo4j_test_driver_session,
+            neo4j_db=invalid_db,
+            neo4j_import_batch_size=10,
+            neo4j_transaction_batch_size=10,
+            max_records_in_memory=10,
+        )
 
 
 @pytest.mark.asyncio
@@ -192,6 +216,7 @@ async def test_import_named_entities(
         es_keep_alive="10s",
         es_doc_type_field=doc_type_field,
         neo4j_driver=neo4j_driver,
+        neo4j_db="neo4j",
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
@@ -226,6 +251,7 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
         es_keep_alive="10s",
         es_doc_type_field="type",
         neo4j_driver=neo4j_driver,
+        neo4j_db="neo4j",
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
@@ -254,6 +280,29 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
         },
     ]
     assert rels == expected_rels
+
+
+@pytest.mark.asyncio
+async def test_import_named_entities_should_raise_for_invalid_db(
+    neo4j_test_driver_session: neo4j.AsyncDriver,
+    es_test_client_session: ESClient,
+):
+    # Given
+    invalid_db = "db-which-do-not-exist"
+    # When/Then
+    expected_msg = 'Invalid neo4j database "db-which-do-not-exist"'
+    with pytest.raises(RuntimeError, match=expected_msg):
+        await import_named_entities(
+            es_client=es_test_client_session,
+            es_query=dict(),
+            es_keep_alive="10s",
+            es_doc_type_field="type",
+            neo4j_driver=neo4j_test_driver_session,
+            neo4j_db=invalid_db,
+            neo4j_import_batch_size=10,
+            neo4j_transaction_batch_size=10,
+            max_records_in_memory=10,
+        )
 
 
 def _expected_ne_nodes_lines() -> str:
