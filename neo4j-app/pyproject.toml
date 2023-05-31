@@ -22,6 +22,15 @@ elasticsearch = {version = "<7.14", extras = ["async"]}
 neo4j = "^5.5.0"
 setuptools = "^67.6.1"
 datrie = "^0.8.2"
+dedupe = "^2.0.23"
+jupyterlab = "^4.0.0"
+notebook = "^6.5.4"
+dedupe-variable-name = "^0.0.14"
+pandas = "^2.0.2"
+matplotlib = "^3.7.1"
+ipywidgets = "^8.0.6"
+plotly = "^5.14.1"
+kaleido = "0.2.1"
 
 [tool.poetry.group.dev.dependencies]
 fastapi = { version = "^0.89.1", extras = ["all"] }
