@@ -31,6 +31,7 @@ matplotlib = "^3.7.1"
 ipywidgets = "^8.0.6"
 plotly = "^5.14.1"
 kaleido = "0.2.1"
+dedupe-variable-person = "^0.0.2"
 
 [tool.poetry.group.dev.dependencies]
 fastapi = { version = "^0.89.1", extras = ["all"] }

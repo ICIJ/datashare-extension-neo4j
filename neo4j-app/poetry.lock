@@ -1086,6 +1086,20 @@ parseratorvariable = ">=0.0.18"
 probablepeople = ">=0.5"
 
 [[package]]
+name = "dedupe-variable-person"
+version = "0.0.2"
+description = "Variable type for American Person Names"
+optional = false
+python-versions = "*"
+files = [
+    {file = "dedupe-variable-person-0.0.2.tar.gz", hash = "sha256:e2a231dd9365e4e3c6506ec35852940cfc61bcb03bb3842dba0d810ef47c8634"},
+    {file = "dedupe_variable_person-0.0.2-py2-none-any.whl", hash = "sha256:f8b547ec9ee8e0a3702ee4b1e6a24d8747fd03e88e36f3e837262657d9112e98"},
+]
+
+[package.dependencies]
+dedupe-variable-name = "*"
+
+[[package]]
 name = "defusedxml"
 version = "0.7.1"
 description = "XML bomb protection for Python stdlib modules"
@@ -4840,4 +4854,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "f8ab0727d970f192739ef15ca1f405796e445d147277df59bffc1a68b2099276"
+content-hash = "20434702309f081931dfdc432575a1779197171c88be4fbf0f317be0af89ae02"

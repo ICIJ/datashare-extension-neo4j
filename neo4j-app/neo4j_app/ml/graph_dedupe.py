@@ -6,10 +6,24 @@ import itertools
 import random
 import sqlite3
 import tempfile
-from typing import BinaryIO, Collection, Dict, Iterable, Set, TextIO, overload
+from contextlib import contextmanager
+from pathlib import Path
+from typing import (
+    AsyncIterable,
+    BinaryIO,
+    Callable,
+    Collection,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    TextIO,
+    overload,
+)
 
 import sklearn
-from dedupe import blocking, core, training
+from dedupe import blocking, core, read_training, training
 from dedupe._typing import (
     ComparisonCoverInt,
     ComparisonCoverStr,
@@ -17,6 +31,7 @@ from dedupe._typing import (
     DataInt,
     DataStr,
     FeaturizerFunction,
+    RecordDict,
     RecordPairs,
     VariableDefinition,
 )
@@ -30,17 +45,214 @@ from dedupe.labeler import (
 )
 from dedupe.predicates import Predicate
 
+from neo4j_app.constants import (
+    DOC_CONTENT_TYPE,
+    DOC_DIRNAME,
+    DOC_ID,
+    DOC_ROOT_ID,
+    NE_MENTION_NORM,
+)
+from neo4j_app.core.utils.pydantic import to_lower_camel
+from neo4j_app.ml.utils import filtering_console_label
 
-# TODO: change the naming from DocumentGraph to HardBlockingDedupe or something like
-#  this
+NE_DOC_ID = to_lower_camel(f"doc_{DOC_ID}")
+NE_DOC_DIR_NAME = to_lower_camel(f"doc_{DOC_DIRNAME}")
+NE_DOC_FILENAME = "docFilename"
+NE_DOC_CONTENT_TYPE = to_lower_camel(f"doc_{DOC_CONTENT_TYPE}")
+NE_DOC_ROOT_ID = to_lower_camel(f"doc_{DOC_ROOT_ID}")
+NE_DEBUG_DOC_URL = "debugDocUrl"
+NE_DEBUG_FILENAME = "debugFilename"
+NE_MENTION_CLUSTER = "neMentionClusterID"
+
+NE_FIELDNAMES = [
+    NE_MENTION_NORM,
+    NE_DOC_ID,
+    NE_DOC_DIR_NAME,
+    NE_DOC_FILENAME,
+    NE_DOC_CONTENT_TYPE,
+    NE_DOC_ROOT_ID,
+    NE_DEBUG_DOC_URL,
+    NE_DEBUG_FILENAME,
+]
 
 
-def read_records(dataset_f: TextIO, id_column: str, invalid_ids: Set[str]) -> Dict:
+async def async_write_dataset(
+    records: AsyncIterable[Dict], fieldnames: List[str], dataset_f: TextIO
+):
+    writer = csv.DictWriter(dataset_f, fieldnames)
+    writer.writeheader()
+    async for rec in records:
+        writer.writerow(rec)
+
+
+def write_dataset(records: Iterable[Dict], fieldnames: List[str], dataset_f: TextIO):
+    writer = csv.DictWriter(dataset_f, fieldnames)
+    writer.writeheader()
+    for rec in records:
+        writer.writerow(rec)
+
+
+def read_records(
+    dataset_f: TextIO, id_column: str, invalid_ids: Set[str]
+) -> Dict[str, RecordDict]:
     reader = csv.DictReader(dataset_f)
     records = {
         row[id_column]: row for row in reader if row[id_column] not in invalid_ids
     }
     return records
+
+
+@contextmanager
+def yield_none():
+    yield None
+
+
+def get_categories(records: Iterable[RecordDict]) -> Set[str]:
+    category = set(rec[NE_DOC_CONTENT_TYPE] for rec in records)
+    return category
+
+
+def get_mentions(records: Iterable[RecordDict]) -> Set[str]:
+    filenames = set(rec[NE_MENTION_NORM] for rec in records)
+    return filenames
+
+
+def get_dirnames(records: Iterable[RecordDict]) -> Set[str]:
+    dirname = set(rec[NE_DOC_DIR_NAME] for rec in records)
+    return dirname
+
+
+def person_fields(records: Iterable[RecordDict], inside_docs: bool) -> List[Dict]:
+    # TODO: add the number of documents of the same type in the doc as feature ?
+
+    # TODO: check that there a not duplicate predicates
+    records = list(records)
+    fields = [
+        # Use both string and text type for mention norm to capture char-level (String)
+        # and words (Text) similarities and differences
+        {"field": NE_MENTION_NORM, "type": "String"},
+        {"field": NE_MENTION_NORM, "type": "Text", "corpus": get_mentions(records)},
+        {"field": NE_MENTION_NORM, "type": "Person Name"},
+    ]
+    if not inside_docs:
+        cross_doc_fields = [
+            # Exact match on IDs
+            {"field": NE_DOC_ID, "type": "Exact"},
+            {"field": NE_DOC_ROOT_ID, "type": "Exact", "has missing": True},
+            # Finite set of values for categories
+            {
+                "field": NE_DOC_CONTENT_TYPE,
+                "type": "Categorical",
+                "categories": get_categories(records),
+            },
+            # We hope that some file names will have word level similarities
+            {"field": NE_DOC_FILENAME, "type": "Exact"},
+            # We hope that some file names will have word level similarities
+            {"field": NE_DOC_DIR_NAME, "type": "Text", "corpus": get_dirnames(records)},
+            {"field": NE_DOC_DIR_NAME, "type": "Exact"},
+            {"field": NE_MENTION_CLUSTER, "type": "Exact"},
+        ]
+        fields.extend(cross_doc_fields)
+    return fields
+
+
+def run_training(
+    data_path: Path,
+    *,
+    dedupe_getter: Callable[[List[Dict]], Dedupe],
+    fields_getter: Callable[[Iterable[RecordDict]], List[Dict]],
+    excluded_path: Path,
+    model_path: Path,
+    training_path: Path,
+    sample_size: int,
+    id_column: str,
+    recall: float,
+) -> Dedupe:
+    with excluded_path.open() as f:
+        invalid_ids = (line.strip() for line in f)
+        invalid_ids = set(i for i in invalid_ids if i)
+
+    with data_path.open() as f:
+        records = read_records(f, id_column=id_column, invalid_ids=invalid_ids)
+
+    all_records = records.values()
+    training_file_cm = yield_none
+    if training_path.exists():
+        training_file_cm = training_path.open
+        with training_file_cm() as training_file:
+            training_set = read_training(training_file)
+            all_records_its = [
+                all_records,
+                (r for pair in training_set["distinct"] for r in pair),
+                (r for pair in training_set["match"] for r in pair),
+            ]
+            all_records = itertools.chain(*all_records_its)
+
+    with training_file_cm() as training_file:
+        # TODO: clean this... we should have to reopen the training file
+        fields = fields_getter(all_records)
+        deduper = dedupe_getter(fields)
+        deduper.prepare_training(records, training_file, sample_size)
+        clf_args = getattr(deduper, "clf_args")
+        if clf_args is not None:
+            # TODO: clean this mess make the matcher configurable
+            learner = deduper.active_learner
+            learner.matcher = ConfigurableMatchLearner(
+                deduper.data_model.distances, learner.candidates, **clf_args
+            )
+            learner.matcher.fit(learner.pairs, learner.y)
+
+    invalid = filtering_console_label(deduper, id_column=id_column)
+    invalid_ids.update((rec[id_column] for rec in invalid))
+    excluded_path.write_text("\n".join(invalid_ids))
+
+    with training_path.open("w") as f:
+        deduper.write_training(f)
+
+    deduper.train(recall=recall)
+    with model_path.open("wb") as f:
+        deduper.write_settings(f)
+
+    return deduper
+
+
+class ConfigurableMatchLearner(MatchLearner):
+    def __init__(
+        self, featurizer: FeaturizerFunction, candidates: RecordPairs, **clf_args
+    ):
+        super().__init__(featurizer, candidates)
+        self.clf_args = clf_args
+        self._classifier = sklearn.linear_model.LogisticRegression(**clf_args)
+
+
+class ConfigurableClassifierDedupe(Dedupe):
+    def __init__(
+        self,
+        variable_definition: Collection[VariableDefinition],
+        num_cores: int | None = None,
+        in_memory: bool = False,
+        clf_args: Optional[Dict] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            variable_definition=variable_definition,
+            num_cores=num_cores,
+            in_memory=in_memory,
+            **kwargs,
+        )
+        if clf_args is None:
+            clf_args = dict()
+        self.clf_args  = clf_args
+        self.classifier = sklearn.model_selection.GridSearchCV(
+            estimator=sklearn.linear_model.LogisticRegression(**self.clf_args),
+            param_grid={"C": [0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10]},
+            scoring="f1",
+            n_jobs=-1,
+        )
+
+
+# TODO: change the naming from DocumentGraph to HardBlockingDedupe or something like
+#  this
 
 
 class DocumentGraphDedupe(Dedupe):
@@ -95,12 +307,6 @@ class DocumentGraphDedupe(Dedupe):
 
         self.active_learner.mark(examples, y)
 
-    def most_uncertain_pairs(self, n: int) -> RecordPairs:
-        assert (
-            self.active_learner is not None
-        ), "Please initialize with the prepare_training method"
-        return self.active_learner.pop_n(n=n)
-
 
 class DocumentGraphDedupeDisagreementLearner(DisagreementLearner):
     def __init__(
@@ -130,7 +336,9 @@ class DocumentGraphDedupeDisagreementLearner(DisagreementLearner):
 
         self._candidates = self.blocker.candidates.copy()
 
-        self.matcher = MatchLearner(featurizer, self.candidates)
+        self.matcher = ConfigurableMatchLearner(
+            featurizer, self.candidates, max_iter=10000
+        )
 
         examples = [exact_match] * 4 + [random_pair]
         labels: Labels = [1] * 4 + [0]  # type: ignore[assignment]
@@ -313,3 +521,14 @@ class HardStaticDedupe(StaticMatching, HardDedupeMatching):
     ) -> None:
         self._doc_key = doc_key
         super().__init__(settings_file, num_cores, in_memory, **kwargs)
+
+
+def compute_membership(partition: List) -> Dict:
+    membership = dict()
+    for cluster_id, (records, scores) in enumerate(partition):
+        for record_id, score in zip(records, scores):
+            membership[record_id] = {
+                "cluster_id": cluster_id,
+                "cluster_confidence": float(score),
+            }
+    return membership
