@@ -63,6 +63,8 @@ NE_DOC_ROOT_ID = to_lower_camel(f"doc_{DOC_ROOT_ID}")
 NE_DEBUG_DOC_URL = "debugDocUrl"
 NE_DEBUG_FILENAME = "debugFilename"
 NE_MENTION_CLUSTER = "neMentionClusterID"
+# TODO: fix this naming..
+NE_MENTION_NORM_DOC_ID = "neMentionNormDocID"
 
 NE_FIELDNAMES = [
     NE_MENTION_NORM,
@@ -157,7 +159,7 @@ def person_fields(records: Iterable[RecordDict], inside_docs: bool) -> List[Dict
 
 
 def run_training(
-    data_path: Path,
+    records: Data,
     *,
     dedupe_getter: Callable[[List[Dict]], Dedupe],
     fields_getter: Callable[[Iterable[RecordDict]], List[Dict]],
@@ -168,12 +170,10 @@ def run_training(
     id_column: str,
     recall: float,
 ) -> Dedupe:
+    # TODO: this function has too many IO... IO should be separate from the core...
     with excluded_path.open() as f:
         invalid_ids = (line.strip() for line in f)
         invalid_ids = set(i for i in invalid_ids if i)
-
-    with data_path.open() as f:
-        records = read_records(f, id_column=id_column, invalid_ids=invalid_ids)
 
     all_records = records.values()
     training_file_cm = yield_none
@@ -242,7 +242,7 @@ class ConfigurableClassifierDedupe(Dedupe):
         )
         if clf_args is None:
             clf_args = dict()
-        self.clf_args  = clf_args
+        self.clf_args = clf_args
         self.classifier = sklearn.model_selection.GridSearchCV(
             estimator=sklearn.linear_model.LogisticRegression(**self.clf_args),
             param_grid={"C": [0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10]},
@@ -523,12 +523,14 @@ class HardStaticDedupe(StaticMatching, HardDedupeMatching):
         super().__init__(settings_file, num_cores, in_memory, **kwargs)
 
 
-def compute_membership(partition: List) -> Dict:
+def compute_membership(
+    partition: List, *, cluster_key: str, confidence_key: str
+) -> Dict:
     membership = dict()
     for cluster_id, (records, scores) in enumerate(partition):
         for record_id, score in zip(records, scores):
             membership[record_id] = {
-                "cluster_id": cluster_id,
-                "cluster_confidence": float(score),
+                cluster_key: cluster_id,
+                confidence_key: float(score),
             }
     return membership
