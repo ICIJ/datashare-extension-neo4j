@@ -22,7 +22,7 @@ async def test_write_neo4j_csv():
     f = io.StringIO()
     headers = [
         "id",
-        "rootId",
+        "rootDocument",
         "dirname",
         "contentType",
         "contentLength",
@@ -36,7 +36,7 @@ async def test_write_neo4j_csv():
     csv = f.getvalue()
 
     # Then
-    expected_csv = """id,rootId,dirname,contentType,contentLength,\
+    expected_csv = """id,rootDocument,dirname,contentType,contentLength,\
 extractionDate,path
 doc-0,,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,dirname-0
 doc-1,doc-0,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1
