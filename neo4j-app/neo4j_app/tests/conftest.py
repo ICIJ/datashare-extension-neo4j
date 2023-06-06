@@ -211,7 +211,7 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
         yield {
             "_id": f"doc-{i}",
             "_source": {
-                "rootId": f"doc-{i - 1}" if i else None,
+                "rootDocument": f"doc-{i - 1}" if i else None,
                 "dirname": f"dirname-{i}",
                 "contentType": f"content-type-{i}",
                 "contentLength": i**2,
