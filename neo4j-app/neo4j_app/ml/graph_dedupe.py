@@ -191,7 +191,7 @@ def run_training(
     with training_file_cm() as training_file:
         # TODO: clean this... we should have to reopen the training file
         fields = fields_getter(all_records)
-        deduper = dedupe_getter(fields)
+        deduper = dedupe_getter(variable_definition=fields)
         deduper.prepare_training(records, training_file, sample_size)
         clf_args = getattr(deduper, "clf_args")
         if clf_args is not None:
