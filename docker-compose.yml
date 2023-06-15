@@ -48,3 +48,16 @@ services:
       - type: bind
         source: .data/neo4j/import/
         target: /.neo4j/import/
+
+  test-rabbit-mq:
+    container_name: test-rabbit-mq
+    image: rabbitmq:3.12.0-management
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 20s
+    ports:
+      - 5673:5672
+      - 15673:5672

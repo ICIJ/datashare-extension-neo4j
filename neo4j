@@ -425,8 +425,10 @@ Please run ./neo4j format"
         docker compose up --detach \
             --wait \
             --build \
+            --remove-orphans \
             test-elasticsearch \
-            test-neo4j
+            test-neo4j \
+            test-rabbit-mq
     )
 
     function start_debug_app() (
@@ -443,8 +445,12 @@ Please run ./neo4j format"
         docker compose up --build --wait test-neo4j
     )
 
+    function start_test_rabbitmq() (
+        docker compose up --wait --build test-rabbitmq
+    )
+
     function stop_all_test_services() (
-        docker compose stop test-elasticsearch test-neo4j
+        docker compose stop test-elasticsearch test-neo4j test-rabbit-mq
     )
 
     function stop_test_elasticsearch() (
@@ -453,6 +459,10 @@ Please run ./neo4j format"
 
     function stop_test_neo4j() (
         docker compose stop test-neo4j
+    )
+
+    function stop_test_neo4j() (
+        docker compose stop test-rabbitmq
     )
 
     function test() {
