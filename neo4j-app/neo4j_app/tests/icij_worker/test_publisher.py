@@ -95,7 +95,7 @@ async def test_publisher_should_reconnect_for_recoverable_error(
         assert success_i == n_disconnects
 
 
-def test_publisher_should_not_reconnect_from_non_recoverable_error(rabbit_mq: str):
+def test_publisher_should_not_reconnect_on_fatal_error(rabbit_mq: str):
     # Given
     broker_url = rabbit_mq
     queue = "test-queue"
