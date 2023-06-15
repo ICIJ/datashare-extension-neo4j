@@ -1,1 +1,1 @@
-# TODO: imports here: ICIJApp, worker, wrapper
+from .publisher import MessagePublisher

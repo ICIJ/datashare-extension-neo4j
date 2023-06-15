@@ -76,7 +76,7 @@ def test_publisher_should_reconnect(
     success_i = None
     with publisher.connect():
         for i, attempt in enumerate(
-            publisher.reconnect_wrapper(max_attempt=max_attempt, max_wait_s=0.1)
+            publisher.reconnection_attempts(max_attempt=max_attempt, max_wait_s=0.1)
         ):
             with attempt:
                 if i < n_disconnects:
@@ -108,7 +108,9 @@ def test_publisher_should_not_reconnect_from_non_recoverable_error(rabbit_mq: st
     # When/Then
     with publisher.connect():
         with pytest.raises(_MyNonRecoverableError):
-            for attempt in publisher.reconnect_wrapper(max_attempt=max_attempt, max_wait_s=0.1):
+            for attempt in publisher.reconnection_attempts(
+                max_attempt=max_attempt, max_wait_s=0.1
+            ):
                 with attempt:
                     raise _MyNonRecoverableError()
 
@@ -129,6 +131,8 @@ def test_publisher_should_not_reconnect_too_many_times(rabbit_mq: str):
     # When/Then
     with publisher.connect():
         with pytest.raises(ConnectionOpenAborted):
-            for attempt in publisher.reconnect_wrapper(max_attempt=max_attempt, max_wait_s=0.1):
+            for attempt in publisher.reconnection_attempts(
+                max_attempt=max_attempt, max_wait_s=0.1
+            ):
                 with attempt:
                     raise ConnectionOpenAborted()

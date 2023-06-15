@@ -81,7 +81,7 @@ class MessagePublisher:
     ) -> MessagePublisher:
         try:
             if max_connection_attempts > 1:
-                reconnect_wrapper = self.reconnect_wrapper(
+                reconnect_wrapper = self.reconnection_attempts(
                     max_connection_attempts, max_reconnection_wait_s
                 )
                 for attempt in reconnect_wrapper:
@@ -111,7 +111,7 @@ class MessagePublisher:
         self._open_channel()
         self._log(logging.INFO, "channel opened !")
 
-    def reconnect_wrapper(
+    def reconnection_attempts(
         self, max_attempt: int, max_wait_s: float = 3600.0
     ) -> Generator[RetryCallState, None]:
         for i, attempt in enumerate(self._reconnect_retry(max_attempt, max_wait_s)):
