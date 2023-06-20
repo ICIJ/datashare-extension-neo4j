@@ -191,7 +191,7 @@ public class Neo4jResource {
         return wrapNeo4jAppCall(() -> {
             try {
                 return this.exportNeo4jCSVs(project, request);
-            } catch (IOException e) {
+            } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
         });
@@ -390,7 +390,7 @@ public class Neo4jResource {
     protected InputStream exportNeo4jCSVs(
         String projectId, org.icij.datashare.Objects.Neo4jCSVRequest request
     )
-        throws IOException {
+        throws IOException, InterruptedException {
         // TODO: the database should be chosen dynamically with the Mode (local vs. server) and
         //  the project
         checkExtensionProject(projectId);
