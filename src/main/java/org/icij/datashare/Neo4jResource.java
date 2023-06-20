@@ -184,6 +184,7 @@ public class Neo4jResource {
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     @Post("/admin/neo4j-csvs?project=:project")
     public Payload postNeo4jCSVs(String project, Context context) throws IOException {
+        checkCheckLocal();
         checkAccess(project, context);
         org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request =
             context.extract(org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest.class);
@@ -421,8 +422,15 @@ public class Neo4jResource {
         }
     }
 
-    private void checkAccess(String project, Context context) {
+    protected void checkAccess(String project, Context context) {
         if (!((User) context.currentUser()).isGranted(project)) {
+            throw new UnauthorizedException();
+        }
+    }
+
+    protected void checkCheckLocal() {
+        String mode = propertiesProvider.get("mode").orElse("SERVER");
+        if (!mode.equals("LOCAL") && !mode.equals("EMBEDDED")) {
             throw new UnauthorizedException();
         }
     }

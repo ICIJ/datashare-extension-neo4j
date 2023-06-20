@@ -42,6 +42,34 @@ public class Neo4jResourceTest {
         }
     }
 
+    public static class MockLocalModeProperties implements BeforeAllCallback {
+        @Override
+        public void beforeAll(ExtensionContext extensionContext) {
+            propertyProvider = new PropertiesProvider(new HashMap<>() {
+                {
+                    put("neo4jAppPort", Integer.toString(neo4jAppPort));
+                    put("neo4jSingleProject", "foo-datashare");
+                    put("mode", "LOCAL");
+                    put("neo4jStartServerCmd", "src/test/resources/shell_mock");
+                }
+            });
+        }
+    }
+
+    public static class MockEmbeddedModeProperties implements BeforeAllCallback {
+        @Override
+        public void beforeAll(ExtensionContext extensionContext) {
+            propertyProvider = new PropertiesProvider(new HashMap<>() {
+                {
+                    put("neo4jAppPort", Integer.toString(neo4jAppPort));
+                    put("neo4jSingleProject", "foo-datashare");
+                    put("mode", "EMBEDDED");
+                    put("neo4jStartServerCmd", "src/test/resources/shell_mock");
+                }
+            });
+        }
+    }
+
     public static class PythonAppProperties implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
@@ -434,6 +462,29 @@ public class Neo4jResourceTest {
         }
 
         @Test
+        public void test_post_admin_neo4j_csvs_should_return_401_when_not_in_local() {
+            // When
+            Response response = post(
+                "/api/neo4j/admin/neo4j-csvs?project=foo-datashare").withPreemptiveAuthentication(
+                "foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+    }
+
+    @DisplayName("test admin import")
+    @ExtendWith(MockNeo4jApp.class)
+    @ExtendWith(MockLocalModeProperties.class)
+    @ExtendWith(BindNeo4jResource.class)
+    @Nested
+    class Neo4jResourceAdminImportTest implements FluentRestTest {
+        @Override
+        public int port() {
+            return port;
+        }
+
+        @Test
         public void test_post_admin_neo4j_csvs_should_return_200()
             throws IOException, InterruptedException {
             // Given
@@ -483,5 +534,59 @@ public class Neo4jResourceTest {
             // Then
             assertThat(response.code()).isEqualTo(401);
         }
+    }
+
+    @DisplayName("test admin import")
+    @ExtendWith(MockNeo4jApp.class)
+    @ExtendWith(MockEmbeddedModeProperties.class)
+    @ExtendWith(BindNeo4jResource.class)
+    @Nested
+    class Neo4jResourceAdminImportEmbeddedTest implements FluentRestTest {
+        @Override
+        public int port() {
+            return port;
+        }
+
+        @Test
+        public void test_post_admin_neo4j_csvs_should_return_200()
+            throws IOException, InterruptedException {
+            // Given
+            Path exportPath = null;
+            byte[] exportContent = "exportbytescompressedintoatargz".getBytes();
+            try {
+                exportPath = Files.createTempFile("neo4j-export", ".tar.gz").toAbsolutePath();
+                Files.write(exportPath, exportContent);
+                String exportPathAsString = exportPath.toString();
+
+                neo4jAppResource.startServerProcess(false);
+                neo4jApp.configure(
+                    routes -> routes.post(
+                        "/admin/neo4j-csvs",
+                        context -> new Payload(
+                            "application/json",
+                            "{" +
+                                "\"path\": \"" + exportPathAsString + "\"," +
+                                "\"metadata\": {\"nodes\": [], \"relationships\": []}" +
+                                "}"
+                        )
+                    )
+                );
+
+                // When
+                Response response = post("/api/neo4j/admin/neo4j-csvs?project=foo-datashare", "{}")
+                    .withPreemptiveAuthentication("foo", "null")
+                    .response();
+
+                // Then
+                assertThat(response.code()).isEqualTo(200);
+                assertThat(response.contentType()).isEqualTo("application/octet-stream");
+                assertThat(response.content()).isEqualTo(new String(exportContent));
+            } finally {
+                if (exportPath != null) {
+                    Files.deleteIfExists(exportPath);
+                }
+            }
+        }
+
     }
 }
