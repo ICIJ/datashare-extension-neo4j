@@ -21,7 +21,6 @@ class CSVPaths:
 
 
 class Neo4jCSVRequest(LowerCamelCaseModel):
-    export_dir: str
     query: Optional[Dict] = None
 
 

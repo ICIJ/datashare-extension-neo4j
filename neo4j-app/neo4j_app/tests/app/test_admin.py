@@ -1,3 +1,6 @@
+import os
+import stat
+
 from pathlib import Path
 
 import pytest
@@ -23,15 +26,13 @@ async def _populate_es(es_test_client_module: ESClient):
 async def test_post_named_entities_import_should_return_200(
     test_client_module: TestClient,
     _populate_es,
-    tmpdir,
 ):
     # pylint: disable=invalid-name,unused-argument
     # Given
     test_client = test_client_module
-    export_dir = Path(tmpdir)
     query = {"ids": {"values": ["doc-0"]}}
     url = "/admin/neo4j-csvs?database=neo4j"
-    payload = {"exportDir": str(export_dir), "query": query}
+    payload = {"query": query}
 
     # When
     res = test_client.post(url, json=payload)
@@ -40,6 +41,8 @@ async def test_post_named_entities_import_should_return_200(
     assert res.status_code == 200, res.json()
     res = Neo4jCSVResponse.parse_obj(res.json())
     assert Path(res.path).exists()
+    st = os.stat(res.path)
+    assert bool(st.st_mode & stat.S_IROTH)
     expected_metadata = Neo4jCSVs(
         db="neo4j",
         nodes=[
