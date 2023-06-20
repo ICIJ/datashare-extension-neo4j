@@ -175,7 +175,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
             )
 
     @asynccontextmanager
-    async def pit_if_supported(
+    async def try_open_pit(
         self, *, keep_alive: str, **kwargs
     ) -> AsyncGenerator[Optional[PointInTime], None]:
         pit_id = None

@@ -135,7 +135,7 @@ async def import_documents(
     es_query = _make_document_query(es_query, es_doc_type_field)
     if es_concurrency is None:
         es_concurrency = es_client.max_concurrency
-    async with es_client.pit_if_supported(keep_alive=es_keep_alive) as pit:
+    async with es_client.try_open_pit(keep_alive=es_keep_alive) as pit:
         # Since we're merging relationships we need to set the import concurrency to 1
         # to avoid deadlocks...
         neo4j_concurrency = 1
@@ -190,7 +190,7 @@ async def import_named_entities(
     # on the documentId will probably be much more efficient !
     # TODO: if joining is too slow, switch to post filtering
     # TODO: project document fields here in order to reduce the ES payloads...
-    async with es_client.pit_if_supported(keep_alive=es_keep_alive) as pit:
+    async with es_client.try_open_pit(keep_alive=es_keep_alive) as pit:
         if pit is not None:
             pit[KEEP_ALIVE] = es_keep_alive
         neo4j_concurrency = 1
@@ -294,7 +294,7 @@ async def to_neo4j_csvs(
 ) -> Neo4jCSVResponse:
     nodes = []
     relationships = []
-    async with es_client.pit_if_supported(keep_alive=es_keep_alive) as pit:
+    async with es_client.try_open_pit(keep_alive=es_keep_alive) as pit:
         doc_nodes_csvs, doc_rels_csvs = await _to_neo4j_doc_csvs(
             export_dir=export_dir,
             es_query=es_query,
