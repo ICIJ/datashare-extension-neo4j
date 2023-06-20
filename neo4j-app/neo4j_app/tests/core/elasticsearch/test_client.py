@@ -61,7 +61,7 @@ async def test_write_concurrently_neo4j_csv(
     with (tmp_path / "import.csv").open("w") as f:
         writer = get_neo4j_csv_writer(f, header)
         writer.writeheader()
-        async with es_client.pit_if_supported(keep_alive="1m") as pit:
+        async with es_client.try_open_pit(keep_alive="1m") as pit:
             total_hits, _ = await es_client.write_concurrently_neo4j_csvs(
                 query,
                 pit=pit,
