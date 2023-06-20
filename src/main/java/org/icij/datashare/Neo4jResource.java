@@ -21,6 +21,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -186,8 +187,8 @@ public class Neo4jResource {
     @Post("/admin/neo4j-csvs?project=:project")
     public Payload postNeo4jCSVs(String project, Context context) throws IOException {
         checkAccess(project, context);
-        org.icij.datashare.Objects.Neo4jCSVRequest request =
-            context.extract(org.icij.datashare.Objects.Neo4jCSVRequest.class);
+        org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request =
+            context.extract(org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest.class);
         return wrapNeo4jAppCall(() -> {
             try {
                 return this.exportNeo4jCSVs(project, request);
@@ -388,7 +389,7 @@ public class Neo4jResource {
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     protected InputStream exportNeo4jCSVs(
-        String projectId, org.icij.datashare.Objects.Neo4jCSVRequest request
+        String projectId, org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request
     )
         throws IOException, InterruptedException {
         // TODO: the database should be chosen dynamically with the Mode (local vs. server) and
@@ -397,22 +398,22 @@ public class Neo4jResource {
         checkNeo4jAppStarted();
         String database = "neo4j";
         // Define a temp dir
-        Path tmpDir = createTempDirectory(
-            Path.of(FileSystems.getDefault().getSeparator(), "tmp"), "neo4j-export-");
-        org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest neo4jAppRequest = request.toNeo4j(
-            tmpDir.toAbsolutePath().toString());
+        Path exportDir = null;
         try {
             org.icij.datashare.Objects.Neo4jCSVResponse res =
-                client.exportNeo4jCSVs(database, neo4jAppRequest);
+                client.exportNeo4jCSVs(database, request);
             logger.info("Exported data from ES to neo4j, statistics: {}",
                 lazy(() -> MAPPER.writeValueAsString(res.metadata)));
+            exportDir = Paths.get(res.path);
             InputStream is = new FileInputStream(res.path);
             return new BufferedInputStream(is);
         } finally {
-            Files.walk(tmpDir)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
+            if (exportDir != null) {
+                Files.walk(exportDir)
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+            }
         }
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName

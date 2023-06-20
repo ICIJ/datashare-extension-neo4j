@@ -34,28 +34,12 @@ public class Objects {
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
-    static class Neo4jCSVRequest {
-
-        public HashMap<String, Object> query;
-
-        @JsonCreator
-        Neo4jCSVRequest(@JsonProperty("query") HashMap<String, Object> query) {
-            this.query = query;
-        }
-
-        public Neo4jAppNeo4jCSVRequest toNeo4j(String exportDir) {
-            return new Neo4jAppNeo4jCSVRequest(exportDir, query);
-        }
-    }
-
     static class Neo4jAppNeo4jCSVRequest {
-        public String exportDir;
+
         public HashMap<String, Object> query;
 
         @JsonCreator
-        Neo4jAppNeo4jCSVRequest(@JsonProperty("exportDir") String exportDir,
-                                @JsonProperty("query") HashMap<String, Object> query) {
-            this.exportDir = exportDir;
+        Neo4jAppNeo4jCSVRequest(@JsonProperty("query") HashMap<String, Object> query) {
             this.query = query;
         }
     }

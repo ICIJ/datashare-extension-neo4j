@@ -1,5 +1,7 @@
 import logging
+import os
 from pathlib import Path
+from tempfile import mkdtemp
 
 from fastapi import APIRouter, Depends, Request
 
@@ -43,8 +45,9 @@ def admin_router() -> APIRouter:
         with log_elapsed_time_cm(
             logger, logging.INFO, "Exported ES to CSV in {elapsed_time} !"
         ):
+            tmpdir = mkdtemp()
             res = await to_neo4j_csvs(
-                export_dir=Path(payload.export_dir),
+                export_dir=Path(tmpdir),
                 es_query=payload.query,
                 es_client=es_client,
                 es_concurrency=config.es_max_concurrency,
@@ -52,6 +55,8 @@ def admin_router() -> APIRouter:
                 es_doc_type_field=config.es_doc_type_field,
                 neo4j_db=database,
             )
+        os.chmod(tmpdir, 0o744)
+        os.chmod(res.path, 0o744)
         return res
 
     return router
