@@ -24,6 +24,7 @@ class Neo4jImportWorker:
         self,
         name: str,
         neo4j_driver: neo4j.AsyncDriver,
+        neo4j_db: str,
         import_fn: Neo4Import,
         *,
         transaction_batch_size: int,
@@ -31,6 +32,7 @@ class Neo4jImportWorker:
     ):
         self._name = name
         self._neo4j_driver = neo4j_driver
+        self._neo4j_db = neo4j_db
         self._import_fn = import_fn
         self._transaction_batch_size = transaction_batch_size
         self._to_neo4j = to_neo4j
@@ -54,7 +56,9 @@ class Neo4jImportWorker:
                     self.name,
                     len(import_batch),
                 )
-                async with self._neo4j_driver.session() as neo4j_session:
+                async with self._neo4j_driver.session(
+                    database=self._neo4j_db
+                ) as neo4j_session:
                     summary = await self._import_fn(
                         neo4j_session,
                         import_batch,

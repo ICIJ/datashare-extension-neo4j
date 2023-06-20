@@ -4,13 +4,16 @@ import os
 import shutil
 import subprocess
 import tarfile
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import AsyncGenerator, Dict, List, Optional
+from unittest.mock import patch
 
 import neo4j
 import pytest
 import pytest_asyncio
+from neo4j import AsyncGraphDatabase
 
 from neo4j_app import ROOT_DIR
 from neo4j_app.constants import DOC_NODE, DOC_ROOT_REL_LABEL, NE_APPEARS_IN_DOC, NE_NODE
@@ -28,6 +31,7 @@ from neo4j_app.core.objects import (
     RelationshipCSVs,
 )
 from neo4j_app.tests.conftest import (
+    NEO4J_TEST_PORT,
     assert_content,
     index_docs,
     index_named_entities,
@@ -124,26 +128,44 @@ async def test_import_documents(
 
 
 @pytest.mark.asyncio
-async def test_import_documents_should_raise_for_invalid_db(
+async def test_import_documents_should_forward_db(
     neo4j_test_driver_session: neo4j.AsyncDriver,
-    es_test_client_session: ESClient,
+    _populate_es: ESClient,  # pylint: disable=invalid-name
 ):
+    # pylint: disable=not-async-context-manager
     # Given
-    invalid_db = "db-which-do-not-exist"
-    # When/Then
-    expected_msg = 'Invalid neo4j database "db-which-do-not-exist"'
-    with pytest.raises(RuntimeError, match=expected_msg):
-        await import_documents(
-            es_client=es_test_client_session,
-            es_query=dict(),
-            es_keep_alive="10s",
-            es_doc_type_field="type",
-            neo4j_driver=neo4j_test_driver_session,
-            neo4j_db=invalid_db,
-            neo4j_import_batch_size=10,
-            neo4j_transaction_batch_size=10,
-            max_records_in_memory=10,
-        )
+    project_db = "some_db"
+    neo4j_driver = neo4j_test_driver_session
+    es_client = _populate_es
+
+    # We check that the project DB is passed all the way, while returning an actual
+    # session so that the test flow can continue
+    uri = f"neo4j://127.0.0.1:{NEO4J_TEST_PORT}"
+    #
+    async with AsyncGraphDatabase.driver(uri, auth=None) as driver:
+
+        @asynccontextmanager
+        async def mock_session(database: Optional[str] = None):
+            # Simulate an unknown DB
+            if database != project_db:
+                raise RuntimeError(f'Unknown DB "{database}"')
+            async with driver.session(database="neo4j") as session:
+                yield session
+
+        with patch.object(neo4j_driver, attribute="session", new=mock_session):
+            # When/Then
+            res = await import_documents(
+                es_client=es_client,
+                es_query=dict(),
+                es_keep_alive="10s",
+                es_doc_type_field="type",
+                neo4j_driver=neo4j_driver,
+                neo4j_db=project_db,
+                neo4j_import_batch_size=10,
+                neo4j_transaction_batch_size=10,
+                max_records_in_memory=10,
+            )
+            assert res.imported
 
 
 @pytest.mark.asyncio
@@ -283,26 +305,42 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
 
 
 @pytest.mark.asyncio
-async def test_import_named_entities_should_raise_for_invalid_db(
+async def test_import_named_entities_should_forward_db(
     neo4j_test_driver_session: neo4j.AsyncDriver,
-    es_test_client_session: ESClient,
+    _populate_es: ESClient,  # pylint: disable=invalid-name
 ):
+    # pylint: disable=not-async-context-manager
     # Given
-    invalid_db = "db-which-do-not-exist"
-    # When/Then
-    expected_msg = 'Invalid neo4j database "db-which-do-not-exist"'
-    with pytest.raises(RuntimeError, match=expected_msg):
-        await import_named_entities(
-            es_client=es_test_client_session,
-            es_query=dict(),
-            es_keep_alive="10s",
-            es_doc_type_field="type",
-            neo4j_driver=neo4j_test_driver_session,
-            neo4j_db=invalid_db,
-            neo4j_import_batch_size=10,
-            neo4j_transaction_batch_size=10,
-            max_records_in_memory=10,
-        )
+    project_db = "some_db"
+    neo4j_driver = neo4j_test_driver_session
+    es_client = _populate_es
+
+    # We check that the project DB is passed all the way, while returning an actual
+    # session so that the test flow can continue
+    uri = f"neo4j://127.0.0.1:{NEO4J_TEST_PORT}"
+    async with AsyncGraphDatabase.driver(uri, auth=None) as driver:
+
+        @asynccontextmanager
+        async def mock_session(database: Optional[str] = None):
+            # Simulate an unknown DB
+            if database != project_db:
+                raise RuntimeError(f'Unknown DB "{database}"')
+            async with driver.session(database="neo4j") as session:
+                yield session
+
+        with patch.object(neo4j_driver, attribute="session", new=mock_session):
+            # When/Then
+            await import_named_entities(
+                es_client=es_client,
+                es_query=dict(),
+                es_keep_alive="10s",
+                es_doc_type_field="type",
+                neo4j_driver=neo4j_driver,
+                neo4j_db=project_db,
+                neo4j_import_batch_size=10,
+                neo4j_transaction_batch_size=10,
+                max_records_in_memory=10,
+            )
 
 
 def _expected_ne_nodes_lines() -> str:

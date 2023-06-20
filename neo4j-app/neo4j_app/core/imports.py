@@ -88,7 +88,6 @@ from neo4j_app.core.neo4j.named_entities import (
     ne_creation_stats_tx,
     import_named_entity_rows,
 )
-from neo4j_app.core.neo4j.utils import check_neo4j_database
 from neo4j_app.core.objects import (
     IncrementalImportResponse,
     Neo4jCSVResponse,
@@ -134,7 +133,6 @@ async def import_documents(
     neo4j_transaction_batch_size: int,
     max_records_in_memory: int,
 ) -> IncrementalImportResponse:
-    await check_neo4j_database(neo4j_driver, neo4j_db)
     es_query = _make_document_query(es_query, es_doc_type_field)
     if es_concurrency is None:
         es_concurrency = es_client.max_concurrency
@@ -153,6 +151,7 @@ async def import_documents(
             es_bodies=bodies,
             es_concurrency=es_concurrency,
             neo4j_driver=neo4j_driver,
+            neo4j_db=neo4j_db,
             neo4j_concurrency=neo4j_concurrency,
             neo4j_import_batch_size=neo4j_import_batch_size,
             neo4j_transaction_batch_size=neo4j_transaction_batch_size,
@@ -182,8 +181,7 @@ async def import_named_entities(
     neo4j_transaction_batch_size: int,
     max_records_in_memory: int,
 ) -> IncrementalImportResponse:
-    await check_neo4j_database(neo4j_driver, neo4j_db)
-    async with neo4j_driver.session() as neo4j_session:
+    async with neo4j_driver.session(database=neo4j_db) as neo4j_session:
         document_ids = await neo4j_session.execute_read(documents_ids_tx)
         # Because of this neo4j limitation (https://github.com/neo4j/neo4j/issues/13139)
         # we have to count the number of relation created manually
@@ -210,6 +208,7 @@ async def import_named_entities(
             es_bodies=bodies,
             es_concurrency=es_concurrency,
             neo4j_driver=neo4j_driver,
+            neo4j_db=neo4j_db,
             neo4j_concurrency=neo4j_concurrency,
             neo4j_import_batch_size=neo4j_import_batch_size,
             neo4j_transaction_batch_size=neo4j_transaction_batch_size,
@@ -218,7 +217,7 @@ async def import_named_entities(
             max_records_in_memory=max_records_in_memory,
             imported_entity_label="named entity nodes",
         )
-    async with neo4j_driver.session() as neo4j_session:
+    async with neo4j_driver.session(database=neo4j_db) as neo4j_session:
         n_nodes, n_rels = await neo4j_session.execute_read(ne_creation_stats_tx)
     res = IncrementalImportResponse(
         imported=import_summary.imported,
@@ -228,28 +227,13 @@ async def import_named_entities(
     return res
 
 
-def _make_neo4j_worker(
-    name: str,
-    neo4j_driver: neo4j.AsyncDriver,
-    import_fn: Neo4Import,
-    transaction_batch_size: int,
-    to_neo4j_row: Callable[[Any], Dict],
-) -> Neo4jImportWorker:
-    return Neo4jImportWorker(
-        name=name,
-        neo4j_driver=neo4j_driver,
-        import_fn=import_fn,
-        transaction_batch_size=transaction_batch_size,
-        to_neo4j=to_neo4j_row,
-    )
-
-
 async def _es_to_neo4j_import(
     *,
     es_client: ESClientABC,
     es_bodies: List[Mapping[str, Any]],
     es_concurrency: Optional[int] = None,
     neo4j_driver: neo4j.AsyncDriver,
+    neo4j_db: str,
     neo4j_concurrency: int,
     neo4j_import_fn: Neo4Import,
     neo4j_import_batch_size: int,
@@ -259,11 +243,12 @@ async def _es_to_neo4j_import(
     imported_entity_label: str,
 ) -> ImportSummary:
     neo4j_import_worker_factory = functools.partial(
-        _make_neo4j_worker,
+        Neo4jImportWorker,
         neo4j_driver=neo4j_driver,
         import_fn=neo4j_import_fn,
+        neo4j_db=neo4j_db,
         transaction_batch_size=neo4j_transaction_batch_size,
-        to_neo4j_row=to_neo4j_row,
+        to_neo4j=to_neo4j_row,
     )
     imported, summaries = await es_client.to_neo4j(
         es_bodies,

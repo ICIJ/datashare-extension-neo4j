@@ -31,16 +31,16 @@ def test_should_cache_es_client(test_client_session: TestClient):
     client = test_client_session
     # We have to call a route which depends on the config
     url = "/documents"
-    with mock.patch("neo4j_app.app.dependencies.neo4j_session_dep") as session_dep_mock:
-        session_dep_mock.return_value = MagicMock()
+    with mock.patch("neo4j_app.app.dependencies.es_client_dep") as es_client_dep_mock:
+        es_client_dep_mock.return_value = MagicMock()
         # When
         client.post(url, json=dict())
         # Then
-        assert session_dep_mock.call_count == 0
+        assert es_client_dep_mock.call_count == 0
         # When
         client.post(url, json=dict())
         # Then
-        assert session_dep_mock.call_count == 0
+        assert es_client_dep_mock.call_count == 0
 
 
 def test_should_cache_app_config(test_client_session: TestClient):

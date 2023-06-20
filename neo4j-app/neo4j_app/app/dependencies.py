@@ -1,7 +1,7 @@
 from typing import AsyncGenerator
 
 import neo4j
-from fastapi import Depends, Request
+from fastapi import Depends
 
 from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClientABC
@@ -19,15 +19,6 @@ async def neo4j_driver_dep(
         yield driver
     finally:
         await driver.close()
-
-
-async def neo4j_session_dep(
-    request: Request,
-    driver: neo4j.AsyncNeo4jDriver = Depends(neo4j_driver_dep),
-) -> AsyncGenerator[neo4j.AsyncSession, None]:
-    async with driver.session() as sess:
-        request.state.neo4j_session = sess
-        yield sess
 
 
 async def es_client_dep(
