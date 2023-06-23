@@ -51,7 +51,12 @@ def test_publisher_should_publish(rabbit_mq: str, mandatory: bool):
 @pytest.mark.parametrize(
     "error,n_disconnects",
     [
-        (StreamLostError('Stream connection lost: {!r}'.format(ConnectionError("error"))), 2),
+        (
+            StreamLostError(
+                "Stream connection lost: {!r}".format(ConnectionError("error"))
+            ),
+            2,
+        ),
         (UnroutableError([]), 3),
         (NackError([]), 4),
     ],

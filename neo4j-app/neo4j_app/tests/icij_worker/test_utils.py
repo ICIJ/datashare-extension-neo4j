@@ -18,9 +18,7 @@ class _NotParsable(Exception):
             ConnectionLostError("Transport indicated EOF"),
         ),
         (
-            StreamLostError(
-                f"Stream connection lost: {ValueError('wrapped error')!r}"
-            ),
+            StreamLostError(f"Stream connection lost: {ValueError('wrapped error')!r}"),
             ValueError("wrapped error"),
         ),
         (
