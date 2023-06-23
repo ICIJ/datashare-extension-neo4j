@@ -51,24 +51,25 @@ def test_publisher_should_publish(rabbit_mq: str, mandatory: bool):
 @pytest.mark.parametrize(
     "error,n_disconnects",
     [
-        (ConnectionOpenAborted(), 1),
-        (StreamLostError(), 2),
+        (StreamLostError('Stream connection lost: {!r}'.format(ConnectionError("error"))), 2),
         (UnroutableError([]), 3),
         (NackError([]), 4),
     ],
 )
-def test_publisher_should_reconnect(
+def test_publisher_should_reconnect_for_recoverable_error(
     rabbit_mq: str, error: Exception, n_disconnects: int
 ):
     # Given
     broker_url = rabbit_mq
     queue = "test-queue"
+    recover_from = (ConnectionError, UnroutableError, NackError)
     publisher = _TestablePublisher(
         name="test-publisher",
         exchange="default-ex",
         broker_url=broker_url,
         queue=queue,
         routing_key="test",
+        recover_from=recover_from,
     )
     max_attempt = 10
 

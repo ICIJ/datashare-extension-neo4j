@@ -2,18 +2,13 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
-from typing import Dict, Generator, Optional
+from functools import cached_property
+from typing import Dict, Generator, Optional, Tuple, Type
 
-import pika
 from pika import BaseConnection, BasicProperties, DeliveryMode, URLParameters
 from pika.adapters.blocking_connection import BlockingChannel, BlockingConnection
 from pika.channel import Channel
-from pika.exceptions import (
-    ConnectionOpenAborted,
-    NackError,
-    StreamLostError,
-    UnroutableError,
-)
+from pika.exceptions import StreamLostError
 from pika.exchange_type import ExchangeType
 from pika.spec import Basic
 from tenacity import (
@@ -24,12 +19,14 @@ from tenacity import (
     wait_exponential,
 )
 
+from neo4j_app.icij_worker.utils import LogWithNameMixin, parse_stream_lost_error
+
 logger = logging.getLogger(__name__)
 
 
-class MessagePublisher:
+class MessagePublisher(LogWithNameMixin):
+    _logger = logger
     _EXCHANGE_TYPE = ExchangeType.topic
-    _PREFETCH_COUNT = 5
 
     def __init__(
         self,
@@ -40,6 +37,7 @@ class MessagePublisher:
         queue: str,
         routing_key: str,
         app_id: Optional[str] = None,
+        recover_from: Tuple[Type[Exception], ...] = tuple(),
     ):
         self._name = name
         self._exchange = exchange
@@ -48,11 +46,13 @@ class MessagePublisher:
         self._routing_key = routing_key
         self._app_id = app_id
 
+        self._recover_from = recover_from
+
         self._connection_: Optional[BaseConnection] = None
         self._channel_: Optional[BlockingChannel] = None
 
     @property
-    def name(self) -> str:
+    def logged_name(self) -> str:
         return self._name
 
     @property
@@ -74,6 +74,12 @@ class MessagePublisher:
             )
             raise ValueError(msg)
         return self._channel_
+
+    @cached_property
+    def _exception_namespace(self) -> Dict:
+        ns = dict(globals())
+        ns.update({exc_type.__name__: exc_type for exc_type in self._recover_from})
+        return ns
 
     @contextmanager
     def connect(
@@ -105,7 +111,7 @@ class MessagePublisher:
                 self._log(
                     logging.INFO, "recreating closed connection attempt #%s...", attempt
                 )
-            self._connection_ = pika.BlockingConnection(URLParameters(self._broker_url))
+            self._connection_ = BlockingConnection(URLParameters(self._broker_url))
             self._log(logging.INFO, "connection (re)created !")
         self._log(logging.INFO, "reopening channel...")
         self._open_channel()
@@ -199,14 +205,12 @@ class MessagePublisher:
             body,
         )
 
-    @staticmethod
-    def _should_reconnect(exception: BaseException) -> bool:
-        if isinstance(exception, (ConnectionOpenAborted, StreamLostError)):
-            return True
-        if isinstance(exception, (UnroutableError, NackError)):
-            return True
-        # TODO: should we try to reconnect if the broker is shutting down ?
-        return False
+    def _should_reconnect(self, exception: BaseException) -> bool:
+        if isinstance(exception, StreamLostError):
+            exception = parse_stream_lost_error(
+                exception, namespace=self._exception_namespace
+            )
+        return isinstance(exception, self._recover_from)
 
     def _on_disconnect_callback(self, retry_state: RetryCallState):
         exception = retry_state.outcome.exception()
@@ -218,8 +222,3 @@ class MessagePublisher:
             exception,
         )
         self._attempt_connect(retry_state.attempt_number)
-
-    def _log(self, level: int, msg: str, *args, **kwargs):
-        display_name = f"{self.name}"
-        msg = f"{display_name}: {msg}"
-        logger.log(level, msg, *args, **kwargs)
