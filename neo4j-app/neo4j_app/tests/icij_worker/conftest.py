@@ -1,8 +1,14 @@
 import asyncio
-from typing import AsyncGenerator
+import logging
+import time
+from time import monotonic
+from typing import AsyncGenerator, Callable
 
 import aiohttp
+import pika
 import pytest_asyncio
+
+import neo4j_app
 
 _RABBITMQ_TEST_PORT = 5673
 _RABBITMQ_MANAGEMENT_PORT = 15673
@@ -13,6 +19,24 @@ _DEFAULT_BROKER_URL = (
     f"amqp://guest:guest@localhost:{_RABBITMQ_TEST_PORT}/{_DEFAULT_VHOST}"
 )
 _DEFAULT_AUTH = aiohttp.BasicAuth(login="guest", password="guest", encoding="utf-8")
+
+_AMQP_FMT = "[%(levelname)s][%(asctime)s.%(msecs)03d][%(name)s]: %(message)s"
+_DATE_FMT = "%H:%M:%S"
+
+
+@pytest.fixture(scope="session")
+def amqp_loggers():
+    loggers = [pika.__name__, neo4j_app.__name__]
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(_AMQP_FMT, datefmt=_DATE_FMT))
+    for logger_ in loggers:
+        logger_ = logging.getLogger(logger_)
+        if logger_.name == pika.__name__:
+            logger_.setLevel(logging.INFO)
+        else:
+            logger_.setLevel(logging.DEBUG)
+        logger_.handlers = []
+        logger_.addHandler(handler)
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -37,7 +61,7 @@ def test_management_url(url: str) -> str:
 
 async def _wipe_rabbit_mq():
     async with aiohttp.ClientSession(
-        raise_for_status=True, auth=_DEFAULT_AUTH
+            raise_for_status=True, auth=_DEFAULT_AUTH
     ) as session:
         await _delete_all_connections(session)
         tasks = [_delete_all_exchanges(session), _delete_all_queues(session)]
@@ -85,3 +109,21 @@ async def _delete_queue(session: aiohttp.ClientSession, name: str):
     url = f"/api/queues/{_DEFAULT_VHOST}/{name}"
     async with session.delete(test_management_url(url)) as res:
         res.raise_for_status()
+
+
+def true_after(
+        state_statement: Callable,
+        *,
+        after_s: float,
+        sleep_s: float = 0.01,
+) -> bool:
+    start = monotonic()
+    while "waiting for the statement to be True":
+        try:
+            assert state_statement()
+            return True
+        except AssertionError:
+            if monotonic() - start < after_s:
+                time.sleep(sleep_s)
+                continue
+            return False
