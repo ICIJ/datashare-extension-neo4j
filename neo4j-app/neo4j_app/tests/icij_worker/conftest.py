@@ -63,7 +63,7 @@ def test_management_url(url: str) -> str:
 
 async def _wipe_rabbit_mq():
     async with aiohttp.ClientSession(
-        raise_for_status=True, auth=_DEFAULT_AUTH
+            raise_for_status=True, auth=_DEFAULT_AUTH
     ) as session:
         await _delete_all_connections(session)
         tasks = [_delete_all_exchanges(session), _delete_all_queues(session)]
@@ -114,10 +114,10 @@ async def _delete_queue(session: aiohttp.ClientSession, name: str):
 
 
 def true_after(
-    state_statement: Callable,
-    *,
-    after_s: float,
-    sleep_s: float = 0.01,
+        state_statement: Callable,
+        *,
+        after_s: float,
+        sleep_s: float = 0.01,
 ) -> bool:
     start = monotonic()
     while "waiting for the statement to be True":

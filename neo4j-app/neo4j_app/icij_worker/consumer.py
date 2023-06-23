@@ -33,16 +33,16 @@ class _MessageConsumer(LogWithNameMixin):
     _logger = logger
 
     def __init__(
-        self,
-        *,
-        on_message: Callable,
-        name: str,
-        exchange: str,
-        broker_url: str,
-        queue: str,
-        routing_key: str,
-        app_id: Optional[str] = None,
-        recover_from: Tuple[Type[Exception], ...] = tuple(),
+            self,
+            *,
+            on_message: Callable,
+            name: str,
+            exchange: str,
+            broker_url: str,
+            queue: str,
+            routing_key: str,
+            app_id: Optional[str] = None,
+            recover_from: Tuple[Type[Exception], ...] = tuple(),
     ):
         self._on_message = on_message
 
@@ -108,259 +108,287 @@ class _MessageConsumer(LogWithNameMixin):
             raise ValueError(msg)
         return self._channel_
 
-    @cached_property
-    def _exception_namespace(self) -> Dict:
-        ns = dict(globals())
-        ns.update({exc_type.__name__: exc_type for exc_type in self._recover_from})
-        return ns
+@cached_property
+def _exception_namespace(self) -> Dict:
+    ns = dict(globals())
+    ns.update({exc_type.__name__: exc_type for exc_type in self._recover_from})
+    return ns
 
-    def connect(self):
-        self._log(logging.DEBUG, "connecting to %s", self._broker_url)
-        # TODO: heartbeat ? blocked connection timeout ?
-        self._connection_ = SelectConnection(
-            parameters=pika.URLParameters(self._broker_url),
-            on_open_callback=self._on_connection_open,
-            on_open_error_callback=self._on_connection_open_error,
-            on_close_callback=self._on_connection_closed,
-        )
 
-    def on_message(
+def connect(self):
+    self._log(logging.DEBUG, "connecting to %s", self._broker_url)
+    # TODO: heartbeat ? blocked connection timeout ?
+    self._connection_ = SelectConnection(
+        parameters=pika.URLParameters(self._broker_url),
+        on_open_callback=self._on_connection_open,
+        on_open_error_callback=self._on_connection_open_error,
+        on_close_callback=self._on_connection_closed,
+    )
+
+
+def on_message(
         self,
         _unused_channel: Channel,  # pylint: disable=invalid-name
         basic_deliver: Basic.Deliver,
         _properties: BasicProperties,  # pylint: disable=invalid-name
         body: bytes,
-    ):
-        self._last_message_received_at = time.monotonic()
-        msg = "received message # %s"
-        if self._app_id is not None:
-            msg = f"{msg} from {self._app_id}"
-        self._log(logging.DEBUG, msg, basic_deliver.delivery_tag)
-        self._on_message(body)
-        self._acknowledge_message(basic_deliver.delivery_tag)
+):
+    self._last_message_received_at = time.monotonic()
+    msg = "received message # %s"
+    if self._app_id is not None:
+        msg = f"{msg} from {self._app_id}"
+    self._log(logging.DEBUG, msg, basic_deliver.delivery_tag)
+    self._on_message(body)
+    self._acknowledge_message(basic_deliver.delivery_tag)
 
-    def consume(self):
-        self.connect()
-        self._connection.ioloop.start()
 
-    def stop(self):
-        if not self._closing:
-            self._closing = True
-            self._log(logging.INFO, "stopping...")
-            if self._consuming:
-                # The IOLoop is started again because this method is invoked  when
-                # CTRL-C is pressed raising a KeyboardInterrupt exception. This
-                # exception stops the IOLoop which needs to be running for pika to
-                # communicate with RabbitMQ. All the commands issued prior to
-                # starting the IOLoop will be buffered but not processed.
-                self._stop_consuming()
-                # Calling start will fail if the loop is already running
-                try:
-                    self._connection.ioloop.start()
-                # not robust, but sadly pika does not provide a more catchable
-                # exception type...
-                except RuntimeError as e:
-                    if _IOLOOP_ALREADY_RUNNING_MSG not in str(e):
-                        raise e
-            else:
-                if self._connection_ is not None:
-                    self._connection.ioloop.stop()
-            self._log(logging.INFO, "stopped !")
+def consume(self):
+    self.connect()
+    self._connection.ioloop.start()
 
-    def _trigger_reconnect(self):
-        self._should_reconnect = True
 
-    def _stop_consuming(self):
-        if self._channel:
-            self._log(logging.DEBUG, "sending a Basic.Cancel RPC command to RabbitMQ")
-            self._channel.basic_cancel(self.consumer_tag, self._on_cancelok)
-
-    def _acknowledge_message(self, delivery_tag: int):
-        self._log(logging.DEBUG, "acknowledging message %s", delivery_tag)
-        self._channel.basic_ack(delivery_tag)
-
-    def _close_connection(self):
-        self._consuming = False
-        if self._connection.is_closing or self._connection.is_closed:
-            self._log(logging.DEBUG, "connection is closing or already closed")
+def stop(self):
+    if not self._closing:
+        self._closing = True
+        self._log(logging.INFO, "stopping...")
+        if self._consuming:
+            # The IOLoop is started again because this method is invoked  when
+            # CTRL-C is pressed raising a KeyboardInterrupt exception. This
+            # exception stops the IOLoop which needs to be running for pika to
+            # communicate with RabbitMQ. All the commands issued prior to
+            # starting the IOLoop will be buffered but not processed.
+            self._stop_consuming()
+            # Calling start will fail if the loop is already running
+            try:
+                self._connection.ioloop.start()
+            # not robust, but sadly pika does not provide a more catchable
+            # exception type...
+            except RuntimeError as e:
+                if _IOLOOP_ALREADY_RUNNING_MSG not in str(e):
+                    raise e
         else:
-            self._log(logging.DEBUG, "closing connection")
-            self._connection.close()
+            if self._connection_ is not None:
+                self._connection.ioloop.stop()
+        self._log(logging.INFO, "stopped !")
 
-    def _on_connection_open(self, _unused_connection: BaseConnection):
-        # pylint: disable=invalid-name
-        self._log(logging.DEBUG, "connection opened !")
-        self._open_channel()
 
-    def _on_connection_open_error(
+def _trigger_reconnect(self):
+    self._should_reconnect = True
+
+
+def _stop_consuming(self):
+    if self._channel:
+        self._log(logging.DEBUG, "sending a Basic.Cancel RPC command to RabbitMQ")
+        self._channel.basic_cancel(self.consumer_tag, self._on_cancelok)
+
+
+def _acknowledge_message(self, delivery_tag: int):
+    self._log(logging.DEBUG, "acknowledging message %s", delivery_tag)
+    self._channel.basic_ack(delivery_tag)
+
+
+def _close_connection(self):
+    self._consuming = False
+    if self._connection.is_closing or self._connection.is_closed:
+        self._log(logging.DEBUG, "connection is closing or already closed")
+    else:
+        self._log(logging.DEBUG, "closing connection")
+        self._connection.close()
+
+
+def _on_connection_open(self, _unused_connection: BaseConnection):
+    # pylint: disable=invalid-name
+    self._log(logging.DEBUG, "connection opened !")
+    self._open_channel()
+
+
+def _on_connection_open_error(
         self, _unused_connection: BaseConnection, err: Exception
-    ):
-        # pylint: disable=invalid-name
-        self._parse_error(err)
-        if isinstance(self._error, StreamLostError):
-            self._log(
-                logging.WARNING, "failed to parse stream lost internal error: %s", err
-            )
-        self._log(logging.ERROR, "connection open failed: %s", self._error)
+):
+    # pylint: disable=invalid-name
+    self._parse_error(err)
+    if isinstance(self._error, StreamLostError):
+        self._log(
+            logging.WARNING, "failed to parse stream lost internal error: %s", err
+        )
+    self._log(logging.ERROR, "connection open failed: %s", self._error)
+    if isinstance(self._error, self._recover_from):
+        self._log(logging.ERROR, "triggering reconnection !")
+        self._trigger_reconnect()
+    self.stop()
+
+
+def _on_connection_closed(
+        self, _unused_connection: BaseConnection, reason: Exception
+):
+    # pylint: disable=invalid-name
+    self._parse_error(reason)
+    self._channel_ = None
+    if self._closing:  # The connection was closed on purpose
+        self._connection.ioloop.stop()
+    else:
+        self._log(logging.ERROR, "connection was accidentally closed: %s", reason)
         if isinstance(self._error, self._recover_from):
             self._log(logging.ERROR, "triggering reconnection !")
             self._trigger_reconnect()
         self.stop()
 
-    def _on_connection_closed(
-        self, _unused_connection: BaseConnection, reason: Exception
-    ):
-        # pylint: disable=invalid-name
-        self._parse_error(reason)
-        self._channel_ = None
-        if self._closing:  # The connection was closed on purpose
-            self._connection.ioloop.stop()
-        else:
-            self._log(logging.ERROR, "connection was accidentally closed: %s", reason)
-            if isinstance(self._error, self._recover_from):
-                self._log(logging.ERROR, "triggering reconnection !")
-                self._trigger_reconnect()
-            self.stop()
 
-    def _open_channel(self):
-        self._log(logging.DEBUG, "creating a new channel")
-        self._connection.channel(on_open_callback=self._on_channel_open)
+def _open_channel(self):
+    self._log(logging.DEBUG, "creating a new channel")
+    self._connection.channel(on_open_callback=self._on_channel_open)
 
-    def _on_channel_open(self, channel: Channel):
-        self._log(logging.DEBUG, "channel opened !")
-        self._channel_ = channel
-        self._add_on_channel_close_callback()
-        self._setup_exchange()
 
-    def _add_on_channel_close_callback(self):
-        self._channel.add_on_close_callback(self._on_channel_closed)
+def _on_channel_open(self, channel: Channel):
+    self._log(logging.DEBUG, "channel opened !")
+    self._channel_ = channel
+    self._add_on_channel_close_callback()
+    self._setup_exchange()
 
-    def _on_channel_closed(self, channel: Channel, reason: Exception):
-        self._log(
-            logging.WARNING, "channel %s was closed: %s", channel.channel_number, reason
-        )
-        self._close_connection()
 
-    def _setup_exchange(self):
-        self._log(logging.DEBUG, "declaring exchange: %s", self._exchange)
-        self._channel.exchange_declare(
-            exchange=self._exchange,
-            exchange_type=self._EXCHANGE_TYPE,
-            callback=self._on_exchange_declareok,
-            durable=True,
-        )
+def _add_on_channel_close_callback(self):
+    self._channel.add_on_close_callback(self._on_channel_closed)
 
-    def _on_exchange_declareok(self, _unused_frame: Method):
-        # pylint: disable=invalid-name
-        self._log(logging.DEBUG, "exchange %s declared", self._exchange)
-        self._setup_queue()
 
-    def _setup_queue(self):
-        self._log(logging.DEBUG, "declaring queue %s", self._queue)
-        self._channel.queue_declare(
-            queue=self._queue, callback=self._on_queue_declareok, durable=True
-        )
+def _on_channel_closed(self, channel: Channel, reason: Exception):
+    self._log(
+        logging.WARNING, "channel %s was closed: %s", channel.channel_number, reason
+    )
+    self._close_connection()
 
-    def _on_queue_declareok(self, _unused_frame: Method):
-        # pylint: disable=invalid-name
-        self._log(
-            logging.INFO,
-            "binding %s to %s with %s",
-            self._exchange,
-            self._queue,
-            self._routing_key,
-        )
-        self._channel.queue_bind(
-            self._queue,
-            self._exchange,
-            routing_key=self._routing_key,
-            callback=self._on_bindok,
-        )
 
-    def _on_bindok(self, _unused_frame: Method):
-        # pylint: disable=invalid-name
-        self._log(logging.DEBUG, "queue %s bound", self._queue)
-        self._set_qos()
+def _setup_exchange(self):
+    self._log(logging.DEBUG, "declaring exchange: %s", self._exchange)
+    self._channel.exchange_declare(
+        exchange=self._exchange,
+        exchange_type=self._EXCHANGE_TYPE,
+        callback=self._on_exchange_declareok,
+        durable=True,
+    )
 
-    def _set_qos(self):
-        self._channel.basic_qos(
-            prefetch_count=self._prefetch_count, callback=self._on_basic_qos_ok
-        )
 
-    def _on_basic_qos_ok(self, _unused_frame: Method):
-        # pylint: disable=invalid-name
-        self._log(logging.DEBUG, "QOS set to: %d", self._prefetch_count)
-        self._start_consuming()
+def _on_exchange_declareok(self, _unused_frame: Method):
+    # pylint: disable=invalid-name
+    self._log(logging.DEBUG, "exchange %s declared", self._exchange)
+    self._setup_queue()
 
-    def _start_consuming(self):
-        self._log(logging.INFO, "starting consuming...")
-        self._add_on_cancel_callback()
-        self._consumer_tag = self._channel.basic_consume(
-            self._queue, self.on_message, consumer_tag=self.consumer_tag
-        )
-        self._consuming = True
 
-    def _add_on_cancel_callback(self):
-        self._log(logging.DEBUG, "adding consumer cancellation callback")
-        self._channel.add_on_cancel_callback(self._on_consumer_cancelled)
+def _setup_queue(self):
+    self._log(logging.DEBUG, "declaring queue %s", self._queue)
+    self._channel.queue_declare(
+        queue=self._queue, callback=self._on_queue_declareok, durable=True
+    )
 
-    def _on_consumer_cancelled(self, method_frame: Method):
-        # pylint: disable=invalid-name
-        self._log(
-            logging.ERROR,
-            "consumer was cancelled remotely, shutting down: %r",
-            method_frame,
-        )
-        if self._channel:
-            self._channel.close()
-        raise KeyboardInterrupt()
 
-    def _on_cancelok(self, _unused_frame: Method):
-        # pylint: disable=invalid-name
-        self._consuming = False
-        self._log(
-            logging.INFO,
-            "RabbitMQ acknowledged the cancellation of the consumer",
-        )
-        self._close_channel()
-        self._log(logging.INFO, "exiting consumer execution after cancellation")
+def _on_queue_declareok(self, _unused_frame: Method):
+    # pylint: disable=invalid-name
+    self._log(
+        logging.INFO,
+        "binding %s to %s with %s",
+        self._exchange,
+        self._queue,
+        self._routing_key,
+    )
+    self._channel.queue_bind(
+        self._queue,
+        self._exchange,
+        routing_key=self._routing_key,
+        callback=self._on_bindok,
+    )
 
-    def _close_channel(self):
-        self._log(logging.DEBUG, "closing the channel")
+
+def _on_bindok(self, _unused_frame: Method):
+    # pylint: disable=invalid-name
+    self._log(logging.DEBUG, "queue %s bound", self._queue)
+    self._set_qos()
+
+
+def _set_qos(self):
+    self._channel.basic_qos(
+        prefetch_count=self._prefetch_count, callback=self._on_basic_qos_ok
+    )
+
+
+def _on_basic_qos_ok(self, _unused_frame: Method):
+    # pylint: disable=invalid-name
+    self._log(logging.DEBUG, "QOS set to: %d", self._prefetch_count)
+    self._start_consuming()
+
+
+def _start_consuming(self):
+    self._log(logging.INFO, "starting consuming...")
+    self._add_on_cancel_callback()
+    self._consumer_tag = self._channel.basic_consume(
+        self._queue, self.on_message, consumer_tag=self.consumer_tag
+    )
+    self._consuming = True
+
+
+def _add_on_cancel_callback(self):
+    self._log(logging.DEBUG, "adding consumer cancellation callback")
+    self._channel.add_on_cancel_callback(self._on_consumer_cancelled)
+
+
+def _on_consumer_cancelled(self, method_frame: Method):
+    # pylint: disable=invalid-name
+    self._log(
+        logging.ERROR,
+        "consumer was cancelled remotely, shutting down: %r",
+        method_frame,
+    )
+    if self._channel:
         self._channel.close()
+    raise KeyboardInterrupt()
 
-    def _parse_error(self, error: Exception):
-        if isinstance(error, StreamLostError):
-            self._error = parse_stream_lost_error(
-                error, namespace=self._exception_namespace
+
+def _on_cancelok(self, _unused_frame: Method):
+    # pylint: disable=invalid-name
+    self._consuming = False
+    self._log(
+        logging.INFO,
+        "RabbitMQ acknowledged the cancellation of the consumer",
+    )
+    self._close_channel()
+    self._log(logging.INFO, "exiting consumer execution after cancellation")
+
+
+def _close_channel(self):
+    self._log(logging.DEBUG, "closing the channel")
+    self._channel.close()
+
+
+def _parse_error(self, error: Exception):
+    if isinstance(error, StreamLostError):
+        self._error = parse_stream_lost_error(
+            error, namespace=self._exception_namespace
+        )
+        if isinstance(self._error, StreamLostError):
+            self._log(
+                logging.WARNING,
+                "failed to parse internal stream lost error %s",
+                error,
             )
-            if isinstance(self._error, StreamLostError):
-                self._log(
-                    logging.WARNING,
-                    "failed to parse internal stream lost error %s",
-                    error,
-                )
-        else:
-            self._error = error
+    else:
+        self._error = error
 
 
 class MessageConsumer(LogWithNameMixin):
     _logger = logger
 
     def __init__(
-        self,
-        *,
-        on_message: Callable,
-        name: str,
-        exchange: str,
-        broker_url: str,
-        queue: str,
-        routing_key: str,
-        app_id: Optional[str] = None,
-        recover_from: Tuple[Type[Exception], ...] = tuple(),
-        max_connection_wait_s: float = 60.0,
-        max_connection_attempts: int = 5,
-        inactive_after_s: float = 60 * 60,
+            self,
+            *,
+            on_message: Callable,
+            name: str,
+            exchange: str,
+            broker_url: str,
+            queue: str,
+            routing_key: str,
+            app_id: Optional[str] = None,
+            recover_from: Tuple[Type[Exception], ...] = tuple(),
+            max_connection_wait_s: float = 60.0,
+            max_connection_attempts: int = 5,
+            inactive_after_s: float = 60 * 60,
     ):
         self._on_message = on_message
         self._name = name
@@ -482,12 +510,12 @@ class MessageConsumer(LogWithNameMixin):
         return max(0, min(result, self._max_wait_s))
 
     def _signal_handler(
-        self,
-        signal_name: str,
-        _,
-        __,  # pylint: disable=invalid-name
-        *,
-        graceful: bool,
+            self,
+            signal_name: str,
+            _,
+            __,  # pylint: disable=invalid-name
+            *,
+            graceful: bool,
     ):
         self._log(logging.ERROR, "received %s", signal_name)
         self._stop_gracefully = graceful
