@@ -53,7 +53,7 @@ def test_publisher_should_publish(rabbit_mq: str, mandatory: bool):
     [
         (
             StreamLostError(
-                "Stream connection lost: {!r}".format(ConnectionError("error"))
+                f"Stream connection lost: {ConnectionError('error')!r}"
             ),
             2,
         ),
