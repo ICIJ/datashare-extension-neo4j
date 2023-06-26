@@ -182,12 +182,6 @@ class MessagePublisher(LogWithNameMixin):
         self._channel.queue_declare(self._queue, durable=True)
         self._channel.queue_bind(self._queue, self._exchange, self._routing_key)
 
-    def _bind_queue(self):
-        self._log(logging.DEBUG, "(re)declaring exchange %s", self._exchange)
-        self._channel.exchange_declare(
-            exchange=self._exchange, exchange_type=self._EXCHANGE_TYPE, durable=True
-        )
-
     def _on_return_callback(
         self,
         _channel: Channel,
