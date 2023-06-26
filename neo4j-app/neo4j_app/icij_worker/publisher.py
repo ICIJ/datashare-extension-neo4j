@@ -9,7 +9,6 @@ from pika import BaseConnection, BasicProperties, DeliveryMode, URLParameters
 from pika.adapters.blocking_connection import BlockingChannel, BlockingConnection
 from pika.channel import Channel
 from pika.exceptions import StreamLostError
-from pika.exchange_type import ExchangeType
 from pika.spec import Basic
 from tenacity import (
     RetryCallState,
@@ -19,6 +18,8 @@ from tenacity import (
     wait_exponential,
 )
 
+from neo4j_app.icij_worker.config import Routing
+from neo4j_app.icij_worker.task import TaskError, TaskEvent, TaskResult
 from neo4j_app.icij_worker.utils import LogWithNameMixin, parse_stream_lost_error
 
 logger = logging.getLogger(__name__)
@@ -26,25 +27,25 @@ logger = logging.getLogger(__name__)
 
 class MessagePublisher(LogWithNameMixin):
     _logger = logger
-    _EXCHANGE_TYPE = ExchangeType.topic
 
     def __init__(
         self,
         *,
         name: str,
-        exchange: str,
+        event_routing: Routing,
+        result_routing: Routing,
+        error_routing: Routing,
         broker_url: str,
-        queue: str,
-        routing_key: str,
         app_id: Optional[str] = None,
         recover_from: Tuple[Type[Exception], ...] = tuple(),
     ):
         self._name = name
-        self._exchange = exchange
-        self._queue = queue
-        self._broker_url = broker_url
-        self._routing_key = routing_key
         self._app_id = app_id
+        self._broker_url = broker_url
+
+        self._event_config = event_routing
+        self._result_config = result_routing
+        self._error_config = error_routing
 
         self._recover_from = recover_from
 
@@ -130,24 +131,84 @@ class MessagePublisher(LogWithNameMixin):
         self._channel.confirm_delivery()
         return self
 
-    def publish_message(
+    def _publish_message(
         self,
         message: bytes,
         *,
+        exchange: str,
+        routing_key: Optional[str],
         delivery_mode: DeliveryMode,
         mandatory: bool,
         properties: Optional[Dict] = None,
     ):
-        self._log(logging.DEBUG, "publishing message...")
         if properties is None:
             properties = dict()
         properties = BasicProperties(
             app_id=self._app_id, delivery_mode=delivery_mode, **properties
         )
         self._channel.basic_publish(
-            self._exchange, self._routing_key, message, properties, mandatory=mandatory
+            exchange,
+            routing_key,
+            message,
+            properties,
+            mandatory=mandatory,
         )
-        self._log(logging.DEBUG, "message published")
+
+    def publish_task_event(
+        self,
+        event: TaskEvent,
+        *,
+        delivery_mode: DeliveryMode = DeliveryMode.Persistent,
+        mandatory: bool,
+        properties: Optional[Dict] = None,
+    ):
+        self._log(logging.DEBUG, "publishing task event %s...", event)
+        message = event.json().encode()
+        self._publish_message(
+            message,
+            exchange=self._event_config.exchange.name,
+            routing_key=self._event_config.routing_key,
+            properties=properties,
+            delivery_mode=delivery_mode,
+            mandatory=mandatory,
+        )
+        self._log(logging.DEBUG, "event published for task %s!", event.task_id)
+
+    def publish_task_result(
+        self,
+        result: TaskResult,
+        *,
+        properties: Optional[Dict] = None,
+    ):
+        self._log(logging.DEBUG, "publishing result for task %s...", result.task_id)
+        message = result.json().encode()
+        self._publish_message(
+            message,
+            exchange=self._result_config.exchange.name,
+            routing_key=self._result_config.routing_key,
+            properties=properties,
+            delivery_mode=DeliveryMode.Persistent,
+            mandatory=True,
+        )
+        self._log(logging.DEBUG, "result published for task %s!", result.task_id)
+
+    def publish_task_error(
+        self,
+        error: TaskError,
+        *,
+        properties: Optional[Dict] = None,
+    ):
+        self._log(logging.DEBUG, "publishing error for task %s...", error.task_id)
+        message = error.json().encode()
+        self._publish_message(
+            message,
+            exchange=self._error_config.exchange.name,
+            routing_key=self._error_config.routing_key,
+            properties=properties,
+            delivery_mode=DeliveryMode.Persistent,
+            mandatory=True,
+        )
+        self._log(logging.DEBUG, "error published for task %s!", error.task_id)
 
     def close(self):
         if self._connection_ is not None and self._connection.is_open:
@@ -166,21 +227,30 @@ class MessagePublisher(LogWithNameMixin):
         self._log(logging.DEBUG, "opening a new channel")
         self._channel_ = self._connection.channel()
         self._channel.add_on_return_callback(self._on_return_callback)
-        # TODO: handle qos
+        # TODO: handle qos, careful since QOS is per channel, this will affect both
+        #  results + events + errors
         # self._channel.basic_qos(prefetch_count=self._PREFETCH_COUNT)
-        self._declare_exchange()
-        self._declare_and_bind_queue()
+        self._declare_exchanges()
+        self._declare_and_bind_queues()
 
-    def _declare_exchange(self):
-        self._log(logging.DEBUG, "(re)declaring exchange %s", self._exchange)
-        self._channel.exchange_declare(
-            exchange=self._exchange, exchange_type=self._EXCHANGE_TYPE, durable=True
-        )
+    def _declare_exchanges(self):
+        self._log(logging.DEBUG, "(re)declaring exchanges...")
+        for config in [self._error_config, self._event_config, self._result_config]:
+            self._channel_.exchange_declare(
+                exchange=config.exchange.name,
+                exchange_type=config.exchange.type,
+                durable=True,
+            )
 
-    def _declare_and_bind_queue(self):
-        self._log(logging.DEBUG, "(re)declaring queue %s", self._queue)
-        self._channel.queue_declare(self._queue, durable=True)
-        self._channel.queue_bind(self._queue, self._exchange, self._routing_key)
+    def _declare_and_bind_queues(self):
+        self._log(logging.DEBUG, "(re)declaring queues...")
+        for config in [self._error_config, self._event_config, self._result_config]:
+            self._channel.queue_declare(config.default_queue, durable=True)
+            self._channel.queue_bind(
+                queue=config.default_queue,
+                exchange=config.exchange.name,
+                routing_key=config.routing_key,
+            )
 
     def _on_return_callback(
         self,
