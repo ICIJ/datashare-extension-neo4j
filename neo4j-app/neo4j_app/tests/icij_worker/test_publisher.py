@@ -52,9 +52,7 @@ def test_publisher_should_publish(rabbit_mq: str, mandatory: bool):
     "error,n_disconnects",
     [
         (
-            StreamLostError(
-                f"Stream connection lost: {ConnectionError('error')!r}"
-            ),
+            StreamLostError(f"Stream connection lost: {ConnectionError('error')!r}"),
             2,
         ),
         (UnroutableError([]), 3),
