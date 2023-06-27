@@ -76,4 +76,4 @@ services:
       start_period: 20s
     ports:
       - 5673:5672
-      - 15673:5672
+      - 15673:15672

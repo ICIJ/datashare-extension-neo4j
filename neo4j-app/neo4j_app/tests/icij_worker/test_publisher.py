@@ -22,7 +22,8 @@ class _TestablePublisher(MessagePublisher):
 
 
 @pytest.mark.parametrize("mandatory", [True, False])
-def test_publisher_should_publish(rabbit_mq: str, mandatory: bool):
+@pytest.mark.asyncio
+async def test_publisher_should_publish(rabbit_mq: str, mandatory: bool):
     # Given
     broker_url = rabbit_mq
     queue = "test-queue"
@@ -59,7 +60,8 @@ def test_publisher_should_publish(rabbit_mq: str, mandatory: bool):
         (NackError([]), 4),
     ],
 )
-def test_publisher_should_reconnect_for_recoverable_error(
+@pytest.mark.asyncio
+async def test_publisher_should_reconnect_for_recoverable_error(
     rabbit_mq: str, error: Exception, n_disconnects: int
 ):
     # Given
