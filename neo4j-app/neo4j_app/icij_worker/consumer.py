@@ -5,10 +5,10 @@ import logging
 import signal
 import threading
 import time
+from functools import cached_property
 from typing import Callable, Dict, Optional, Tuple, Type
 
 import pika
-from astroid.decorators import cachedproperty
 from pika import BaseConnection, BasicProperties, SelectConnection
 from pika.channel import Channel
 from pika.exceptions import (
@@ -108,7 +108,7 @@ class _MessageConsumer(LogWithNameMixin):
             raise ValueError(msg)
         return self._channel_
 
-    @cachedproperty
+    @cached_property
     def _exception_namespace(self) -> Dict:
         ns = dict(globals())
         ns.update({exc_type.__name__: exc_type for exc_type in self._recover_from})
