@@ -29,10 +29,13 @@ class ICIJApp:
 
     def task(
         self,
-        name: str,
+        name: Optional[str] = None,
         recover_from: Tuple[Type[Exception]] = tuple(),
         max_retries: Optional[int] = None,
     ) -> Callable:
+        if callable(name) and not recover_from and max_retries is None:
+            f = name
+            return functools.partial(self._register_task, name=f.__name__)(f)
         return functools.partial(
             self._register_task,
             name=name,
@@ -44,10 +47,12 @@ class ICIJApp:
         self,
         f: Callable,
         *,
-        name: str,
+        name: Optional[str] = None,
         recover_from: Tuple[Type[Exception]] = tuple(),
         max_retries: Optional[int] = None,
     ) -> Callable:
+        if name is None:
+            name = f.__name__
         registered = self._registry.get(name)
         if registered is not None:
             raise ValueError(f'A task "{name}" was already registered: {registered}')
