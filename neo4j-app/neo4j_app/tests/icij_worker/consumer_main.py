@@ -2,7 +2,7 @@ import logging
 import sys
 
 from neo4j_app import icij_worker
-from neo4j_app.icij_worker.consumer import MessageConsumer
+from neo4j_app.icij_worker import MessageConsumer
 
 _FMT = "[%(levelname)s][%(asctime)s.%(msecs)03d][%(name)s]: %(message)s"
 _DATE_FMT = "%H:%M:%S"

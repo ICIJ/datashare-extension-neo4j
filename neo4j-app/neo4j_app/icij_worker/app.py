@@ -1,0 +1,62 @@
+import functools
+from functools import cached_property
+from typing import Callable, Dict, Optional, Tuple, Type
+
+from pydantic import Field
+
+from neo4j_app.core.utils.pydantic import BaseICIJModel
+
+
+class RegisteredTask(BaseICIJModel):
+    task: Callable
+    recover_from: Tuple[Type[Exception], ...] = tuple()
+    # TODO: enable max retries
+    max_retries: Optional[int] = Field(const=True, default=None)
+
+
+class ICIJApp:
+    def __init__(self, name: str):
+        self._name = name
+        self._registry = dict()
+
+    @cached_property
+    def registry(self) -> Dict[str, RegisteredTask]:
+        return self._registry
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def task(
+        self,
+        name: str,
+        recover_from: Tuple[Type[Exception]] = tuple(),
+        max_retries: Optional[int] = None,
+    ) -> Callable:
+        return functools.partial(
+            self._register_task,
+            name=name,
+            recover_from=recover_from,
+            max_retries=max_retries,
+        )
+
+    def _register_task(
+        self,
+        f: Callable,
+        *,
+        name: str,
+        recover_from: Tuple[Type[Exception]] = tuple(),
+        max_retries: Optional[int] = None,
+    ) -> Callable:
+        registered = self._registry.get(name)
+        if registered is not None:
+            raise ValueError(f'A task "{name}" was already registered: {registered}')
+        self._registry[name] = RegisteredTask(
+            task=f, max_retries=max_retries, recover_from=recover_from
+        )
+
+        @functools.wraps(f)
+        def wrapped(*args, **kwargs):
+            return f(*args, **kwargs)
+
+        return wrapped

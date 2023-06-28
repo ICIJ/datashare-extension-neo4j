@@ -4,14 +4,19 @@ import traceback
 from enum import Enum, unique
 from typing import Any, Dict, Optional
 
-from neo4j_app.core.utils.pydantic import IgnoreExtraModel, LowerCamelCaseModel
+from pydantic import Field
 
+from neo4j_app.core.utils.pydantic import (
+    IgnoreExtraModel,
+    LowerCamelCaseModel,
+    NoEnumModel,
+)
 
 PROGRESS_HANDLER_ARG = "progress_handler"
 
 
 @unique
-class TaskStatus(str, Enum):
+class TaskStatus(Enum):
     CREATED = "CREATED"
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
@@ -21,15 +26,15 @@ class TaskStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
-class Task(LowerCamelCaseModel, IgnoreExtraModel):
+class Task(NoEnumModel, LowerCamelCaseModel, IgnoreExtraModel):
     id: str
     type: str
     status: TaskStatus
     created_at: str
-    inputs: Dict[str, Any]
+    inputs: Dict[str, Any] = Field(default_factory=dict)
 
 
-class TaskEvent(LowerCamelCaseModel, IgnoreExtraModel):
+class TaskEvent(NoEnumModel, LowerCamelCaseModel, IgnoreExtraModel):
     task_id: str
     status: Optional[TaskStatus] = None
     progress: Optional[float] = None

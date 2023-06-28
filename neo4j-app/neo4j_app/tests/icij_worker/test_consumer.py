@@ -5,84 +5,35 @@ import signal
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
 from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import Type
 
 import pytest
-from pika import (
-    BasicProperties,
-    BlockingConnection,
-    DeliveryMode,
-    URLParameters,
-)
+from pika import BasicProperties, BlockingConnection, DeliveryMode, URLParameters
 from pika.channel import Channel
 from pika.exceptions import StreamLostError
 from pika.spec import Basic
 
-from neo4j_app.icij_worker.consumer import MessageConsumer, _MessageConsumer
 from neo4j_app.icij_worker.exceptions import ConnectionLostError
 from neo4j_app.tests.icij_worker.conftest import (
+    TestConsumer__,
+    consumer_factory,
     async_true_after,
     queue_exists,
+    shutdown_nowait,
     true_after,
 )
 
 
-def _do_nothing(_: bytes):
+def _do_nothing(
+    consumer,
+    basic_deliver: Basic.Deliver,
+    properties: BasicProperties,
+    body: bytes,
+):
+    # pylint: disable=unused-argument
     pass
-
-
-@contextmanager
-def _shutdown_nowait(executor: ThreadPoolExecutor):
-    try:
-        yield executor
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
-
-
-class _TestConsumer_(_MessageConsumer):  # pylint: disable=invalid-name
-    n_failures: int = 0
-    consumed = 0
-
-    def on_message(
-        self,
-        _unused_channel: Channel,
-        basic_deliver: Basic.Deliver,
-        properties: BasicProperties,
-        body: bytes,
-    ):
-        # pylint: disable=arguments-renamed
-        super().on_message(_unused_channel, basic_deliver, properties, body)
-        self.consumed += 1
-
-
-def _consumer_factory(consumer_cls: Type[_TestConsumer_], n_failures: int) -> Type:
-    consumer_cls.n_failures = n_failures
-
-    class TestConsumer(MessageConsumer):
-        @property
-        def consumed(self) -> int:
-            return self._consumer.consumed
-
-        @property
-        def consumer(self) -> _TestConsumer_:
-            return self._consumer
-
-        def _create_consumer(self) -> _TestConsumer_:
-            return consumer_cls(
-                on_message=self._on_message,
-                name=self._name,
-                exchange=self._exchange,
-                broker_url=self._broker_url,
-                queue=self._queue,
-                routing_key=self._routing_key,
-                app_id=self._app_id,
-                recover_from=self._recover_from,
-            )
-
-    return TestConsumer
 
 
 class _FatalError(ValueError):
@@ -93,7 +44,7 @@ class _RecoverableError(ValueError):
     ...
 
 
-class _ConnectionLostConsumer_(_TestConsumer_):  # pylint: disable=invalid-name
+class ConnectionLostConsumer__(TestConsumer__):  # pylint: disable=invalid-name
     def on_message(
         self,
         _unused_channel: Channel,
@@ -108,7 +59,7 @@ class _ConnectionLostConsumer_(_TestConsumer_):  # pylint: disable=invalid-name
         super().on_message(_unused_channel, basic_deliver, properties, body)
 
 
-class _RecoverableErrorConsumer_(_TestConsumer_):  # pylint: disable=invalid-name
+class RecoverableErrorConsumer__(TestConsumer__):  # pylint: disable=invalid-name
     def on_message(
         self,
         _unused_channel: Channel,
@@ -123,7 +74,7 @@ class _RecoverableErrorConsumer_(_TestConsumer_):  # pylint: disable=invalid-nam
         super().on_message(_unused_channel, basic_deliver, properties, body)
 
 
-class _FatalErrorConsumer_(_TestConsumer_):  # pylint: disable=invalid-name
+class FatalErrorConsumer__(TestConsumer__):  # pylint: disable=invalid-name
     def on_message(
         self,
         _unused_channel: Channel,
@@ -144,7 +95,7 @@ async def test_consumer_should_consume(
     queue = "test-queue"
     exchange = "default-ex"
     routing_key = "test"
-    consumer_cls = _consumer_factory(_TestConsumer_, n_failures=0)
+    consumer_cls = consumer_factory(TestConsumer__, n_failures=0)
     consumer = consumer_cls(
         on_message=_do_nothing,
         name="test-consumer",
@@ -156,7 +107,7 @@ async def test_consumer_should_consume(
         max_connection_attempts=5,
     )
 
-    with _shutdown_nowait(ThreadPoolExecutor()) as executor:
+    with shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             executor.submit(consumer.consume)
             has_queue = functools.partial(queue_exists, queue)
@@ -187,15 +138,15 @@ async def test_consumer_should_consume(
 @pytest.mark.parametrize(
     "n_failures,consumer_cls_",
     [
-        (2, _ConnectionLostConsumer_),
-        (2, _RecoverableErrorConsumer_),
+        (2, ConnectionLostConsumer__),
+        (2, RecoverableErrorConsumer__),
     ],
 )
 @pytest.mark.asyncio
 async def test_consumer_should_reconnect_for_recoverable_error(
     rabbit_mq: str,
     n_failures: int,
-    consumer_cls_: Type[_TestConsumer_],
+    consumer_cls_: Type[TestConsumer__],
     amqp_loggers,  # pylint: disable=unused-argument
 ):
     # Given
@@ -203,7 +154,7 @@ async def test_consumer_should_reconnect_for_recoverable_error(
     queue = "test-queue"
     exchange = "default-ex"
     routing_key = "test"
-    test_consumer_cls = _consumer_factory(consumer_cls_, n_failures)
+    test_consumer_cls = consumer_factory(consumer_cls_, n_failures)
     recover_from = (_RecoverableError, ConnectionLostError)
     consumer = test_consumer_cls(
         on_message=_do_nothing,
@@ -217,7 +168,7 @@ async def test_consumer_should_reconnect_for_recoverable_error(
         recover_from=recover_from,
     )
 
-    with _shutdown_nowait(ThreadPoolExecutor()) as executor:
+    with shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             executor.submit(consumer.consume)
             has_queue = functools.partial(queue_exists, queue)
@@ -255,7 +206,7 @@ async def test_consumer_should_not_reconnect_on_fatal_error(
     queue = "test-queue"
     exchange = "default-ex"
     routing_key = "test"
-    test_consumer_cls = _consumer_factory(_FatalErrorConsumer_, 0)
+    test_consumer_cls = consumer_factory(FatalErrorConsumer__, 0)
     consumer = test_consumer_cls(
         on_message=_do_nothing,
         name="test-consumer",
@@ -266,7 +217,7 @@ async def test_consumer_should_not_reconnect_on_fatal_error(
         max_connection_wait_s=0.1,
         max_connection_attempts=5,
     )
-    with _shutdown_nowait(ThreadPoolExecutor()) as executor:
+    with shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             future_res = executor.submit(consumer.consume)
             has_queue = functools.partial(queue_exists, queue)
@@ -305,7 +256,7 @@ async def test_consumer_should_not_reconnect_too_many_times_when_inactive(
     n_failures = 10
     max_connection_attempts = 1
     inactive_after_s = 0  # Let's trigger the inactivity
-    test_consumer_cls = _consumer_factory(_RecoverableErrorConsumer_, n_failures)
+    test_consumer_cls = consumer_factory(RecoverableErrorConsumer__, n_failures)
     recover_from = (_RecoverableError,)
     consumer = test_consumer_cls(
         on_message=_do_nothing,
@@ -320,7 +271,7 @@ async def test_consumer_should_not_reconnect_too_many_times_when_inactive(
         recover_from=recover_from,
     )
 
-    with _shutdown_nowait(ThreadPoolExecutor()) as executor:
+    with shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             future_res = executor.submit(consumer.consume)
             has_queue = functools.partial(queue_exists, queue)
