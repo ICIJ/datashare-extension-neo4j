@@ -41,7 +41,7 @@ class _TestWorker(Worker):
 
 @mock_app.task("hello_world")
 def _hello_word(
-        greeted: str, progress_handler: Optional[ProgressHandler] = None
+    greeted: str, progress_handler: Optional[ProgressHandler] = None
 ) -> str:
     progress_handler(0.0)
     greeting = f"Hello {greeted} !"
@@ -315,7 +315,7 @@ async def test_task_worker(rabbit_mq: str, amqp_loggers, monkeypatch):
                 # Then
                 after_s = 1.0
                 statement = (
-                    lambda: worker.consumer.consumed # pylint: disable=unnecessary-lambda-assignment
+                    lambda: worker.consumer.consumed  # pylint: disable=unnecessary-lambda-assignment
                 )
                 msg = f"consumer failed to consume within {after_s}s"
                 assert true_after(statement, after_s=after_s), msg
