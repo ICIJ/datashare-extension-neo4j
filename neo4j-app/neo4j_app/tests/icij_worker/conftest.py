@@ -6,7 +6,9 @@ from typing import AsyncGenerator, Callable
 
 import aiohttp
 import pika
+import pytest
 import pytest_asyncio
+from aiohttp import ClientResponseError
 
 import neo4j_app
 
@@ -127,3 +129,31 @@ def true_after(
                 time.sleep(sleep_s)
                 continue
             return False
+
+
+async def async_true_after(
+    state_statement: Callable,
+    *,
+    after_s: float,
+    sleep_s: float = 0.01,
+) -> bool:
+    start = monotonic()
+    while "waiting for the statement to be True":
+        try:
+            assert await state_statement()
+            return True
+        except AssertionError:
+            if monotonic() - start < after_s:
+                time.sleep(sleep_s)
+                continue
+            return False
+
+
+async def queue_exists(name: str) -> bool:
+    url = test_management_url(f"/api/queues/vhost/{name}")
+    try:
+        async with aiohttp.ClientSession(raise_for_status=True) as sess:
+            async with sess.get(url):
+                return True
+    except ClientResponseError:
+        return False

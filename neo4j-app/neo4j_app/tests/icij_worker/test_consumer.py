@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import signal
 import sys
 import time
@@ -22,7 +23,11 @@ from pika.spec import Basic
 
 from neo4j_app.icij_worker.consumer import MessageConsumer, _MessageConsumer
 from neo4j_app.icij_worker.exceptions import ConnectionLostError
-from neo4j_app.tests.icij_worker.conftest import true_after
+from neo4j_app.tests.icij_worker.conftest import (
+    async_true_after,
+    queue_exists,
+    true_after,
+)
 
 
 def _do_nothing(_: bytes):
@@ -129,7 +134,8 @@ class _FatalErrorConsumer_(_TestConsumer_):  # pylint: disable=invalid-name
         raise _FatalError("this is too fatal i can't recover from this")
 
 
-def test_consumer_should_consume(
+@pytest.mark.asyncio
+async def test_consumer_should_consume(
     rabbit_mq: str,
     amqp_loggers,  # pylint: disable=unused-argument
 ):
@@ -153,6 +159,9 @@ def test_consumer_should_consume(
     with _shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             executor.submit(consumer.consume)
+            has_queue = functools.partial(queue_exists, queue)
+            await async_true_after(has_queue, after_s=1.0)
+
             # When
             with BlockingConnection(URLParameters(broker_url)) as connection:
                 with connection.channel() as channel:
@@ -182,7 +191,8 @@ def test_consumer_should_consume(
         (2, _RecoverableErrorConsumer_),
     ],
 )
-def test_consumer_should_reconnect_for_recoverable_error(
+@pytest.mark.asyncio
+async def test_consumer_should_reconnect_for_recoverable_error(
     rabbit_mq: str,
     n_failures: int,
     consumer_cls_: Type[_TestConsumer_],
@@ -210,6 +220,9 @@ def test_consumer_should_reconnect_for_recoverable_error(
     with _shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             executor.submit(consumer.consume)
+            has_queue = functools.partial(queue_exists, queue)
+            await async_true_after(has_queue, after_s=1.0)
+
             # When
             with BlockingConnection(URLParameters(broker_url)) as connection:
                 with connection.channel() as channel:
@@ -232,7 +245,8 @@ def test_consumer_should_reconnect_for_recoverable_error(
                 assert true_after(statement, after_s=after_s), msg
 
 
-def test_consumer_should_not_reconnect_on_fatal_error(
+@pytest.mark.asyncio
+async def test_consumer_should_not_reconnect_on_fatal_error(
     rabbit_mq: str,
     amqp_loggers,  # pylint: disable=unused-argument
 ):
@@ -255,6 +269,8 @@ def test_consumer_should_not_reconnect_on_fatal_error(
     with _shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             future_res = executor.submit(consumer.consume)
+            has_queue = functools.partial(queue_exists, queue)
+            await async_true_after(has_queue, after_s=1.0)
 
             # When
             with BlockingConnection(URLParameters(broker_url)) as connection:
@@ -277,7 +293,10 @@ def test_consumer_should_not_reconnect_on_fatal_error(
                     )
 
 
-def test_consumer_should_not_reconnect_too_many_times_when_inactive(rabbit_mq: str):
+@pytest.mark.asyncio
+async def test_consumer_should_not_reconnect_too_many_times_when_inactive(
+    rabbit_mq: str,
+):
     # Given
     broker_url = rabbit_mq
     queue = "test-queue"
@@ -304,6 +323,8 @@ def test_consumer_should_not_reconnect_too_many_times_when_inactive(rabbit_mq: s
     with _shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             future_res = executor.submit(consumer.consume)
+            has_queue = functools.partial(queue_exists, queue)
+            await async_true_after(has_queue, after_s=1.0)
 
             # When
             with BlockingConnection(URLParameters(broker_url)) as connection:
