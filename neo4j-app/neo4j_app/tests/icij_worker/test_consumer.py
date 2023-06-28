@@ -13,8 +13,10 @@ import pytest
 from pika import BasicProperties, BlockingConnection, DeliveryMode, URLParameters
 from pika.channel import Channel
 from pika.exceptions import StreamLostError
+from pika.exchange_type import ExchangeType
 from pika.spec import Basic
 
+from neo4j_app.icij_worker import Exchange, Routing
 from neo4j_app.icij_worker.exceptions import ConnectionLostError
 from neo4j_app.tests.icij_worker.conftest import (
     TestConsumer__,
@@ -23,6 +25,13 @@ from neo4j_app.tests.icij_worker.conftest import (
     queue_exists,
     shutdown_nowait,
     true_after,
+)
+
+
+_TASK_ROUTING = Routing(
+    exchange=Exchange(name="default-ex", type=ExchangeType.topic),
+    default_queue="test-queue",
+    routing_key="test",
 )
 
 
@@ -92,17 +101,12 @@ async def test_consumer_should_consume(
 ):
     # Given
     broker_url = rabbit_mq
-    queue = "test-queue"
-    exchange = "default-ex"
-    routing_key = "test"
     consumer_cls = consumer_factory(TestConsumer__, n_failures=0)
     consumer = consumer_cls(
         on_message=_do_nothing,
         name="test-consumer",
-        exchange=exchange,
         broker_url=broker_url,
-        queue=queue,
-        routing_key=routing_key,
+        task_routing=_TASK_ROUTING,
         max_connection_wait_s=0.1,
         max_connection_attempts=5,
     )
@@ -110,15 +114,15 @@ async def test_consumer_should_consume(
     with shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             executor.submit(consumer.consume)
-            has_queue = functools.partial(queue_exists, queue)
+            has_queue = functools.partial(queue_exists, _TASK_ROUTING.default_queue)
             await async_true_after(has_queue, after_s=1.0)
 
             # When
             with BlockingConnection(URLParameters(broker_url)) as connection:
                 with connection.channel() as channel:
                     channel.basic_publish(
-                        exchange,
-                        routing_key,
+                        _TASK_ROUTING.exchange.name,
+                        _TASK_ROUTING.routing_key,
                         b"",
                         BasicProperties(
                             content_type="text/plain",
@@ -151,18 +155,14 @@ async def test_consumer_should_reconnect_for_recoverable_error(
 ):
     # Given
     broker_url = rabbit_mq
-    queue = "test-queue"
-    exchange = "default-ex"
-    routing_key = "test"
+
     test_consumer_cls = consumer_factory(consumer_cls_, n_failures)
     recover_from = (_RecoverableError, ConnectionLostError)
     consumer = test_consumer_cls(
         on_message=_do_nothing,
         name="test-consumer",
-        exchange=exchange,
         broker_url=broker_url,
-        queue=queue,
-        routing_key=routing_key,
+        task_routing=_TASK_ROUTING,
         max_connection_wait_s=0.1,
         max_connection_attempts=5,
         recover_from=recover_from,
@@ -171,15 +171,15 @@ async def test_consumer_should_reconnect_for_recoverable_error(
     with shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             executor.submit(consumer.consume)
-            has_queue = functools.partial(queue_exists, queue)
+            has_queue = functools.partial(queue_exists, _TASK_ROUTING.default_queue)
             await async_true_after(has_queue, after_s=1.0)
 
             # When
             with BlockingConnection(URLParameters(broker_url)) as connection:
                 with connection.channel() as channel:
                     channel.basic_publish(
-                        exchange,
-                        routing_key,
+                        _TASK_ROUTING.exchange.name,
+                        _TASK_ROUTING.routing_key,
                         b"",
                         BasicProperties(
                             content_type="text/plain",
@@ -203,32 +203,27 @@ async def test_consumer_should_not_reconnect_on_fatal_error(
 ):
     # Given
     broker_url = rabbit_mq
-    queue = "test-queue"
-    exchange = "default-ex"
-    routing_key = "test"
     test_consumer_cls = consumer_factory(FatalErrorConsumer__, 0)
     consumer = test_consumer_cls(
         on_message=_do_nothing,
         name="test-consumer",
-        exchange=exchange,
         broker_url=broker_url,
-        queue=queue,
-        routing_key=routing_key,
+        task_routing=_TASK_ROUTING,
         max_connection_wait_s=0.1,
         max_connection_attempts=5,
     )
     with shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             future_res = executor.submit(consumer.consume)
-            has_queue = functools.partial(queue_exists, queue)
+            has_queue = functools.partial(queue_exists, _TASK_ROUTING.default_queue)
             await async_true_after(has_queue, after_s=1.0)
 
             # When
             with BlockingConnection(URLParameters(broker_url)) as connection:
                 with connection.channel() as channel:
                     channel.basic_publish(
-                        exchange,
-                        routing_key,
+                        _TASK_ROUTING.exchange.name,
+                        _TASK_ROUTING.routing_key,
                         b"",
                         BasicProperties(
                             content_type="text/plain",
@@ -250,9 +245,6 @@ async def test_consumer_should_not_reconnect_too_many_times_when_inactive(
 ):
     # Given
     broker_url = rabbit_mq
-    queue = "test-queue"
-    exchange = "default-ex"
-    routing_key = "test"
     n_failures = 10
     max_connection_attempts = 1
     inactive_after_s = 0  # Let's trigger the inactivity
@@ -261,10 +253,8 @@ async def test_consumer_should_not_reconnect_too_many_times_when_inactive(
     consumer = test_consumer_cls(
         on_message=_do_nothing,
         name="test-consumer",
-        exchange=exchange,
         broker_url=broker_url,
-        queue=queue,
-        routing_key=routing_key,
+        task_routing=_TASK_ROUTING,
         max_connection_wait_s=0.1,
         max_connection_attempts=max_connection_attempts,
         inactive_after_s=inactive_after_s,
@@ -274,15 +264,15 @@ async def test_consumer_should_not_reconnect_too_many_times_when_inactive(
     with shutdown_nowait(ThreadPoolExecutor()) as executor:
         with consumer:
             future_res = executor.submit(consumer.consume)
-            has_queue = functools.partial(queue_exists, queue)
+            has_queue = functools.partial(queue_exists, _TASK_ROUTING.default_queue)
             await async_true_after(has_queue, after_s=1.0)
 
             # When
             with BlockingConnection(URLParameters(broker_url)) as connection:
                 with connection.channel() as channel:
                     channel.basic_publish(
-                        exchange,
-                        routing_key,
+                        _TASK_ROUTING.exchange.name,
+                        _TASK_ROUTING.routing_key,
                         b"",
                         BasicProperties(
                             content_type="text/plain",

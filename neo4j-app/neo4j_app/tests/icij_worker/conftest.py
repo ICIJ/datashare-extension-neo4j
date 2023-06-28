@@ -208,10 +208,8 @@ def consumer_factory(consumer_cls: Type[TestConsumer__], n_failures: int) -> Typ
             return consumer_cls(
                 on_message=self._on_message,
                 name=self._name,
-                exchange=self._exchange,
                 broker_url=self._broker_url,
-                queue=self._queue,
-                routing_key=self._routing_key,
+                task_routing=self._task_routing,
                 app_id=self._app_id,
                 recover_from=self._recover_from,
             )

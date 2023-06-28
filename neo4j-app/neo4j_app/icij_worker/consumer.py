@@ -18,6 +18,7 @@ from pika.exchange_type import ExchangeType
 from pika.frame import Method
 from pika.spec import Basic
 
+from neo4j_app.icij_worker import Routing
 from neo4j_app.icij_worker.exceptions import (
     MaxReconnectionExceeded,
 )
@@ -38,10 +39,8 @@ class _MessageConsumer(LogWithNameMixin):
         *,
         on_message: OnMessage,
         name: str,
-        exchange: str,
         broker_url: str,
-        queue: str,
-        routing_key: str,
+        task_routing: Routing,
         app_id: Optional[str] = None,
         recover_from: Tuple[Type[Exception], ...] = tuple(),
     ):
@@ -49,11 +48,9 @@ class _MessageConsumer(LogWithNameMixin):
 
         self._name = name
 
-        self._exchange = exchange
-        self._queue = queue
-        self._routing_key = routing_key
         self._app_id = app_id
         self._broker_url = broker_url
+        self._task_routing = task_routing
         self._recover_from = recover_from
 
         self._connection_ = None
@@ -246,23 +243,29 @@ class _MessageConsumer(LogWithNameMixin):
         self._close_connection()
 
     def _setup_exchange(self):
-        self._log(logging.DEBUG, "declaring exchange: %s", self._exchange)
+        self._log(logging.DEBUG, "declaring exchange: %s", self._task_routing.exchange)
+        if self._task_routing.exchange.type is not ExchangeType.topic:
+            raise ValueError(f"task exchange must be {ExchangeType.topic}")
         self._channel.exchange_declare(
-            exchange=self._exchange,
-            exchange_type=self._EXCHANGE_TYPE,
+            exchange=self._task_routing.exchange.name,
+            exchange_type=self._task_routing.exchange.type,
             callback=self._on_exchange_declareok,
             durable=True,
         )
 
     def _on_exchange_declareok(self, _unused_frame: Method):
         # pylint: disable=invalid-name
-        self._log(logging.DEBUG, "exchange %s declared", self._exchange)
+        self._log(
+            logging.DEBUG, "exchange %s declared", self._task_routing.exchange.name
+        )
         self._setup_queue()
 
     def _setup_queue(self):
-        self._log(logging.DEBUG, "declaring queue %s", self._queue)
+        self._log(logging.DEBUG, "declaring queue %s", self._task_routing.default_queue)
         self._channel.queue_declare(
-            queue=self._queue, callback=self._on_queue_declareok, durable=True
+            queue=self._task_routing.default_queue,
+            callback=self._on_queue_declareok,
+            durable=True,
         )
 
     def _on_queue_declareok(self, _unused_frame: Method):
@@ -270,20 +273,20 @@ class _MessageConsumer(LogWithNameMixin):
         self._log(
             logging.INFO,
             "binding %s to %s with %s",
-            self._exchange,
-            self._queue,
-            self._routing_key,
+            self._task_routing.exchange.name,
+            self._task_routing.default_queue,
+            self._task_routing.routing_key,
         )
         self._channel.queue_bind(
-            self._queue,
-            self._exchange,
-            routing_key=self._routing_key,
+            self._task_routing.default_queue,
+            self._task_routing.exchange.name,
+            routing_key=self._task_routing.routing_key,
             callback=self._on_bindok,
         )
 
     def _on_bindok(self, _unused_frame: Method):
         # pylint: disable=invalid-name
-        self._log(logging.DEBUG, "queue %s bound", self._queue)
+        self._log(logging.DEBUG, "queue %s bound", self._task_routing.default_queue)
         self._set_qos()
 
     def _set_qos(self):
@@ -300,7 +303,9 @@ class _MessageConsumer(LogWithNameMixin):
         self._log(logging.INFO, "starting consuming...")
         self._add_on_cancel_callback()
         self._consumer_tag = self._channel.basic_consume(
-            self._queue, self.on_message, consumer_tag=self.consumer_tag
+            self._task_routing.default_queue,
+            self.on_message,
+            consumer_tag=self.consumer_tag,
         )
         self._consuming = True
 
@@ -317,7 +322,6 @@ class _MessageConsumer(LogWithNameMixin):
         )
         if self._channel:
             self._channel.close()
-        raise KeyboardInterrupt()
 
     def _on_cancelok(self, _unused_frame: Method):
         # pylint: disable=invalid-name
@@ -356,10 +360,8 @@ class MessageConsumer(LogWithNameMixin):
         *,
         on_message: OnMessage,
         name: str,
-        exchange: str,
         broker_url: str,
-        queue: str,
-        routing_key: str,
+        task_routing: Routing,
         app_id: Optional[str] = None,
         recover_from: Tuple[Type[Exception], ...] = tuple(),
         max_connection_wait_s: float = 60.0,
@@ -368,10 +370,8 @@ class MessageConsumer(LogWithNameMixin):
     ):
         self._on_message = functools.partial(on_message, consumer=self)
         self._name = name
-        self._exchange = exchange
+        self._task_routing = task_routing
         self._broker_url = broker_url
-        self._queue = queue
-        self._routing_key = routing_key
         self._app_id = app_id
         self._recover_from = recover_from
 
@@ -445,10 +445,8 @@ class MessageConsumer(LogWithNameMixin):
         return _MessageConsumer(
             on_message=self._on_message,
             name=self._name,
-            exchange=self._exchange,
+            task_routing=self._task_routing,
             broker_url=self._broker_url,
-            queue=self._queue,
-            routing_key=self._routing_key,
             app_id=self._app_id,
             recover_from=self._recover_from,
         )

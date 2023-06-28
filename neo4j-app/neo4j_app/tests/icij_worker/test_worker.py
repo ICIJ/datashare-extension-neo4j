@@ -10,15 +10,17 @@ from pika import BlockingConnection, DeliveryMode, URLParameters
 from pika.exchange_type import ExchangeType
 from pika.spec import Basic, BasicProperties
 
+from neo4j_app import icij_worker
 from neo4j_app.icij_worker import (
     Exchange,
     ICIJApp,
+    MessageConsumer,
     MessagePublisher,
     Routing,
 )
 from neo4j_app.icij_worker.task import Task, TaskEvent, TaskResult, TaskStatus
 from neo4j_app.icij_worker.typing import ProgressHandler
-from neo4j_app.icij_worker.worker import task_wrapper
+from neo4j_app.icij_worker.worker import Worker, task_wrapper
 from neo4j_app.tests.icij_worker.conftest import (
     TestConsumer__,
     async_true_after,
@@ -31,9 +33,15 @@ from neo4j_app.tests.icij_worker.conftest import (
 mock_app = ICIJApp(name="mock_app")
 
 
+class _TestWorker(Worker):
+    @property
+    def consumer(self) -> MessageConsumer:
+        return self._consumer
+
+
 @mock_app.task("hello_world")
 def _hello_word(
-    greeted: str, progress_handler: Optional[ProgressHandler] = None
+        greeted: str, progress_handler: Optional[ProgressHandler] = None
 ) -> str:
     progress_handler(0.0)
     greeting = f"Hello {greeted} !"
@@ -237,14 +245,11 @@ def test_task_wrapper_should_handle_unregistered_task():
 
 
 @pytest.mark.asyncio
-async def test_task_wrapper_integration(rabbit_mq: str, amqp_loggers):
+async def test_task_worker(rabbit_mq: str, amqp_loggers, monkeypatch):
     # pylint: disable=unused-argument
     # Given
     broker_url = rabbit_mq
     app_id = "datashare"
-    task_key = "datashare.task.ping"
-    task_exchange = "task-ex"
-    task_queue = "task-queue"
     event_routing = Routing(
         exchange=Exchange(name="event-ex", type=ExchangeType.fanout),
         routing_key="datashare.event.ping",
@@ -260,6 +265,11 @@ async def test_task_wrapper_integration(rabbit_mq: str, amqp_loggers):
         routing_key="datashare.result.ping",
         default_queue="result-queue",
     )
+    task_routing = Routing(
+        exchange=Exchange(name="task-ex", type=ExchangeType.topic),
+        routing_key="datashare.task.ping",
+        default_queue="task-queue",
+    )
     publisher = MessagePublisher(
         name="test-publisher",
         event_routing=event_routing,
@@ -268,49 +278,44 @@ async def test_task_wrapper_integration(rabbit_mq: str, amqp_loggers):
         broker_url=broker_url,
         app_id=app_id,
     )
-    consumer_cls = consumer_factory(TestConsumer__, n_failures=0)
-    on_message = functools.partial(task_wrapper, publisher=publisher, app=mock_app)
-    consumer = consumer_cls(
-        on_message=on_message,
-        name="test-consumer",
-        exchange=task_exchange,
-        broker_url=broker_url,
-        queue=task_queue,
-        routing_key=task_key,
+    consumer_cls_factory = consumer_factory(TestConsumer__, n_failures=0)
+    monkeypatch.setattr(icij_worker.worker, "MessageConsumer", consumer_cls_factory)
+    worker = _TestWorker(
+        name="test-worker",
+        app=mock_app,
+        task_routing=task_routing,
+        publisher=publisher,
     )
+    task = Task(
+        id="some-id",
+        type="hello_world",
+        created_at=datetime.now().isoformat(),
+        status=TaskStatus.CREATED,
+        inputs={"greeted": "world"},
+    )
+    body = task.json().encode()
 
-    with publisher.connect():
-        task = Task(
-            id="some-id",
-            type="hello_world",
-            created_at=datetime.now().isoformat(),
-            status=TaskStatus.CREATED,
-            inputs={"greeted": "world"},
-        )
-        body = task.json().encode()
+    # When
+    with shutdown_nowait(ThreadPoolExecutor()) as executor:
+        executor.submit(worker.work)
+        has_queue = functools.partial(queue_exists, task_routing.default_queue)
+        await async_true_after(has_queue, after_s=1.0)
+        with BlockingConnection(URLParameters(broker_url)) as connection:
+            with connection.channel() as channel:
+                channel.basic_publish(
+                    task_routing.exchange.name,
+                    task_routing.routing_key,
+                    body,
+                    BasicProperties(
+                        content_type="text/plain",
+                        delivery_mode=DeliveryMode.Persistent,
+                    ),
+                )
 
-        # When
-        with shutdown_nowait(ThreadPoolExecutor()) as executor:
-            with consumer:
-                executor.submit(consumer.consume)
-                has_queue = functools.partial(queue_exists, task_queue)
-                await async_true_after(has_queue, after_s=1.0)
-                with BlockingConnection(URLParameters(broker_url)) as connection:
-                    with connection.channel() as channel:
-                        channel.basic_publish(
-                            task_exchange,
-                            task_key,
-                            body,
-                            BasicProperties(
-                                content_type="text/plain",
-                                delivery_mode=DeliveryMode.Transient,
-                            ),
-                        )
-
-                        # Then
-                        after_s = 1.0
-                        statement = (
-                            lambda: consumer.consumed  # pylint: disable=unnecessary-lambda-assignment
-                        )
-                        msg = f"consumer failed to consume within {after_s}s"
-                        assert true_after(statement, after_s=after_s), msg
+                # Then
+                after_s = 1.0
+                statement = (
+                    lambda: worker.consumer.consumed # pylint: disable=unnecessary-lambda-assignment
+                )
+                msg = f"consumer failed to consume within {after_s}s"
+                assert true_after(statement, after_s=after_s), msg

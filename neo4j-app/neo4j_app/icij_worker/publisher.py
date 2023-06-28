@@ -56,6 +56,10 @@ class MessagePublisher(LogWithNameMixin):
     def logged_name(self) -> str:
         return self._name
 
+    @cached_property
+    def broker_url(self) -> str:
+        return self._broker_url
+
     @property
     def _connection(self) -> BlockingConnection:
         if self._connection_ is None:
@@ -84,7 +88,7 @@ class MessagePublisher(LogWithNameMixin):
 
     @contextmanager
     def connect(
-        self, max_connection_attempts: int = 1, max_reconnection_wait_s: int = 1.0
+        self, max_connection_attempts: int = 1, max_reconnection_wait_s: float = 1.0
     ) -> MessagePublisher:
         try:
             if max_connection_attempts > 1:
@@ -93,8 +97,9 @@ class MessagePublisher(LogWithNameMixin):
                 )
                 for attempt in reconnect_wrapper:
                     with attempt:
-                        attempt = attempt.attempt_number - 1
-                        self._attempt_connect(attempt)
+                        n_attempt = attempt.retry_state.attempt_number - 1
+                        self._attempt_connect(n_attempt)
+                        yield self
             else:
                 self._attempt_connect(0)
                 yield self

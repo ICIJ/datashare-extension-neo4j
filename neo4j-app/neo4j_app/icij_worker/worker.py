@@ -2,12 +2,12 @@ import functools
 import logging
 import traceback
 from inspect import signature
-from typing import Callable, Optional, Tuple, Type
+from typing import Callable, Optional, Tuple, Type, cast
 
 from pika.spec import Basic, BasicProperties
 from pydantic import ValidationError, parse_raw_as
 
-from neo4j_app.icij_worker import MessagePublisher
+from neo4j_app.icij_worker import MessageConsumer, MessagePublisher, Routing
 from neo4j_app.icij_worker.app import ICIJApp, RegisteredTask
 from neo4j_app.icij_worker.exceptions import (
     InvalidTaskBody,
@@ -22,7 +22,47 @@ from neo4j_app.icij_worker.task import (
     TaskResult,
     TaskStatus,
 )
-from neo4j_app.icij_worker.typing import ConsumerProtocol
+from neo4j_app.icij_worker.typing import ConsumerProtocol, OnMessage
+
+
+class Worker:
+    def __init__(
+        self,
+        name: str,
+        app: ICIJApp,
+        *,
+        publisher: MessagePublisher,
+        task_routing: Routing,
+        recover_from: Tuple[Type[Exception], ...] = tuple(),
+        max_connection_wait_s: float = 60.0,
+        max_connection_attempts: int = 5,
+        inactive_after_s: float = 60 * 60,
+    ):
+        self._app = app
+        self._publisher = publisher
+        self._max_connection_wait_s = max_connection_wait_s
+        self._max_connection_attempts = max_connection_attempts
+        on_message = functools.partial(
+            task_wrapper, publisher=self._publisher, app=self._app
+        )
+        on_message = cast(OnMessage, on_message)
+        self._consumer = MessageConsumer(
+            on_message=on_message,
+            name=name,
+            broker_url=publisher.broker_url,
+            task_routing=task_routing,
+            recover_from=recover_from,
+            max_connection_wait_s=self._max_connection_wait_s,
+            max_connection_attempts=self._max_connection_attempts,
+            inactive_after_s=inactive_after_s,
+        )
+
+    def work(self):
+        with self._publisher.connect(
+            self._max_connection_attempts, self._max_connection_wait_s
+        ):
+            with self._consumer:
+                self._consumer.consume()
 
 
 def task_wrapper(
