@@ -14,3 +14,14 @@ class OnMessage(Protocol):
         body: bytes,
     ):
         ...
+
+
+class ConsumerProtocol(Protocol):
+    def acknowledge_message(self, delivery_tag: int):
+        ...
+
+    def reject_message(self, delivery_tag: int, requeue: bool):
+        ...
+
+    def log(self, level: int, *args, **kwargs):
+        ...

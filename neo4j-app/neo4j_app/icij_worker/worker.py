@@ -2,7 +2,7 @@ import functools
 import logging
 import traceback
 from inspect import signature
-from typing import Callable, Optional, Protocol, Tuple, Type
+from typing import Callable, Optional, Tuple, Type
 
 from pika.spec import Basic, BasicProperties
 from pydantic import ValidationError, parse_raw_as
@@ -22,17 +22,7 @@ from neo4j_app.icij_worker.task import (
     TaskResult,
     TaskStatus,
 )
-
-
-class TaskConsumer(Protocol):
-    def acknowledge_message(self, delivery_tag: int):
-        ...
-
-    def reject_message(self, delivery_tag: int, requeue: bool):
-        ...
-
-    def log(self, level: int, *args, **kwargs):
-        ...
+from neo4j_app.icij_worker.typing import ConsumerProtocol
 
 
 def task_wrapper(
@@ -40,7 +30,7 @@ def task_wrapper(
     properties: BasicProperties,
     body: bytes,
     *,
-    consumer: TaskConsumer,
+    consumer: ConsumerProtocol,
     publisher: MessagePublisher,
     app: ICIJApp,
 ):
@@ -160,7 +150,7 @@ def _parse_retries(properties: BasicProperties) -> Optional[int]:
 
 
 def _check_retries(
-    app: ICIJApp, task: Task, properties: BasicProperties, consumer: TaskConsumer
+    app: ICIJApp, task: Task, properties: BasicProperties, consumer: ConsumerProtocol
 ):
     # TODO: here we're retrying endlessly, in the future we should parse the message
     #  header and raise a MaxRetriesExceeded when relevant
