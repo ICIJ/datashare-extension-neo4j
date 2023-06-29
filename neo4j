@@ -185,7 +185,7 @@ function _helpers() {
                 -d "{\"tag_name\":\"$version\",\"name\":\"$version\",\"draft\":true,\"generate_release_notes\":true}" | jq ".upload_url"
         )
         upload_url=$(echo "${upload_url%\{*}" | tr -d '"')
-        sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)@\1@p" "$MANIFEST_PATH" | while read -r binary; do
+        sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)\$@\1@p" "$MANIFEST_PATH" | while read -r binary; do
             local filename
             filename=$(basename -- "$binary")
             local url
