@@ -68,6 +68,22 @@ commands:
           paths:
             - neo4j-app-*
 
+  build-jar:
+    description: Build extension jar
+    parameters:
+      branch:
+        type: string
+    steps:
+      - checkout-code:
+          revision: << parameters.branch >>
+      - run:
+          name: Build
+          command: ./neo4j docker_build -p neo4j_extension
+      - persist_to_workspace:
+          root: datashare-extension-neo4j/target
+          paths:
+            - datashare-extension-neo4j-*
+
   checkout-code:
     description: "Checkout code"
     parameters:
@@ -112,7 +128,7 @@ jobs:
                 command: ./neo4j docker_test -p release_version
       - run:
           name: Build
-          command: ./neo4j docker_build
+          command: ./neo4j docker_build -p base
 
   build-darwin-universal2-binary:
     executor: darwin-universal2
@@ -123,6 +139,17 @@ jobs:
       - checkout-code:
           revision: << parameters.branch >>
       - build-binary:
+          branch: << parameters.branch >>
+
+  build-jar:
+    executor: docker-machine
+    parameters:
+      branch:
+        type: string
+    steps:
+      - checkout-code:
+          revision: << parameters.branch >>
+      - build-jar:
           branch: << parameters.branch >>
 
   # We build test services to benefit from caching, using docker-compose up directly doesn't seem to benefit from it
@@ -174,7 +201,8 @@ jobs:
             git tag "$tag"
             git push origin "$tag"
             git push
-            ./neo4j publish -p neo4j_app
+            ./neo4j publish -p neo4j_app --create-release
+            ./neo4j publish -p neo4j_extension
 
   test-script:
     executor: docker-machine
@@ -247,6 +275,8 @@ workflows:
   release-branch:
     when: << pipeline.parameters.release_branch >>
     jobs:
+      - build-jar:
+          branch: << pipeline.parameters.branch >>
       - build-unknown-linux-binary:
           matrix:
             parameters:
@@ -257,5 +287,6 @@ workflows:
       - publish-binaries:
           branch: << pipeline.parameters.branch >>
           requires:
+            - build-jar
             - build-unknown-linux-binary
             - build-darwin-universal2-binary
