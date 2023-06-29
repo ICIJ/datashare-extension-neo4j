@@ -137,8 +137,7 @@ async def test_consumer_should_consume(
                 # Then
                 after_s = 1.0
                 statement = (
-                    lambda: consumer.consumed
-                    # pylint: disable=unnecessary-lambda-assignment
+                    lambda: consumer.consumed  # pylint: disable=unnecessary-lambda-assignment
                 )
                 msg = f"consumer failed to consume within {after_s}s"
                 assert true_after(statement, after_s=after_s), msg
@@ -195,8 +194,7 @@ async def test_consumer_should_reconnect_for_recoverable_error(
                 # Then
                 after_s = 1.0
                 statement = (
-                    lambda: consumer.consumed
-                    # pylint: disable=unnecessary-lambda-assignment
+                    lambda: consumer.consumed  # pylint: disable=unnecessary-lambda-assignment
                 )
                 msg = f"consumer failed to consume within {after_s}s"
                 assert true_after(statement, after_s=after_s), msg
