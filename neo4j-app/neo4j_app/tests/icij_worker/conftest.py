@@ -82,13 +82,18 @@ async def _wipe_rabbit_mq():
 async def _delete_all_connections(session: aiohttp.ClientSession):
     async with session.get(test_management_url("/api/connections")) as res:
         connections = await res.json()
-        tasks = [_delete_connection(session, conn["name"]) for conn in connections]
+        tasks = [_try_delete_connection(session, conn["name"]) for conn in connections]
     await asyncio.gather(*tasks)
 
 
-async def _delete_connection(session: aiohttp.ClientSession, name: str):
-    async with session.delete(test_management_url(f"/api/connections/{name}")):
-        pass
+async def _try_delete_connection(session: aiohttp.ClientSession, name: str):
+    try:
+        async with session.delete(test_management_url(f"/api/connections/{name}")):
+            pass
+    except ClientResponseError as e:
+        if e.status == 404:
+            return
+        raise e
 
 
 async def _delete_all_exchanges(session: aiohttp.ClientSession):

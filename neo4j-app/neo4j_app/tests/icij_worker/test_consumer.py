@@ -7,7 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from subprocess import PIPE, Popen
-from typing import Type
+from typing import IO, Set, Type
 
 import pytest
 from pika import BasicProperties, BlockingConnection, DeliveryMode, URLParameters
@@ -20,13 +20,12 @@ from neo4j_app.icij_worker import Exchange, Routing
 from neo4j_app.icij_worker.exceptions import ConnectionLostError
 from neo4j_app.tests.icij_worker.conftest import (
     TestConsumer__,
-    consumer_factory,
     async_true_after,
+    consumer_factory,
     queue_exists,
     shutdown_nowait,
     true_after,
 )
-
 
 _TASK_ROUTING = Routing(
     exchange=Exchange(name="default-ex", type=ExchangeType.topic),
@@ -43,6 +42,11 @@ def _do_nothing(
 ):
     # pylint: disable=unused-argument
     pass
+
+
+def _readline(stream: IO[str], buffer: Set[str]) -> Set[str]:
+    buffer.add(next(stream))
+    return buffer
 
 
 class _FatalError(ValueError):
@@ -133,7 +137,8 @@ async def test_consumer_should_consume(
                 # Then
                 after_s = 1.0
                 statement = (
-                    lambda: consumer.consumed  # pylint: disable=unnecessary-lambda-assignment
+                    lambda: consumer.consumed
+                    # pylint: disable=unnecessary-lambda-assignment
                 )
                 msg = f"consumer failed to consume within {after_s}s"
                 assert true_after(statement, after_s=after_s), msg
@@ -190,7 +195,8 @@ async def test_consumer_should_reconnect_for_recoverable_error(
                 # Then
                 after_s = 1.0
                 statement = (
-                    lambda: consumer.consumed  # pylint: disable=unnecessary-lambda-assignment
+                    lambda: consumer.consumed
+                    # pylint: disable=unnecessary-lambda-assignment
                 )
                 msg = f"consumer failed to consume within {after_s}s"
                 assert true_after(statement, after_s=after_s), msg
@@ -292,15 +298,16 @@ def test_consumer_should_close_gracefully_on_sigint(rabbit_mq: str):
 
     # Then
     with Popen(cmd, stderr=PIPE, stdout=PIPE, text=True) as p:
-        # Wait for the consumer to be running
-        assert true_after(
-            lambda: any("starting consuming" in l for l in p.stderr), after_s=2.0
-        ), "Failed to start consumer"
-        # Kill it
-        p.send_signal(signal.SIGINT)
-        assert true_after(
-            lambda: any("shutting down gracefully" in l for l in p.stderr), after_s=2.0
-        ), "Failed to shutdown consumer gracefully"
+        after_s = 2.0
+        start = time.monotonic()
+        for line in p.stderr:
+            if "starting consuming" in line:
+                p.send_signal(signal.SIGINT)
+                continue
+            if "shutting down gracefully" in line:
+                break
+            if time.monotonic() - start > after_s:
+                raise AssertionError("Failed to shutdown consumer gracefully")
 
 
 def test_consumer_should_close_immediately_on_sigterm(rabbit_mq: str):
@@ -308,15 +315,15 @@ def test_consumer_should_close_immediately_on_sigterm(rabbit_mq: str):
     main_test_path = Path(__file__).parent / "consumer_main.py"
     cmd = [sys.executable, main_test_path, rabbit_mq]
 
-    # Then
+    # When/Then
     with Popen(cmd, stderr=PIPE, stdout=PIPE, text=True) as p:
-        # Wait for the consumer to be running
-        assert true_after(
-            lambda: any("starting consuming" in l for l in p.stderr), after_s=2.0
-        ), "Failed to start consumer"
-        # Kill it
-        p.send_signal(signal.SIGTERM)
-        assert true_after(
-            lambda: any("shutting down the hard way" in l for l in p.stderr),
-            after_s=2.0,
-        ), "Failed to shutdown consumer immediately"
+        after_s = 2.0
+        start = time.monotonic()
+        for line in p.stderr:
+            if "starting consuming" in line:
+                p.send_signal(signal.SIGTERM)
+                continue
+            if "shutting down the hard way" in line:
+                break
+            if time.monotonic() - start > after_s:
+                raise AssertionError("Failed to shutdown immediately")
