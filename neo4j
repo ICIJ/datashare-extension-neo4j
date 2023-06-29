@@ -172,7 +172,7 @@ function _helpers() {
         local version
         version=$(_print_version)
 
-        _run_manifest_checksums "$MANIFEST_PATH"
+        _run_manifest_checksums "$MANIFEST_PATH" "$version"
 
         local upload_url
         upload_url=$(
@@ -209,8 +209,12 @@ function _helpers() {
     function _run_manifest_checksums() {
         local manifest_path
         manifest_path=$1
+        local version
+        version=$2
         if [ -z "$manifest_path" ]; then exit_with_message "Can't update manifest without manifest_path !"; fi
-        if shasum -a 256 -c "$manifest_path"; then return 0; else return 1; fi
+        cat "$manifest_path"
+        echo $(cat "$manifest_path" | grep "$version$")
+        if cat "$manifest_path" | grep "$version$" | shasum -a 256 -c; then return 0; else return 1; fi
     }
 
     function _should_run_project() {

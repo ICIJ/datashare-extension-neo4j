@@ -10,21 +10,23 @@ function _tests() {
 
     function test_run_manifest_checksums() {
         # Given
+        local version
+        version=_print_version
         local bin_path
-        bin_path=$ROOT_DIR/.data/tmp/hello.txt
+        bin_path=$ROOT_DIR/.data/tmp/the-binary-$version
         echo "hello" > "$bin_path"
         local test_manifest_path
-        test_manifest_path=$(mktemp $ROOT_DIR/.data/tmp/hello-manifest-XXXXXX.txt)
+        test_manifest_path=$(mktemp "$ROOT_DIR"/.data/tmp/hello-manifest-XXXXXX)
 
         # When
         _update_manifest "$test_manifest_path" "$bin_path"
         # Then
-        _run_manifest_checksums $test_manifest_path || _exit_with_message "Checksums failed after updating the manifest..."
+        _run_manifest_checksums "$test_manifest_path" $version || _exit_with_message "Checksums failed after updating the manifest..."
 
         # When
         echo "tempering the binary" > "$bin_path"
         # Then
-        _run_manifest_checksums $test_manifest_path && _exit_with_message "Checksums succeeded after tempering the binary..."
+        _run_manifest_checksums "$test_manifest_path" && _exit_with_message "Checksums succeeded after tempering the binary..."
         return 0
     }
 
@@ -35,12 +37,12 @@ function _tests() {
         stdout_capture="$ROOT_DIR"/.data/tmp/update_manifest_when_missing_binary_capture
 
         # When
-        "$ROOT_DIR"/neo4j update_manifest -p neo4j_app single_binary >$stdout_capture \
+        "$ROOT_DIR"/neo4j update_manifest -p neo4j_app single_binary >"$stdout_capture" \
             && _exit_with_message "Expected manifest to fail because of missing binaries"
 
         # Then
         local captured
-        captured="$(cat $stdout_capture)"
+        captured="$(cat "$stdout_capture")"
         if ! [[ "$captured" = "Expected 3 binaries found 1" ]]; then _exit_with_message "Unexpected error message: $captured"; fi
     }
 
@@ -52,19 +54,19 @@ function _tests() {
 
         local mocked_asset
         mocked_asset="$ROOT_DIR"/.data/tmp/mocked_asset
-        echo "some content" >$mocked_asset
+        echo "some content" >"$mocked_asset"
 
-        shasum -a 256 $mocked_asset >"$mocked_asset-manifest.txt"
+        shasum -a 256 "$mocked_asset" >"$mocked_asset-manifest.txt"
 
         # When
-        echo "I'm tempering the file" >$mocked_asset
+        echo "I'm tempering the file" >"$mocked_asset"
 
-        "$ROOT_DIR"/neo4j update_manifest -p neo4j_app $mocked_asset $mocked_asset $mocked_asset >$stdout_capture \
+        "$ROOT_DIR"/neo4j update_manifest -p neo4j_app "$mocked_asset" "$mocked_asset" "$mocked_asset" >"$stdout_capture" \
             && _exit_with_message "Expected manifest to fail because of tempered asset"
 
         # Then
         local captured
-        captured="$(cat $stdout_capture)"
+        captured="$(cat "$stdout_capture")"
         local expected_error_msg="$ROOT_DIR/.data/tmp/mocked_asset: FAILED"
         if ! [[ "$captured" = "$expected_error_msg" ]]; then _exit_with_message "Unexpected error message: $captured"; fi
     }
