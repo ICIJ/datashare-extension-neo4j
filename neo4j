@@ -58,7 +58,7 @@ function _helpers() {
         if [[ -n "$OPENSEARCH_SUPPORT" ]]; then
             groups=" --with opensearch"
         fi
-        poetry install$groups
+        poetry install"$groups"
         _poetry_shell
         command -v pyinstaller 1>/dev/null 2>&1 || python3 -m pip install pyinstaller==5.10.1
 
@@ -131,6 +131,30 @@ function _helpers() {
             --network="host" "${@}"
     }
 
+    function _get_release_upload_url() {
+        if [[ -n $CREATE_RELEASE ]]; then
+            upload_url=$(
+                curl -L \
+                    -X POST \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer $GITHUB_TOKEN" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases \
+                    -d "{\"tag_name\":\"$version\",\"name\":\"$version\",\"draft\":true,\"generate_release_notes\":true}" | jq ".upload_url"
+            )
+        else
+            upload_url=$(
+                curl -L \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases | jq --arg jq_version $version 'map(select(.tag_name == $jq_version))[0].upload_url'
+            )
+        fi
+        upload_url=$(echo "${upload_url%\{*}" | tr -d '"')
+        echo "$upload_url"
+    }
+
     function _install_black() (
         _pip_install black==23.1.0
     )
@@ -175,16 +199,8 @@ function _helpers() {
         _run_manifest_checksums "$MANIFEST_PATH" "$version"
 
         local upload_url
-        upload_url=$(
-            curl -L \
-                -X POST \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer $GITHUB_TOKEN" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases \
-                -d "{\"tag_name\":\"$version\",\"name\":\"$version\",\"draft\":true,\"generate_release_notes\":true}" | jq ".upload_url"
-        )
-        upload_url=$(echo "${upload_url%\{*}" | tr -d '"')
+        upload_url=$(_get_release_upload_url "$version")
+
         sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)\$@\1@p" "$MANIFEST_PATH" | while read -r binary; do
             local filename
             filename=$(basename -- "$binary")
@@ -202,6 +218,30 @@ function _helpers() {
         done
     }
 
+    function _publish_neo4j_extension() {
+        local version
+        version=$(_print_version)
+
+        local upload_url
+        upload_url=$(_get_release_upload_url "$version")
+
+        local jar_path
+        jar_path="$ROOT_DIR/target/datashare-extension-neo4j-$version-jar-with-dependencies.jar"
+        filename=$(basename -- "$jar_path")
+
+        local url
+        url="$upload_url?name=$filename"
+        echo "Uploading $binary to $url"
+        curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/octet-stream" \
+            "$url" \
+            --data-binary "@$jar_path"
+    }
+
     function _pytest() {
         poetry run python3 -m pytest --cache-clear -s "${@}"
     }
@@ -212,8 +252,6 @@ function _helpers() {
         local version
         version=$2
         if [ -z "$manifest_path" ]; then exit_with_message "Can't update manifest without manifest_path !"; fi
-        cat "$manifest_path"
-        echo $(cat "$manifest_path" | grep "$version$")
         if cat "$manifest_path" | grep "$version$" | shasum -a 256 -c; then return 0; else return 1; fi
     }
 
@@ -274,8 +312,19 @@ function _commands() {
     }
 
     function docker_build() {
-        _print_step "Building base docker image..."
-        _docker_build base
+        if _should_run_project "base"; then
+            _print_step "Building base docker image..."
+            _docker_build base
+        elif _should_run_project "neo4j_extension"; then
+            _print_step "Building neo4j extension jar..."
+            _docker_build base-java
+            mkdir -p "$ROOT_DIR"/target
+            _docker_run --mount type=bind,source="$ROOT_DIR"/target,target="$DOCKER_HOME"/target \
+                base-java:latest \
+                ./neo4j build -p neo4j_extension
+        else
+            _exit_with_message "Can't docker build project $PROJECT"
+        fi
     }
 
     function docker_build_test_services() {
@@ -369,6 +418,8 @@ Please run ./neo4j format"
     function publish() {
         if _should_run_project "neo4j_app"; then
             _publish_neo4j_app
+        elif _should_run_project "neo4j_extension"; then
+            _publish_neo4j_extension
         else
             _exit_with_message "Can't pre-publish project $PROJECT"
         fi
@@ -502,15 +553,17 @@ Please run ./neo4j format"
 }
 
 function _main() {
+    CREATE_RELEASE=
+    OLD_ELASTICSEARCH=
+    OPENSEARCH_SUPPORT=
+    PRINT_SHA=
+    PRINT_VERSION=
     PROJECT=
     PROJECTS=
-    OPENSEARCH_SUPPORT=
-    OLD_ELASTICSEARCH=
-    PRINT_VERSION=
-    PRINT_SHA=
 
     # Define sub projects here
     PROJECTS=(
+        base
         build_env
         neo4j_app
         neo4j_app_format
@@ -558,6 +611,8 @@ function _main() {
                         OPENSEARCH_SUPPORT=true
                     elif [[ "$TYPE_ARG" == "--old-elasticsearch" ]]; then
                         OLD_ELASTICSEARCH=true
+                    elif [[ "$TYPE_ARG" == "--create-release" ]]; then
+                        CREATE_RELEASE=true
                     elif [[ $TYPE_ARG = "--sha" ]]; then
                         PRINT_SHA=1
                     fi
