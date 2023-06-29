@@ -1,16 +1,25 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from time import monotonic
-from typing import AsyncGenerator, Callable
+from typing import AsyncGenerator, Callable, Type
 
 import aiohttp
 import pika
 import pytest
 import pytest_asyncio
 from aiohttp import ClientResponseError
+from pika import BasicProperties
+from pika.channel import Channel
+from pika.spec import Basic
 
 import neo4j_app
+from neo4j_app.icij_worker import MessageConsumer
+from neo4j_app.icij_worker.consumer import _MessageConsumer
 
 _RABBITMQ_TEST_PORT = 5673
 _RABBITMQ_MANAGEMENT_PORT = 15673
@@ -73,13 +82,18 @@ async def _wipe_rabbit_mq():
 async def _delete_all_connections(session: aiohttp.ClientSession):
     async with session.get(test_management_url("/api/connections")) as res:
         connections = await res.json()
-        tasks = [_delete_connection(session, conn["name"]) for conn in connections]
+        tasks = [_try_delete_connection(session, conn["name"]) for conn in connections]
     await asyncio.gather(*tasks)
 
 
-async def _delete_connection(session: aiohttp.ClientSession, name: str):
-    async with session.delete(test_management_url(f"/api/connections/{name}")):
-        pass
+async def _try_delete_connection(session: aiohttp.ClientSession, name: str):
+    try:
+        async with session.delete(test_management_url(f"/api/connections/{name}")):
+            pass
+    except ClientResponseError as e:
+        if e.status == 404:
+            return
+        raise e
 
 
 async def _delete_all_exchanges(session: aiohttp.ClientSession):
@@ -131,6 +145,14 @@ def true_after(
             return False
 
 
+@contextmanager
+def shutdown_nowait(executor: ThreadPoolExecutor):
+    try:
+        yield executor
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
 async def async_true_after(
     state_statement: Callable,
     *,
@@ -157,3 +179,44 @@ async def queue_exists(name: str) -> bool:
                 return True
     except ClientResponseError:
         return False
+
+
+class TestConsumer__(_MessageConsumer):  # pylint: disable=invalid-name
+    n_failures: int = 0
+    consumed = 0
+
+    def on_message(
+        self,
+        _unused_channel: Channel,
+        basic_deliver: Basic.Deliver,
+        properties: BasicProperties,
+        body: bytes,
+    ):
+        # pylint: disable=arguments-renamed
+        super().on_message(_unused_channel, basic_deliver, properties, body)
+        self.consumed += 1
+
+
+def consumer_factory(consumer_cls: Type[TestConsumer__], n_failures: int) -> Type:
+    consumer_cls.n_failures = n_failures
+
+    class TestConsumer(MessageConsumer):
+        @property
+        def consumed(self) -> int:
+            return self._consumer.consumed
+
+        @property
+        def consumer(self) -> TestConsumer__:
+            return self._consumer
+
+        def _create_consumer(self) -> TestConsumer__:
+            return consumer_cls(
+                on_message=self._on_message,
+                name=self._name,
+                broker_url=self._broker_url,
+                task_routing=self._task_routing,
+                app_id=self._app_id,
+                recover_from=self._recover_from,
+            )
+
+    return TestConsumer

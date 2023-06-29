@@ -6,7 +6,7 @@ import signal
 import threading
 import time
 from functools import cached_property
-from typing import Callable, Dict, Optional, Tuple, Type
+from typing import Dict, Optional, Tuple, Type
 
 import pika
 from pika import BaseConnection, BasicProperties, SelectConnection
@@ -18,9 +18,11 @@ from pika.exchange_type import ExchangeType
 from pika.frame import Method
 from pika.spec import Basic
 
+from neo4j_app.icij_worker import Routing
 from neo4j_app.icij_worker.exceptions import (
     MaxReconnectionExceeded,
 )
+from neo4j_app.icij_worker.typing import OnMessage
 from neo4j_app.icij_worker.utils import LogWithNameMixin, parse_stream_lost_error
 
 _IOLOOP_ALREADY_RUNNING_MSG = "is already running"
@@ -35,12 +37,10 @@ class _MessageConsumer(LogWithNameMixin):
     def __init__(
         self,
         *,
-        on_message: Callable,
+        on_message: OnMessage,
         name: str,
-        exchange: str,
         broker_url: str,
-        queue: str,
-        routing_key: str,
+        task_routing: Routing,
         app_id: Optional[str] = None,
         recover_from: Tuple[Type[Exception], ...] = tuple(),
     ):
@@ -48,11 +48,9 @@ class _MessageConsumer(LogWithNameMixin):
 
         self._name = name
 
-        self._exchange = exchange
-        self._queue = queue
-        self._routing_key = routing_key
         self._app_id = app_id
         self._broker_url = broker_url
+        self._task_routing = task_routing
         self._recover_from = recover_from
 
         self._connection_ = None
@@ -128,7 +126,7 @@ class _MessageConsumer(LogWithNameMixin):
         self,
         _unused_channel: Channel,  # pylint: disable=invalid-name
         basic_deliver: Basic.Deliver,
-        _properties: BasicProperties,  # pylint: disable=invalid-name
+        properties: BasicProperties,  # pylint: disable=invalid-name
         body: bytes,
     ):
         self._last_message_received_at = time.monotonic()
@@ -136,12 +134,15 @@ class _MessageConsumer(LogWithNameMixin):
         if self._app_id is not None:
             msg = f"{msg} from {self._app_id}"
         self._log(logging.DEBUG, msg, basic_deliver.delivery_tag)
-        self._on_message(body)
-        self._acknowledge_message(basic_deliver.delivery_tag)
+        self._on_message(basic_deliver=basic_deliver, properties=properties, body=body)
+        self.acknowledge_message(basic_deliver.delivery_tag)
 
     def consume(self):
         self.connect()
         self._connection.ioloop.start()
+
+    def reject_message(self, delivery_tag: int, requeue: bool):
+        self._channel.basic_reject(delivery_tag=delivery_tag, requeue=requeue)
 
     def stop(self):
         if not self._closing:
@@ -175,7 +176,7 @@ class _MessageConsumer(LogWithNameMixin):
             self._log(logging.DEBUG, "sending a Basic.Cancel RPC command to RabbitMQ")
             self._channel.basic_cancel(self.consumer_tag, self._on_cancelok)
 
-    def _acknowledge_message(self, delivery_tag: int):
+    def acknowledge_message(self, delivery_tag: int):
         self._log(logging.DEBUG, "acknowledging message %s", delivery_tag)
         self._channel.basic_ack(delivery_tag)
 
@@ -242,23 +243,29 @@ class _MessageConsumer(LogWithNameMixin):
         self._close_connection()
 
     def _setup_exchange(self):
-        self._log(logging.DEBUG, "declaring exchange: %s", self._exchange)
+        self._log(logging.DEBUG, "declaring exchange: %s", self._task_routing.exchange)
+        if self._task_routing.exchange.type is not ExchangeType.topic:
+            raise ValueError(f"task exchange must be {ExchangeType.topic}")
         self._channel.exchange_declare(
-            exchange=self._exchange,
-            exchange_type=self._EXCHANGE_TYPE,
+            exchange=self._task_routing.exchange.name,
+            exchange_type=self._task_routing.exchange.type,
             callback=self._on_exchange_declareok,
             durable=True,
         )
 
     def _on_exchange_declareok(self, _unused_frame: Method):
         # pylint: disable=invalid-name
-        self._log(logging.DEBUG, "exchange %s declared", self._exchange)
+        self._log(
+            logging.DEBUG, "exchange %s declared", self._task_routing.exchange.name
+        )
         self._setup_queue()
 
     def _setup_queue(self):
-        self._log(logging.DEBUG, "declaring queue %s", self._queue)
+        self._log(logging.DEBUG, "declaring queue %s", self._task_routing.default_queue)
         self._channel.queue_declare(
-            queue=self._queue, callback=self._on_queue_declareok, durable=True
+            queue=self._task_routing.default_queue,
+            callback=self._on_queue_declareok,
+            durable=True,
         )
 
     def _on_queue_declareok(self, _unused_frame: Method):
@@ -266,20 +273,20 @@ class _MessageConsumer(LogWithNameMixin):
         self._log(
             logging.INFO,
             "binding %s to %s with %s",
-            self._exchange,
-            self._queue,
-            self._routing_key,
+            self._task_routing.exchange.name,
+            self._task_routing.default_queue,
+            self._task_routing.routing_key,
         )
         self._channel.queue_bind(
-            self._queue,
-            self._exchange,
-            routing_key=self._routing_key,
+            self._task_routing.default_queue,
+            self._task_routing.exchange.name,
+            routing_key=self._task_routing.routing_key,
             callback=self._on_bindok,
         )
 
     def _on_bindok(self, _unused_frame: Method):
         # pylint: disable=invalid-name
-        self._log(logging.DEBUG, "queue %s bound", self._queue)
+        self._log(logging.DEBUG, "queue %s bound", self._task_routing.default_queue)
         self._set_qos()
 
     def _set_qos(self):
@@ -296,7 +303,9 @@ class _MessageConsumer(LogWithNameMixin):
         self._log(logging.INFO, "starting consuming...")
         self._add_on_cancel_callback()
         self._consumer_tag = self._channel.basic_consume(
-            self._queue, self.on_message, consumer_tag=self.consumer_tag
+            self._task_routing.default_queue,
+            self.on_message,
+            consumer_tag=self.consumer_tag,
         )
         self._consuming = True
 
@@ -313,7 +322,6 @@ class _MessageConsumer(LogWithNameMixin):
         )
         if self._channel:
             self._channel.close()
-        raise KeyboardInterrupt()
 
     def _on_cancelok(self, _unused_frame: Method):
         # pylint: disable=invalid-name
@@ -350,24 +358,20 @@ class MessageConsumer(LogWithNameMixin):
     def __init__(
         self,
         *,
-        on_message: Callable,
+        on_message: OnMessage,
         name: str,
-        exchange: str,
         broker_url: str,
-        queue: str,
-        routing_key: str,
+        task_routing: Routing,
         app_id: Optional[str] = None,
         recover_from: Tuple[Type[Exception], ...] = tuple(),
         max_connection_wait_s: float = 60.0,
         max_connection_attempts: int = 5,
         inactive_after_s: float = 60 * 60,
     ):
-        self._on_message = on_message
+        self._on_message = functools.partial(on_message, consumer=self)
         self._name = name
-        self._exchange = exchange
+        self._task_routing = task_routing
         self._broker_url = broker_url
-        self._queue = queue
-        self._routing_key = routing_key
         self._app_id = app_id
         self._recover_from = recover_from
 
@@ -404,6 +408,8 @@ class MessageConsumer(LogWithNameMixin):
             return elapsed < self._inactive_after_s
         return False
 
+    log = LogWithNameMixin._log
+
     def consume(self):
         logger.info("starting consuming...")
         self._setup_signal_handlers()
@@ -422,6 +428,12 @@ class MessageConsumer(LogWithNameMixin):
         finally:
             self.close()
 
+    def acknowledge_message(self, delivery_tag: int):
+        self._consumer.acknowledge_message(delivery_tag=delivery_tag)
+
+    def reject_message(self, delivery_tag: int, requeue: bool):
+        self._consumer.reject_message(delivery_tag=delivery_tag, requeue=requeue)
+
     def close(self):
         if self._stop_gracefully:
             self._log(logging.INFO, "shutting down gracefully...")
@@ -433,10 +445,8 @@ class MessageConsumer(LogWithNameMixin):
         return _MessageConsumer(
             on_message=self._on_message,
             name=self._name,
-            exchange=self._exchange,
+            task_routing=self._task_routing,
             broker_url=self._broker_url,
-            queue=self._queue,
-            routing_key=self._routing_key,
             app_id=self._app_id,
             recover_from=self._recover_from,
         )
