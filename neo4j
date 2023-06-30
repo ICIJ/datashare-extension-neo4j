@@ -300,9 +300,6 @@ function _commands() {
                 shasum -a 256 "$bin_path"
             fi
         elif _should_run_project "neo4j_extension"; then
-            _print_step "Building the Python app first"
-            _build_neo4j_app
-
             _print_step "Compiling the java extension"
             cd "$ROOT_DIR"
             mvn validate package -Dmaven.test.skip=true
