@@ -8,11 +8,11 @@ from neo4j_app.core.utils.pydantic import LowerCamelCaseModel, NoEnumModel
 
 @unique
 class DumpFormat(str, Enum):
-    CYPHER = "cypher"
+    CYPHER_SHELL = "cypher-shell"
     GRAPHML = "graphml"
 
 
-class DumpRequest(LowerCamelCaseModel, NoEnumModel):
+class DumpRequest(NoEnumModel, LowerCamelCaseModel):
     format: DumpFormat
     query: Optional[str] = None
 

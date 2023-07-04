@@ -34,7 +34,7 @@ async def dump_graph(
             gen = _dump_full_graph_to_graphml(neo4j_driver, neo4j_db)
         else:
             gen = _dump_subgraph_to_graphml(neo4j_driver, neo4j_db, query)
-    elif dump_format is DumpFormat.CYPHER:
+    elif dump_format is DumpFormat.CYPHER_SHELL:
         if query is None:
             gen = _dump_full_graph_to_cypher(neo4j_driver, neo4j_db)
         else:
@@ -65,8 +65,7 @@ async def _dump_subgraph_to_graphml(
     query: str,
 ) -> AsyncGenerator[str, None]:
     async with neo4j_driver.session(database=neo4j_db) as sess:
-        neo4j_query = """WITH $query_filter as query
-CALL apoc.export.graphml.query(query, null, $config)
+        neo4j_query = """CALL apoc.export.graphml.query($query_filter, null, $config)
 YIELD data
 RETURN data;
 """

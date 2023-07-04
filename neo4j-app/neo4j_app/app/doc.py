@@ -2,6 +2,7 @@ ADMIN_TAG = "Admin"
 DOCUMENT_TAG = "Documents"
 NE_TAG = "Named entities"
 OTHER_TAG = "Other"
+GRAPH_TAG = "Graphs"
 
 
 DOC_IMPORT_SUM = "Import documents from elasticsearch to neo4j"
@@ -104,6 +105,26 @@ After decompressing the archive the import can be done as described above:
 ``` 
 """
 
+DOC_GRAPH_DUMP = (
+    "Dumps a full graph or subgraph to the desired format, the exported"
+    " graph can then be re-imported and explored using the adapted graph visualization"
+    " tool"
+)
+DOC_GRAPH_DUMP_DESC = """Dumps a full graph or subgraph (when a query is provided) to\
+ one of the supported format:
+- [GraphML](http://graphml.graphdrawing.org/), which enables to visualize the graph in:
+    - [Gephi](https://gephi.org/)
+- [Cypher shell](https://neo4j.com/docs/operations-manual/current/tools/cypher-shell/) \
+, which enables to visualize the graph in:
+    - [Neo4j Bloom](https://neo4j.com/product/bloom/)
+    - [Linkurious](https://linkurious.com/)
+
+To import the dumped graph:
+- in Gephi, instructions can be found \
+[here](https://gephi.org/users/supported-graph-formats/graphml-format/)
+- into a `neo4j` database for visualization with Bloom or Linkurious, use the \
+[`neo4j-shell` CLI](https://neo4j.com/docs/apoc/5/export/cypher/#export-cypher-cypher-shell) 
+"""
 
 NE_IMPORT_SUM = "Import named entities from elasticsearch to neo4j"
 NE_IMPORT_DESC = """Named entities are searched for in `elasticsearch` \
