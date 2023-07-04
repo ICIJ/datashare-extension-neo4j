@@ -1,8 +1,20 @@
 from __future__ import annotations
 
+from enum import Enum, unique
 from typing import Dict, List, Optional
 
-from neo4j_app.core.utils.pydantic import LowerCamelCaseModel
+from neo4j_app.core.utils.pydantic import LowerCamelCaseModel, NoEnumModel
+
+
+@unique
+class DumpFormat(str, Enum):
+    CYPHER = "cypher"
+    GRAPHML = "graphml"
+
+
+class DumpRequest(LowerCamelCaseModel, NoEnumModel):
+    format: DumpFormat
+    query: Optional[str] = None
 
 
 class IncrementalImportRequest(LowerCamelCaseModel):
