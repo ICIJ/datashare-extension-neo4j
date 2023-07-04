@@ -163,9 +163,19 @@ async def _build_neo4j_driver():
         yield driver
 
 
+@pytest_asyncio.fixture(scope="module")
+async def neo4j_test_driver_module() -> AsyncGenerator[neo4j.AsyncDriver, None]:
+    async with _build_neo4j_driver() as driver:
+        async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
+            await wipe_db(sess)
+        yield driver
+
+
 @pytest_asyncio.fixture(scope="session")
 async def neo4j_test_driver_session() -> AsyncGenerator[neo4j.AsyncDriver, None]:
     async with _build_neo4j_driver() as driver:
+        async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
+            await wipe_db(sess)
         yield driver
 
 
@@ -392,3 +402,17 @@ def assert_content(path: Path, expected_content: Union[bytes, str], sort_lines=F
         raise TypeError(f"Expected Union[bytes, str], found: {expected_content}")
 
     assert content == expected_content
+
+
+def xml_elements_equal(actual, expected) -> bool:
+    if actual.tag != expected.tag:
+        return False
+    if actual.text != expected.text:
+        return False
+    if actual.tail != expected.tail:
+        return False
+    if actual.attrib != expected.attrib:
+        return False
+    if len(actual) != len(expected):
+        return False
+    return all(xml_elements_equal(c1, c2) for c1, c2 in zip(actual, expected))
