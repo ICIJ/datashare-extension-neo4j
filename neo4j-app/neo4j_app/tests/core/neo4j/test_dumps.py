@@ -124,7 +124,7 @@ async def test_should_dump_full_graph_to_cypher(_populate_neo4j: neo4j.AsyncDriv
     # pylint: disable=invalid-name
     # Given
     driver = _populate_neo4j
-    dump_format = DumpFormat.CYPHER
+    dump_format = DumpFormat.CYPHER_SHELL
 
     # When
     output = StringIO()
@@ -144,7 +144,7 @@ async def test_should_dump_subgraph_to_cypher(_populate_neo4j: neo4j.AsyncDriver
     # pylint: disable=invalid-name
     # Given
     driver = _populate_neo4j
-    dump_format = DumpFormat.CYPHER
+    dump_format = DumpFormat.CYPHER_SHELL
     query = """MATCH (person:Person { name:'Keanu Reeves' })
 RETURN person;
 """
