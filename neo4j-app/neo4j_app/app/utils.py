@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse, Response
 from neo4j_app.app.admin import admin_router
 from neo4j_app.app.documents import documents_router
 from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
+from neo4j_app.app.graphs import graphs_router
 from neo4j_app.app.main import main_router
 from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.core import AppConfig
@@ -104,6 +105,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.include_router(documents_router())
     app.include_router(named_entities_router())
     app.include_router(admin_router())
+    app.include_router(graphs_router())
     return app
 
 
