@@ -20,6 +20,7 @@ from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schema
 from neo4j_app.core.neo4j.migrations import delete_all_migrations_tx
+from neo4j_app.core.utils.logging import DifferedLoggingMessage
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
 
@@ -43,12 +44,11 @@ async def request_validation_error_handler(
     logger.error(
         "%s\nURL: %s\nDetail: %s",
         title,
-        lambda: request.url,
-        lambda: _display_errors(detail),
+        request.url,
+        DifferedLoggingMessage(_display_errors, detail),
     )
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=jsonable_encoder(error),
+        status_code=status.HTTP_400_BAD_REQUEST, content=jsonable_encoder(error)
     )
 
 
@@ -58,7 +58,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         return Response(status_code=exc.status_code, headers=headers)
     title = detail = exc.detail
     error = json_error(title=title, detail=detail)
-    logger.error("%s\nURL: %s", title, lambda: request.url)
+    logger.error("%s\nURL: %s", title, request.url)
     return JSONResponse(
         jsonable_encoder(error), status_code=exc.status_code, headers=headers
     )
