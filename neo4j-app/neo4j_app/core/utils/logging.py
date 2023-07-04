@@ -5,6 +5,16 @@ from functools import wraps
 from typing import Optional
 
 
+class DifferedLoggingMessage:
+    def __init__(self, fn, *args, **kwargs):
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+
+    def __str__(self):
+        return str(self.fn(*self.args, **self.kwargs))
+
+
 def log_elapsed_time(
     logger: logging.Logger, level: int, output_msg: Optional[str] = None
 ):
