@@ -120,7 +120,7 @@ async def test_post_graph_dump_should_return_200(
     record_key: str,
     expected_run_args: Tuple[Tuple, ...],
 ):
-    # pylint: disable=invalid-name,unused-argument
+    # pylint: disable=unused-argument
     # Given
     test_client = test_client_module
     url = "/graphs/dump?database=neo4j"
@@ -147,7 +147,7 @@ async def test_post_graph_dump_should_return_200(
 async def test_post_graph_dump_should_return_400_for_missing_database(
     test_client_module: TestClient,
 ):
-    # pylint: disable=invalid-name,unused-argument
+    # pylint: disable=unused-argument
     # Given
     test_client = test_client_module
     url = "/graphs/dump"
@@ -159,13 +159,14 @@ async def test_post_graph_dump_should_return_400_for_missing_database(
     error = res.json()
     assert error["title"] == "Request Validation Error"
     assert "field required" in error["detail"][0]["msg"]
+    assert "database" in error["detail"][0]["loc"]
 
 
 @pytest.mark.asyncio
 async def test_post_graph_dump_should_return_400_for_invalid_dump_format(
     test_client_module: TestClient,
 ):
-    # pylint: disable=invalid-name,unused-argument
+    # pylint: disable=unused-argument
     # Given
     test_client = test_client_module
     url = "/graphs/dump?database=neo4j"
@@ -177,3 +178,36 @@ async def test_post_graph_dump_should_return_400_for_invalid_dump_format(
     error = res.json()
     assert error["title"] == "Request Validation Error"
     assert "value is not a valid enumeration member" in error["detail"][0]["msg"]
+
+
+@pytest.mark.asyncio
+async def test_get_schema_should_return_200(test_client_module: TestClient):
+    # pylint: disable=unused-argument
+    # Given
+    test_client = test_client_module
+    url = "/graphs/schema?database=neo4j"
+
+    # When
+    res = test_client.get(url)
+
+    # Then
+    assert res.status_code == 200, res.json()
+
+
+@pytest.mark.asyncio
+async def test_get_schema_should_return_400_for_missing_database(
+    test_client: TestClient,
+):
+    # pylint: disable=unused-argument
+    # Given
+    url = "/graphs/schema"
+
+    # When
+    res = test_client.get(url)
+
+    # Then
+    assert res.status_code == 400, res.json()
+    error = res.json()
+    assert error["title"] == "Request Validation Error"
+    assert "field required" in error["detail"][0]["msg"]
+    assert "database" in error["detail"][0]["loc"]

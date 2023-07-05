@@ -3,6 +3,7 @@ package org.icij.datashare;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
+import java.util.HashMap;
 import kong.unirest.HttpRequest;
 import kong.unirest.HttpResponse;
 import kong.unirest.Unirest;
@@ -59,6 +60,17 @@ public class Neo4jClient {
         );
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
+
+
+    public <K, V> HashMap<K, V> graphSchema(String database) {
+        String url = buildNeo4jUrl("/graphs/schema?database=" + database);
+        logger.debug("Getting neo4j graph schema");
+        return doHttpRequest(
+            Unirest.get(url).socketTimeout(importTimeout)
+.header("Content-Type", "application/json"),
+            HashMap.class
+        );
+    }
 
 
     private <T, R extends HttpRequest<R>> T doHttpRequest(HttpRequest<R> request, Class<T> clazz)

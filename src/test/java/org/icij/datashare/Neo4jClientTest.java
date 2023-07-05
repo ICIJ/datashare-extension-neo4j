@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Objects;
 import net.codestory.http.Configuration;
 import net.codestory.http.Context;
@@ -51,6 +52,18 @@ public class Neo4jClientTest {
                 } else {
                     body = "{\"imported\": 3,\"nodesCreated\": 1,\"relationshipsCreated\": 1}";
                 }
+                return new Payload("application/json", body);
+            }
+            return new Payload("application/json",
+                TestUtils.makeJsonHttpError("Bad Request", "Invalid DB " + db), 500);
+        }
+
+        private Payload mockSchema(Context context) throws IOException {
+            String body;
+            String db = context.query().get("database");
+            if (db.equals("mydb")) {
+                body = "{\"nodes\": [{\"something\": \"here\"}]," +
+                    " \"relationships\": [{\"some_other\": \"there\"}]}";
                 return new Payload("application/json", body);
             }
             return new Payload("application/json",
@@ -193,6 +206,36 @@ public class Neo4jClientTest {
             assertThat(assertThrowsExactly(
                 Neo4jClient.Neo4jAppError.class,
                 () -> client.importNamedEntities("unknown", body)
+            ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid DB unknown");
+        }
+
+        @Test
+        public void test_should_get_graph_schema() {
+            // Given
+            neo4jApp.configure(routes -> routes.get("/graphs/schema", this::mockSchema));
+            // When
+            HashMap<String, Object> res = client.graphSchema("mydb");
+            // Then
+            HashMap<String, Object> expected = new HashMap<>() {{
+                put("nodes", List.of(new HashMap<String, String>() {{
+                    put("something", "here");
+                }}));
+                put("relationships", List.of(new HashMap<String, String>() {{
+                    put("some_other", "there");
+                }}));
+            }};
+            assertThat(res).isEqualTo(expected);
+        }
+
+
+        @Test
+        public void test_should_get_graph_schema_throw_for_invalid_db() {
+            // Given
+            neo4jApp.configure(routes -> routes.get("/graphs/schema", this::mockSchema));
+            // When/Then
+            assertThat(assertThrowsExactly(
+                Neo4jClient.Neo4jAppError.class,
+                () -> client.graphSchema("unknown")
             ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid DB unknown");
         }
     }

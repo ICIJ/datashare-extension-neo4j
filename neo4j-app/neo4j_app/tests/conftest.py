@@ -51,8 +51,10 @@ def event_loop():
 
 @pytest.fixture(scope="session")
 def test_client_session(
-    # Require ES to create indices and wipe ES
+    # Wipe ES by requiring the "function" level es client
     es_test_client_session: ESClient,
+    # Same for neo4j
+    neo4j_test_session_session: neo4j.AsyncSession,
 ) -> TestClient:
     # pylint: disable=unused-argument
     config = AppConfig(

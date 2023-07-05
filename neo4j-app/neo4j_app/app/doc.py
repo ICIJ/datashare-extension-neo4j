@@ -126,6 +126,9 @@ To import the dumped graph:
 [`neo4j-shell` CLI](https://neo4j.com/docs/apoc/5/export/cypher/#export-cypher-cypher-shell) 
 """
 
+DOC_GRAPH_SCHEMA = "Returns the neo4j graph database schema"
+
+
 NE_IMPORT_SUM = "Import named entities from elasticsearch to neo4j"
 NE_IMPORT_DESC = """Named entities are searched for in `elasticsearch` \
 using the optionally provided query, they are then upserted into the `neo4j` database.

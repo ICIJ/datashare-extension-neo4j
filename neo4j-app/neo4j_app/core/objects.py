@@ -3,6 +3,8 @@ from __future__ import annotations
 from enum import Enum, unique
 from typing import Dict, List, Optional
 
+from pydantic import Field
+
 from neo4j_app.core.utils.pydantic import LowerCamelCaseModel, NoEnumModel
 
 
@@ -17,6 +19,11 @@ class DumpRequest(NoEnumModel, LowerCamelCaseModel):
     query: Optional[str] = None
 
 
+class GraphSchema(LowerCamelCaseModel):
+    nodes: List[NodeSchema] = Field(default_factory=list)
+    relationships: List[RelationshipSchema] = Field(default_factory=list)
+
+
 class IncrementalImportRequest(LowerCamelCaseModel):
     query: Optional[Dict] = None
     # TODO: add all other parameters such as concurrency etc etc...
@@ -28,8 +35,15 @@ class IncrementalImportResponse(LowerCamelCaseModel):
     relationships_created: int = 0
 
 
-class CSVPaths:
+class Neo4jCSVs(LowerCamelCaseModel):
+    db: str
+    nodes: List[NodeCSVs]
+    relationships: List[RelationshipCSVs]
+
+
+class Neo4jCSVResponse(LowerCamelCaseModel):
     path: str
+    metadata: Neo4jCSVs
 
 
 class Neo4jCSVRequest(LowerCamelCaseModel):
@@ -43,6 +57,17 @@ class NodeCSVs(LowerCamelCaseModel):
     n_nodes: int
 
 
+class Neo4jProperty(LowerCamelCaseModel):
+    name: str
+    types: List[str]
+    mandatory: bool
+
+
+class NodeSchema(LowerCamelCaseModel):
+    label: str
+    properties: List[Neo4jProperty]
+
+
 class RelationshipCSVs(LowerCamelCaseModel):
     types: List[str]
     header_path: str
@@ -50,12 +75,9 @@ class RelationshipCSVs(LowerCamelCaseModel):
     n_relationships: int
 
 
-class Neo4jCSVs(LowerCamelCaseModel):
-    db: str
-    nodes: List[NodeCSVs]
-    relationships: List[RelationshipCSVs]
+class RelationshipSchema(LowerCamelCaseModel):
+    type: str
+    properties: List[Neo4jProperty]
 
 
-class Neo4jCSVResponse(LowerCamelCaseModel):
-    path: str
-    metadata: Neo4jCSVs
+GraphSchema.update_forward_refs()
