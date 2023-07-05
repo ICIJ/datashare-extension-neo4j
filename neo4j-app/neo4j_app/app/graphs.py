@@ -36,7 +36,8 @@ def graphs_router() -> APIRouter:
                     neo4j_driver=neo4j_driver,
                     neo4j_db=database,
                     query=payload.query,
-                )
+                ),
+                media_type="binary/octet-stream",
             )
         return res
 
