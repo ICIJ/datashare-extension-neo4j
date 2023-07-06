@@ -207,7 +207,7 @@ public class Neo4jResourceTest {
         public void test_post_import_doc_should_return_503_when_neo4j_server_is_not_started() {
             // When
             Response response = post("/api/neo4j/documents?project=foo-datashare", "{}")
-                    .withPreemptiveAuthentication("foo", "null").response();
+                .withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(503);
             assertJson(
@@ -352,7 +352,7 @@ public class Neo4jResourceTest {
         }
     }
 
-    @DisplayName("test import")
+    @DisplayName("test with mocked app")
     @ExtendWith(MockNeo4jApp.class)
     @ExtendWith(MockAppProperties.class)
     @ExtendWith(BindNeo4jResource.class)
@@ -467,6 +467,44 @@ public class Neo4jResourceTest {
             Response response = post(
                 "/api/neo4j/admin/neo4j-csvs?project=foo-datashare").withPreemptiveAuthentication(
                 "foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_graph_dump_should_return_200()
+            throws IOException, InterruptedException {
+            // Given
+            neo4jAppResource.startServerProcess(false);
+            neo4jApp.configure(
+                routes -> routes.post("/graphs/dump",
+                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
+                )
+            );
+            // When
+            String body = "{\"format\": \"graphml\"}";
+            Response response = post("/api/neo4j/graphs/dump?project=foo-datashare",
+                body).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(200);
+            String dumpAsString = response.content();
+            assertThat(dumpAsString).isEqualTo("somedump");
+        }
+
+        @Test
+        public void test_post_graph_dump_should_return_401_for_unauthorized_user()
+            throws IOException, InterruptedException {
+            // Given
+            neo4jAppResource.startServerProcess(false);
+            neo4jApp.configure(
+                routes -> routes.post("/graphs/dump",
+                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
+                )
+            );
+            // When
+            String body = "{\"format\": \"graphml\"}";
+            Response response = post("/api/neo4j/graphs/dump?project=foo-datashare",
+                body).withPreemptiveAuthentication("unauthorized", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(401);
         }
