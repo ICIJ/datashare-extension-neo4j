@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.Cleaner;
 import java.net.Socket;
+import java.net.URISyntaxException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -200,6 +201,20 @@ public class Neo4jResource {
         });
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
+
+    @Post("/graphs/dump?project=:project")
+    public Payload postGraphDump(String project, Context context) throws IOException {
+        checkAccess(project, context);
+        org.icij.datashare.Objects.DumpRequest request =
+            context.extract(org.icij.datashare.Objects.DumpRequest.class);
+        return wrapNeo4jAppCall(() -> {
+            try {
+                return this.dumpGraph(project, request);
+            } catch (URISyntaxException | IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
 
 
     private void checkNeo4jAppStarted() throws IOException, InterruptedException {
@@ -408,6 +423,15 @@ public class Neo4jResource {
         }
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
+
+    protected InputStream dumpGraph(
+        String projectId, org.icij.datashare.Objects.DumpRequest request)
+        throws URISyntaxException, IOException, InterruptedException {
+        checkExtensionProject(projectId);
+        checkNeo4jAppStarted();
+        String database = neo4jProjectDatabase(projectId);
+        return client.dumpGraph(database, request);
+    }
 
     private <T> Payload wrapNeo4jAppCall(Provider<T> responseProvider) {
         try {

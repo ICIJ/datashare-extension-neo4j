@@ -1,9 +1,14 @@
 package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
+import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Objects;
 import net.codestory.http.Configuration;
@@ -62,6 +67,36 @@ public class Neo4jClientTest {
                 TestUtils.makeJsonHttpError("Bad Request", "Invalid DB " + db), 500);
         }
 
+        private Payload mockDump(Context context) throws IOException {
+            String db = context.query().get("database");
+            if (db.equals("mydb")) {
+                org.icij.datashare.Objects.DumpRequest request =
+                    MAPPER.readValue(context.request().content(),
+                        org.icij.datashare.Objects.DumpRequest.class);
+                String dump;
+                if (request.query == null) {
+                    switch (request.format) {
+                        case CYPHER_SHELL:
+                            dump = "cypher\ndump";
+                            break;
+                        case GRAPHML:
+                            dump = "graphml\ndump";
+                            break;
+                        default:
+                            return new Payload("application/json",
+                                TestUtils.makeJsonHttpError("Bad Request",
+                                    "Unknown format" + request.format), 400);
+                    }
+                } else {
+                    dump = "filtered\ndump";
+                }
+                return new Payload("binary/octet-stream",
+                    new ByteArrayInputStream(dump.getBytes()));
+            }
+            return new Payload("application/json",
+                TestUtils.makeJsonHttpError("Bad Request", "Invalid DB " + db), 500);
+        }
+
         @Test
         public void test_should_import_documents() {
             // Given
@@ -102,9 +137,9 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(
                 routes -> routes.post("/documents", this::mockImport));
-            // When
             org.icij.datashare.Objects.IncrementalImportRequest body =
                 new org.icij.datashare.Objects.IncrementalImportRequest(null);
+            // When/Then
             assertThat(assertThrowsExactly(
                 Neo4jClient.Neo4jAppError.class,
                 () -> client.importDocuments("unknown", "myindex", body)
@@ -204,11 +239,11 @@ public class Neo4jClientTest {
         public void test_import_named_entities_should_throw_for_invalid_db() {
             // Given
             neo4jApp.configure(routes -> routes.post("/named-entities", this::mockImport));
-            // When
+
             org.icij.datashare.Objects.IncrementalImportRequest body =
                 new org.icij.datashare.Objects.IncrementalImportRequest(null);
 
-            // Then
+            // When/Then
             assertThat(assertThrowsExactly(
                 Neo4jClient.Neo4jAppError.class,
                 () -> client.importNamedEntities("unknown", "myindex", body)
@@ -228,6 +263,75 @@ public class Neo4jClientTest {
                 Neo4jClient.Neo4jAppError.class,
                 () -> client.importNamedEntities("mydb", "unknown", body)
             ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid index unknown");
+        }
+
+        @Test
+        public void test_dump_graph_in_cypher_shell()
+            throws URISyntaxException, IOException, InterruptedException {
+            // Given
+            neo4jApp.configure(routes -> routes.post("/graphs/dump?database=mydb", this::mockDump));
+            org.icij.datashare.Objects.DumpRequest body =
+                new org.icij.datashare.Objects.DumpRequest(
+                    org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL, null);
+            // When
+            try (InputStream res = client.dumpGraph("mydb", body)) {
+                String dump = new String(res.readAllBytes(), StandardCharsets.UTF_8);
+
+                // Then
+                String expectedDump = "cypher\ndump";
+                assertThat(dump).isEqualTo(expectedDump);
+            }
+        }
+
+        @Test
+        public void test_dump_graph_in_graphml()
+            throws URISyntaxException, IOException, InterruptedException {
+            // Given
+            neo4jApp.configure(routes -> routes.post("/graphs/dump", this::mockDump));
+            org.icij.datashare.Objects.DumpRequest body =
+                new org.icij.datashare.Objects.DumpRequest(
+                    org.icij.datashare.Objects.DumpFormat.GRAPHML, null);
+            // When
+            try (InputStream res = client.dumpGraph("mydb", body)) {
+                String dump = new String(res.readAllBytes(), StandardCharsets.UTF_8);
+                // Then
+                String expectedDump = "graphml\ndump";
+                assertThat(dump).isEqualTo(expectedDump);
+            }
+        }
+
+        @Test
+        public void test_dump_graph_in_with_query()
+            throws URISyntaxException, IOException, InterruptedException {
+            // Given
+            neo4jApp.configure(routes -> routes.post("/graphs/dump", this::mockDump));
+            org.icij.datashare.Objects.DumpRequest body =
+                new org.icij.datashare.Objects.DumpRequest(
+                    org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL,
+                    "MATCH (something) RETURN something LIMIT 100");
+            // When
+            try (InputStream res = client.dumpGraph("mydb", body)) {
+                String dump = new String(res.readAllBytes(), StandardCharsets.UTF_8);
+                // Then
+                String expectedDump = "filtered\ndump";
+                assertThat(dump).isEqualTo(expectedDump);
+            }
+        }
+
+        @Test
+        public void test_dump_graph_should_throw_for_invalid_db() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/graphs/dump", this::mockDump));
+            org.icij.datashare.Objects.DumpRequest body =
+                new org.icij.datashare.Objects.DumpRequest(
+                    org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL, null);
+
+            // When/Then
+            assertThat(assertThrowsExactly(
+                Neo4jClient.Neo4jAppError.class,
+                () -> client.dumpGraph("unknown", body)
+            ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid DB unknown");
         }
     }
 }
