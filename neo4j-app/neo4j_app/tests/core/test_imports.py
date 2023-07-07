@@ -36,6 +36,7 @@ from neo4j_app.core.objects import (
 from neo4j_app.tests.conftest import (
     NEO4J_TEST_AUTH,
     NEO4J_TEST_PORT,
+    TEST_INDEX,
     assert_content,
     index_docs,
     index_named_entities,
@@ -48,7 +49,7 @@ async def _populate_es(
     es_test_client_module: ESClient,
 ) -> AsyncGenerator[ESClient, None]:
     es_client = es_test_client_module
-    index_name = es_client.project_index
+    index_name = TEST_INDEX
     n = 20
     # Index some Documents
     async for _ in index_docs(es_client, index_name=index_name, n=n):
@@ -116,6 +117,7 @@ async def test_import_documents(
 
     # When
     response = await import_documents(
+        es_index=TEST_INDEX,
         es_client=es_client,
         es_query=query,
         es_keep_alive="10s",
@@ -159,6 +161,7 @@ async def test_import_documents_should_forward_db(
         with patch.object(neo4j_driver, attribute="session", new=mock_session):
             # When/Then
             res = await import_documents(
+                es_index=TEST_INDEX,
                 es_client=es_client,
                 es_query=dict(),
                 es_keep_alive="10s",
@@ -238,6 +241,7 @@ async def test_import_named_entities(
     # When
     response = await import_named_entities(
         es_client=es_client,
+        es_index=TEST_INDEX,
         es_query=query,
         es_keep_alive="10s",
         es_doc_type_field=doc_type_field,
@@ -274,6 +278,7 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
     await import_named_entities(
         es_client=es_client,
         es_query=query,
+        es_index=TEST_INDEX,
         es_keep_alive="10s",
         es_doc_type_field="type",
         neo4j_driver=neo4j_driver,
@@ -337,6 +342,7 @@ async def test_import_named_entities_should_forward_db(
             await import_named_entities(
                 es_client=es_client,
                 es_query=dict(),
+                es_index=TEST_INDEX,
                 es_keep_alive="10s",
                 es_doc_type_field="type",
                 neo4j_driver=neo4j_driver,
@@ -444,6 +450,7 @@ async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
     # When
     res = await to_neo4j_csvs(
         es_query=es_query,
+        es_index=TEST_INDEX,
         export_dir=export_dir,
         es_client=es_client,
         es_concurrency=None,

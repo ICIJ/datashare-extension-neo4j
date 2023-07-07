@@ -33,6 +33,7 @@ async def test_neo4_import_worker(
 ):
     # Given
     neo4j_driver = neo4j_test_driver
+    neo4j_db = "neo4j"
     transaction_batch_size = 2
     num_records = 22
     import_batch_size = 3
@@ -41,7 +42,7 @@ async def test_neo4_import_worker(
         Neo4jImportWorker(
             f"worker-{i}",
             neo4j_driver=neo4j_driver,
-            neo4j_db=neo4j.DEFAULT_DATABASE,
+            neo4j_db=neo4j_db,
             import_fn=_dummy_import,
             transaction_batch_size=transaction_batch_size,
         )

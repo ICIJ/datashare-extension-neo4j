@@ -28,6 +28,7 @@ def named_entities_router() -> APIRouter:
     )
     async def _import_named_entities(
         database: str,
+        index: str,
         payload: IncrementalImportRequest,
         request: Request,
         neo4j_driver: neo4j.AsyncDriver = Depends(neo4j_driver_dep),
@@ -39,6 +40,7 @@ def named_entities_router() -> APIRouter:
         ):
             res = await import_named_entities(
                 es_client=es_client,
+                es_index=index,
                 es_query=payload.query,
                 es_concurrency=es_client.max_concurrency,
                 es_keep_alive=config.es_keep_alive,

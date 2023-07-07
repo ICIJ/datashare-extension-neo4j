@@ -25,7 +25,6 @@ from neo4j_app.core.elasticsearch.utils import (
     DOC_,
     HITS,
     ID,
-    INDEX,
     KEEP_ALIVE,
     MAX,
     PIT,
@@ -56,24 +55,18 @@ class ESClientABC(metaclass=abc.ABCMeta):
 
     def __init__(
         self,
-        project_index: str,
         *,
         pagination: int,
         keep_alive: str = "1m",
         max_concurrency: int = 5,
     ):
         # pylint: disable=super-init-not-called
-        self._project_index = project_index
         if pagination > 10000:
             raise ValueError("Elasticsearch doesn't support pages of size > 10000")
         self._pagination_size = pagination
         self._keep_alive = keep_alive
         self._max_concurrency = max_concurrency
         self._version: Optional[StrictVersion] = None
-
-    @cached_property
-    def project_index(self) -> str:
-        return self._project_index
 
     @cached_property
     def max_concurrency(self) -> int:
@@ -106,24 +99,26 @@ class ESClientABC(metaclass=abc.ABCMeta):
         # pylint: disable=arguments-differ
         if PIT not in kwargs and PIT not in kwargs.get("body", {}):
             kwargs = deepcopy(kwargs)
-            kwargs[INDEX] = self.project_index
         return await super().search(**kwargs)
 
     async def poll_search_pages(
-        self, body: Dict, **kwargs
+        self, index: str, body: Dict, **kwargs
     ) -> AsyncGenerator[Dict[str, Any], None]:
         if await self.supports_pit:
             results = self._poll_pit_search_pages(body=body, **kwargs)
         else:
             scroll = kwargs.pop(SCROLL, self.keep_alive)
             results = self._poll_scroll_search_pages(
-                query=body, scroll=scroll, **kwargs
+                index=index, query=body, scroll=scroll, **kwargs
             )
         async for res in results:
             yield res
 
     async def _poll_pit_search_pages(
-        self, sort: Optional[List[Dict]] = None, size: Optional[int] = None, **kwargs
+        self,
+        sort: Optional[List[Dict]] = None,
+        size: Optional[int] = None,
+        **kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         if sort is None:
             sort = self.default_sort(pit_search=True)
@@ -150,6 +145,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
 
     async def _poll_scroll_search_pages(
         self,
+        index: str,
         query: Dict,
         scroll: str,
         sort: Optional[List[Dict]] = None,
@@ -159,7 +155,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         if sort is None:
             sort = self.default_sort(pit_search=False)
         res = await self.search(
-            body=query, scroll=scroll, size=size, sort=sort, **kwargs
+            index=index, body=query, scroll=scroll, size=size, sort=sort, **kwargs
         )
         scroll_id = res.get(SCROLL_ID_)
         try:
@@ -176,13 +172,13 @@ class ESClientABC(metaclass=abc.ABCMeta):
 
     @asynccontextmanager
     async def try_open_pit(
-        self, *, keep_alive: str, **kwargs
+        self, *, index: str, keep_alive: str, **kwargs
     ) -> AsyncGenerator[Optional[PointInTime], None]:
         pit_id = None
         if await self.supports_pit:
             try:
                 pit = await self.open_point_in_time(
-                    index=self.project_index, keep_alive=keep_alive, **kwargs
+                    index=index, keep_alive=keep_alive, **kwargs
                 )
                 yield pit
             finally:
@@ -193,6 +189,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
 
     async def to_neo4j(
         self,
+        index: str,
         bodies: List[Mapping[str, Any]],
         *,
         neo4j_import_worker_factory: Callable[[str], Neo4jImportWorker],
@@ -238,6 +235,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
             f" {{elapsed_time}} !",
         ):
             n_imported = await self._fill_import_queue(
+                index=index,
                 import_batch_size=import_batch_size,
                 bodies=bodies,
                 queue=queue,
@@ -256,6 +254,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
 
     async def write_concurrently_neo4j_csvs(
         self,
+        index: str,
         query: Optional[Mapping[str, Any]],
         *,
         pit: PointInTime,
@@ -289,6 +288,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         tasks = (
             self._write_search_to_neo4j_csvs_with_lock(
                 body=body,
+                es_index=index,
                 nodes_f=nodes_f,
                 relationships_f=relationships_f,
                 nodes_header=nodes_header,
@@ -314,6 +314,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
 
     async def _fill_import_queue(
         self,
+        index: str,
         queue: asyncio.Queue,
         *,
         import_batch_size: int,
@@ -324,6 +325,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         buffer = []
         futures = [
             self._fill_import_buffer(
+                index=index,
                 queue=queue,
                 import_batch_size=import_batch_size,
                 lock=lock,
@@ -347,6 +349,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
     async def _fill_import_buffer(
         self,
         *,
+        index: str,
         queue: asyncio.Queue,
         import_batch_size: int,
         lock: asyncio.Lock,
@@ -359,7 +362,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         # Since we can't provide an async generator to the neo4j client, let's store
         # results into a list fitting in memory, which will then be split into
         # transaction batches
-        async for res in self.poll_search_pages(**kwargs):
+        async for res in self.poll_search_pages(index, **kwargs):
             buffer.extend(res[HITS][HITS])
             async with lock:
                 if len(buffer) >= import_batch_size:
@@ -371,6 +374,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
     async def _write_search_to_neo4j_csvs_with_lock(
         self,
         *,
+        es_index: str,
         nodes_f: Optional[TextIO],
         relationships_f: Optional[TextIO],
         nodes_header: Optional[List[str]],
@@ -398,7 +402,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
             total_nodes = 0
         if relationships_f is not None:
             total_rels = 0
-        async for res in self.poll_search_pages(**kwargs):
+        async for res in self.poll_search_pages(es_index, **kwargs):
             # Let's not lock the while converting the rows even if that implies using
             # some memory
             nodes_rows = None
@@ -449,7 +453,6 @@ class ESClient(ESClientABC, AsyncElasticsearch):
 
     def __init__(
         self,
-        project_index: str,
         *,
         pagination: int,
         keep_alive: str = "1m",
@@ -458,7 +461,6 @@ class ESClient(ESClientABC, AsyncElasticsearch):
     ):
         ESClientABC.__init__(
             self,
-            project_index=project_index,
             pagination=pagination,
             keep_alive=keep_alive,
             max_concurrency=max_concurrency,
@@ -487,7 +489,6 @@ try:
 
         def __init__(
             self,
-            project_index: str,
             *,
             pagination: int,
             keep_alive: str = "1m",
@@ -496,7 +497,6 @@ try:
         ):
             ESClientABC.__init__(
                 self,
-                project_index=project_index,
                 pagination=pagination,
                 keep_alive=keep_alive,
                 max_concurrency=max_concurrency,
