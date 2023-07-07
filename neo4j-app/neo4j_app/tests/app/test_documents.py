@@ -7,13 +7,13 @@ from starlette.testclient import TestClient
 
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.objects import IncrementalImportResponse
-from neo4j_app.tests.conftest import index_docs
+from neo4j_app.tests.conftest import TEST_INDEX, index_docs
 
 
 @pytest_asyncio.fixture(scope="module")
 async def _populate_es(es_test_client_module: ESClient):
     es_client = es_test_client_module
-    index_name = es_client.project_index
+    index_name = TEST_INDEX
     n_docs = 10
     async for _ in index_docs(es_client, index_name=index_name, n=n_docs):
         pass
@@ -49,7 +49,7 @@ def test_post_documents_import_should_return_200(
     # pylint: disable=invalid-name,unused-argument
     # Given
     test_client = test_client_module
-    url = "/documents?database=neo4j"
+    url = f"/documents?database=neo4j&index={TEST_INDEX}"
     payload = {}
     if query is not None:
         payload["query"] = query

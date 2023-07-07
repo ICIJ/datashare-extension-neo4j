@@ -366,7 +366,7 @@ public class Neo4jResource {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         String db = neo4jProjectDatabase(projectId);
-        return client.importDocuments(db, request);
+        return client.importDocuments(db, projectId, request);
     }
 
     protected org.icij.datashare.Objects.IncrementalImportResponse importNamedEntities(
@@ -375,12 +375,12 @@ public class Neo4jResource {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         String db = neo4jProjectDatabase(projectId);
-        return client.importNamedEntities(db, request);
+        return client.importNamedEntities(db, projectId, request);
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     protected InputStream exportNeo4jCSVs(
-        String projectId, org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request
+        String projectId,  org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request
     )
         throws IOException, InterruptedException {
         // TODO: the database should be chosen dynamically with the Mode (local vs. server) and
@@ -392,7 +392,7 @@ public class Neo4jResource {
         Path exportDir = null;
         try {
             org.icij.datashare.Objects.Neo4jCSVResponse res =
-                client.exportNeo4jCSVs(database, request);
+                client.exportNeo4jCSVs(database, projectId, request);
             logger.info("Exported data from ES to neo4j, statistics: {}",
                 lazy(() -> MAPPER.writeValueAsString(res.metadata)));
             exportDir = Paths.get(res.path);

@@ -19,6 +19,7 @@ from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.utils.pydantic import BaseICIJModel
 
+
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
 #  let's try to find a way to define the scope dynamically:
 #  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
@@ -41,6 +42,7 @@ _INDEX_BODY = {
         }
     }
 }
+TEST_INDEX = "test-datashare-project"
 
 
 # Define a session level even_loop fixture to overcome limitation explained here:
@@ -124,9 +126,7 @@ def error_test_client_session(test_client_session: TestClient) -> TestClient:
 
 
 def _make_test_client() -> ESClient:
-    test_index = "test-datashare-project"
     es = ESClient(
-        project_index=test_index,
         hosts=[{"host": "localhost", "port": ELASTICSEARCH_TEST_PORT}],
         pagination=3,
     )
@@ -137,7 +137,7 @@ def _make_test_client() -> ESClient:
 async def es_test_client_session() -> AsyncGenerator[ESClient, None]:
     es = _make_test_client()
     await es.indices.delete(index="_all")
-    await es.indices.create(index=es.project_index, body=_INDEX_BODY)
+    await es.indices.create(index="test-datashare-project", body=_INDEX_BODY)
     yield es
     await es.close()
 
@@ -146,7 +146,7 @@ async def es_test_client_session() -> AsyncGenerator[ESClient, None]:
 async def es_test_client_module() -> AsyncGenerator[ESClient, None]:
     es = _make_test_client()
     await es.indices.delete(index="_all")
-    await es.indices.create(index=es.project_index, body=_INDEX_BODY)
+    await es.indices.create(index="test-datashare-project", body=_INDEX_BODY)
     yield es
     await es.close()
 
@@ -155,7 +155,7 @@ async def es_test_client_module() -> AsyncGenerator[ESClient, None]:
 async def es_test_client() -> AsyncGenerator[ESClient, None]:
     es = _make_test_client()
     await es.indices.delete(index="_all")
-    await es.indices.create(index=es.project_index, body=_INDEX_BODY)
+    await es.indices.create(index="test-datashare-project", body=_INDEX_BODY)
     yield es
     await es.close()
 
@@ -178,7 +178,7 @@ async def neo4j_test_driver_session() -> AsyncGenerator[neo4j.AsyncDriver, None]
 @pytest_asyncio.fixture()
 async def neo4j_test_driver() -> AsyncGenerator[neo4j.AsyncDriver, None]:
     async with _build_neo4j_driver() as driver:
-        async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
+        async with driver.session(database="neo4j") as sess:
             await wipe_db(sess)
         yield driver
 
@@ -188,7 +188,7 @@ async def neo4j_test_session_session(
     neo4j_test_driver_session: neo4j.Driver,
 ) -> AsyncGenerator[neo4j.AsyncSession, None]:
     driver = neo4j_test_driver_session
-    async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
+    async with driver.session(database="neo4j") as sess:
         await wipe_db(sess)
         yield sess
 
@@ -372,7 +372,7 @@ async def populate_es_with_doc_and_named_entities(
     es_test_client_module: ESClient, n: int
 ):
     es_client = es_test_client_module
-    index_name = es_client.project_index
+    index_name = TEST_INDEX
     # Index some Documents
     async for _ in index_docs(es_client, index_name=index_name, n=n):
         pass

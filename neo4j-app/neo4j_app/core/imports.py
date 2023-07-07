@@ -126,6 +126,7 @@ class ImportTransactionFunction(Protocol):
 async def import_documents(
     *,
     es_client: ESClientABC,
+    es_index: str,
     es_query: Optional[Dict],
     es_concurrency: Optional[int] = None,
     es_keep_alive: Optional[str] = None,
@@ -139,7 +140,7 @@ async def import_documents(
     es_query = _make_document_query(es_query, es_doc_type_field)
     if es_concurrency is None:
         es_concurrency = es_client.max_concurrency
-    async with es_client.try_open_pit(keep_alive=es_keep_alive) as pit:
+    async with es_client.try_open_pit(index=es_index, keep_alive=es_keep_alive) as pit:
         # Since we're merging relationships we need to set the import concurrency to 1
         # to avoid deadlocks...
         neo4j_concurrency = 1
@@ -155,6 +156,7 @@ async def import_documents(
         ]
         import_summary = await _es_to_neo4j_import(
             es_client=es_client,
+            es_index=es_index,
             es_bodies=bodies,
             es_concurrency=es_concurrency,
             neo4j_driver=neo4j_driver,
@@ -178,6 +180,7 @@ async def import_documents(
 async def import_named_entities(
     *,
     es_client: ESClientABC,
+    es_index: str,
     es_query: Optional[Dict],
     es_concurrency: Optional[int] = None,
     es_keep_alive: Optional[str] = None,
@@ -200,7 +203,7 @@ async def import_named_entities(
     # on the documentId will probably be much more efficient !
     # TODO: if joining is too slow, switch to post filtering
     # TODO: project document fields here in order to reduce the ES payloads...
-    async with es_client.try_open_pit(keep_alive=es_keep_alive) as pit:
+    async with es_client.try_open_pit(index=es_index, keep_alive=es_keep_alive) as pit:
         if pit is not None:
             pit[KEEP_ALIVE] = es_keep_alive
         neo4j_concurrency = 1
@@ -212,6 +215,7 @@ async def import_named_entities(
             es_page_size=es_client.pagination_size,
         )
         import_summary = await _es_to_neo4j_import(
+            es_index=es_index,
             es_client=es_client,
             es_bodies=bodies,
             es_concurrency=es_concurrency,
@@ -238,6 +242,7 @@ async def import_named_entities(
 async def _es_to_neo4j_import(
     *,
     es_client: ESClientABC,
+    es_index: str,
     es_bodies: List[Mapping[str, Any]],
     es_concurrency: Optional[int] = None,
     neo4j_driver: neo4j.AsyncDriver,
@@ -259,6 +264,7 @@ async def _es_to_neo4j_import(
         to_neo4j=to_neo4j_row,
     )
     imported, summaries = await es_client.to_neo4j(
+        es_index,
         es_bodies,
         neo4j_import_worker_factory=neo4j_import_worker_factory,
         num_neo4j_workers=neo4j_concurrency,
@@ -284,6 +290,7 @@ async def to_neo4j_csvs(
     export_dir: Path,
     es_query: Optional[Dict],
     es_client: ESClientABC,
+    es_index: str,
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
     es_doc_type_field: str,
@@ -291,8 +298,9 @@ async def to_neo4j_csvs(
 ) -> Neo4jCSVResponse:
     nodes = []
     relationships = []
-    async with es_client.try_open_pit(keep_alive=es_keep_alive) as pit:
+    async with es_client.try_open_pit(index=es_index, keep_alive=es_keep_alive) as pit:
         doc_nodes_csvs, doc_rels_csvs = await _to_neo4j_doc_csvs(
+            es_index=es_index,
             export_dir=export_dir,
             es_query=es_query,
             es_pit=pit,
@@ -315,6 +323,7 @@ async def to_neo4j_csvs(
             export_dir=export_dir,
             es_pit=pit,
             es_client=es_client,
+            es_index=es_index,
             es_concurrency=es_concurrency,
             es_keep_alive=es_keep_alive,
             es_doc_type_field=es_doc_type_field,
@@ -337,6 +346,7 @@ _DOC_ROOT_REL_HEADER = [f"{NEO4J_CSV_START_ID}({DOC_NODE})", _DOC_REL_END_CSV_CO
 async def _to_neo4j_doc_csvs(
     *,
     export_dir: Path,
+    es_index: str,
     es_query: Optional[Dict],
     es_pit: Optional[PointInTime],
     es_client: ESClientABC,
@@ -371,6 +381,7 @@ async def _to_neo4j_doc_csvs(
                     n_doc_nodes,
                     n_doc_rels,
                 ) = await es_client.write_concurrently_neo4j_csvs(
+                    es_index,
                     es_query,
                     pit=es_pit,
                     nodes_f=nodes_f,
@@ -406,6 +417,7 @@ async def _to_neo4j_ne_csvs(
     export_dir: Path,
     es_pit: Optional[PointInTime],
     es_client: ESClientABC,
+    es_index: str,
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
     es_doc_type_field: str,
@@ -434,6 +446,7 @@ async def _to_neo4j_ne_csvs(
             ):
                 n_ne_nodes, n_ne_rels = await _export_es_named_entities_as_csvs(
                     es_client=es_client,
+                    es_index=es_index,
                     document_ids=document_ids,
                     nodes_f=nodes_f,
                     relationships_f=rels_f,
@@ -462,6 +475,7 @@ async def _to_neo4j_ne_csvs(
 
 async def _export_es_named_entities_as_csvs(
     es_client: ESClientABC,
+    es_index: str,
     *,
     document_ids: List[str],
     nodes_f: TextIO,
@@ -512,6 +526,7 @@ async def _export_es_named_entities_as_csvs(
     tasks = (
         _aggregate_and_write_ne_nodes_and_relationships(
             es_client=es_client,
+            es_index=es_index,
             nodes_f=nodes_f,
             relationships_f=relationships_f,
             es_to_neo4j_nodes=es_to_neo4j_nodes,
@@ -534,6 +549,7 @@ async def _export_es_named_entities_as_csvs(
 
 async def _aggregate_and_write_ne_nodes_and_relationships(
     es_client: ESClientABC,
+    es_index: str,
     *,
     nodes_f: TextIO,
     relationships_f: TextIO,
@@ -554,7 +570,7 @@ async def _aggregate_and_write_ne_nodes_and_relationships(
     buffer = defaultdict(dict)
     current_doc_id = None
     seen_docs = set()
-    async for res in es_client.poll_search_pages(**kwargs):
+    async for res in es_client.poll_search_pages(es_index, **kwargs):
         ne_rows = [row for hit in res[HITS][HITS] for row in es_to_neo4j_nodes(hit)]
         ne_rels = [
             row for hit in res[HITS][HITS] for row in es_to_neo4j_relationships(hit)

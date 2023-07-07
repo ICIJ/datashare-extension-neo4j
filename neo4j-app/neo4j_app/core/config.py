@@ -55,7 +55,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_import_batch_size: int = int(5e5)
     neo4j_password: Optional[str] = None
     neo4j_port: int = 7687
-    neo4j_project: str
     neo4j_transaction_batch_size = 50000
     neo4j_user: Optional[str] = None
     # Other supported schemes are neo4j+ssc, neo4j+s, bolt, bolt+ssc, bolt+s
@@ -174,7 +173,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         client_cls = OSClient if self.neo4j_app_uses_opensearch else ESClient
         # TODO: read the index name in a secure manner...
         client = client_cls(
-            project_index=self.neo4j_project,
             hosts=[self.es_host],
             port=self.es_port,
             pagination=self.es_default_page_size,

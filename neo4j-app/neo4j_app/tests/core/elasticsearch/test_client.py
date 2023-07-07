@@ -6,16 +6,14 @@ import pytest_asyncio
 
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.neo4j import get_neo4j_csv_writer
-from neo4j_app.tests.conftest import index_noise
+from neo4j_app.tests.conftest import TEST_INDEX, index_noise
 
 
 @pytest_asyncio.fixture(scope="module")
 async def _index_noise(es_test_client_module: ESClient) -> ESClient:
     es_client = es_test_client_module
     n_noise = 22
-    async for _ in index_noise(
-        es_client, index_name=es_client.project_index, n=n_noise
-    ):
+    async for _ in index_noise(es_client, index_name=TEST_INDEX, n=n_noise):
         pass
     yield es_client
 
@@ -61,8 +59,9 @@ async def test_write_concurrently_neo4j_csv(
     with (tmp_path / "import.csv").open("w") as f:
         writer = get_neo4j_csv_writer(f, header)
         writer.writeheader()
-        async with es_client.try_open_pit(keep_alive="1m") as pit:
+        async with es_client.try_open_pit(index=TEST_INDEX, keep_alive="1m") as pit:
             total_hits, _ = await es_client.write_concurrently_neo4j_csvs(
+                TEST_INDEX,
                 query,
                 pit=pit,
                 nodes_f=f,

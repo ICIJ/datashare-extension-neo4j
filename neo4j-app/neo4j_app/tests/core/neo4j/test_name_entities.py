@@ -60,12 +60,12 @@ async def test_import_named_entities(
     assert n_created_second == expected_n_nodes - n_created_first
     query = """
 MATCH (ent:NamedEntity)
-RETURN ent as ent, labels(ent) as entLabels
+RETURN ent as ent, apoc.coll.sort(labels(ent)) as entLabels
 ORDER BY entLabels"""
     res = await neo4j_test_session.run(query)
     ents = [(rec["ent"]["mentionNorm"], rec["entLabels"]) async for rec in res]
     expected_ents = [
-        ("mention-0", ["NamedEntity", "Location"]),
+        ("mention-0", ["Location", "NamedEntity"]),
         ("mention-0", ["NamedEntity", "Person"]),
     ]
     assert ents == expected_ents
