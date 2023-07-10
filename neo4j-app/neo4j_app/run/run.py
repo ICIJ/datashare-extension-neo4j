@@ -1,13 +1,17 @@
 # TODO: rename this into run_http ?
 import argparse
+import logging
 import sys
+import traceback
 from pathlib import Path
 from typing import Optional
 
 import uvicorn
 
+import neo4j_app
 from neo4j_app.app.utils import create_app
 from neo4j_app.core.config import AppConfig
+from neo4j_app.core.utils.logging import DATE_FMT, STREAM_HANDLER_FMT
 
 
 def debug_app():
@@ -61,15 +65,38 @@ def get_arg_parser():
     return arg_parser
 
 
-def main():
-    arg_parser = get_arg_parser()
-    args = arg_parser.parse_args()
+def _setup_loggers():
+    loggers = [neo4j_app.__name__, "__main__"]
+    level = logging.INFO
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.setFormatter(logging.Formatter(STREAM_HANDLER_FMT, DATE_FMT))
+    for logger in loggers:
+        logger = logging.getLogger(logger)
+        logger.setLevel(level)
+        logger.handlers = []
+        logger.addHandler(stream_handler)
 
-    if hasattr(args, "func"):
-        args.func(args)
-    else:
-        arg_parser.print_help()
-        sys.exit(1)
+
+def main():
+    # Setup loggers temporarily before loggers init using the app configuration
+    _setup_loggers()
+    logger = logging.getLogger(__name__)
+    try:
+        arg_parser = get_arg_parser()
+        args = arg_parser.parse_args()
+
+        if hasattr(args, "func"):
+            args.func(args)
+        else:
+            arg_parser.print_help()
+            sys.exit(1)
+    except KeyboardInterrupt as e:
+        logger.error("Application shutdown...")
+        raise e
+    except Exception as e:  # pylint: disable=broad-except:
+        error_with_trace = "".join(traceback.format_exception(None, e, e.__traceback__))
+        logger.error("Error occurred at application startup:\n%s", error_with_trace)
+        raise e
 
 
 if __name__ == "__main__":

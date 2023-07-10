@@ -14,6 +14,7 @@ from pydantic import Field, validator
 
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.client import ESClient, OSClient
+from neo4j_app.core.utils.logging import DATE_FMT, STREAM_HANDLER_FMT
 from neo4j_app.core.utils.pydantic import (
     BaseICIJModel,
     IgnoreExtraModel,
@@ -22,8 +23,6 @@ from neo4j_app.core.utils.pydantic import (
 
 _SYSLOG_MODEL_SPLIT_CHAR = "@"
 _SYSLOG_FMT = f"%(name)s{_SYSLOG_MODEL_SPLIT_CHAR}%(message)s"
-_STREAM_HANDLER_FMT = "[%(levelname)s][%(asctime)s.%(msecs)03d][%(name)s]: %(message)s"
-_DATE_FMT = "%H:%M:%S"
 
 
 def _es_version():
@@ -195,7 +194,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     @functools.cached_property
     def _handlers(self) -> List[logging.Handler]:
         stream_handler = logging.StreamHandler(sys.stderr)
-        stream_handler.setFormatter(logging.Formatter(_STREAM_HANDLER_FMT, _DATE_FMT))
+        stream_handler.setFormatter(logging.Formatter(STREAM_HANDLER_FMT, DATE_FMT))
         handlers = [stream_handler]
         if self.neo4j_app_syslog_facility is not None:
             syslog_handler = SysLogHandler(

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import logging
 from datetime import datetime
@@ -40,3 +42,7 @@ def log_elapsed_time_cm(
     if "elapsed_time" in output_msg:
         msg_fmt["elapsed_time"] = end
     logger.log(level, output_msg.format(**msg_fmt))
+
+
+STREAM_HANDLER_FMT = "[%(levelname)s][%(asctime)s.%(msecs)03d][%(name)s]: %(message)s"
+DATE_FMT = "%H:%M:%S"
