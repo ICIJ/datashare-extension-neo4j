@@ -34,6 +34,7 @@ from neo4j_app.core.objects import (
     RelationshipCSVs,
 )
 from neo4j_app.tests.conftest import (
+    NEO4J_TEST_AUTH,
     NEO4J_TEST_PORT,
     assert_content,
     index_docs,
@@ -145,7 +146,7 @@ async def test_import_documents_should_forward_db(
     # session so that the test flow can continue
     uri = f"neo4j://127.0.0.1:{NEO4J_TEST_PORT}"
     #
-    async with AsyncGraphDatabase.driver(uri, auth=None) as driver:
+    async with AsyncGraphDatabase.driver(uri, auth=NEO4J_TEST_AUTH) as driver:
 
         @asynccontextmanager
         async def mock_session(database: Optional[str] = None):
@@ -321,7 +322,7 @@ async def test_import_named_entities_should_forward_db(
     # We check that the project DB is passed all the way, while returning an actual
     # session so that the test flow can continue
     uri = f"neo4j://127.0.0.1:{NEO4J_TEST_PORT}"
-    async with AsyncGraphDatabase.driver(uri, auth=None) as driver:
+    async with AsyncGraphDatabase.driver(uri, auth=NEO4J_TEST_AUTH) as driver:
 
         @asynccontextmanager
         async def mock_session(database: Optional[str] = None):

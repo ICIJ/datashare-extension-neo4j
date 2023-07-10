@@ -28,6 +28,10 @@ NEO4J_TEST_IMPORT_DIR = DATA_DIR.joinpath("neo4j", "import")
 NEO4J_IMPORT_PREFIX = Path(os.sep).joinpath(".neo4j", "import")
 ELASTICSEARCH_TEST_PORT = 9201
 NEO4J_TEST_PORT = 7688
+NEO4J_TEST_USER = "neo4j"
+NEO4J_TEST_PASSWORD = "theneo4jpassword"
+NEO4J_TEST_AUTH = neo4j.basic_auth(NEO4J_TEST_USER, NEO4J_TEST_PASSWORD)
+
 _INDEX_BODY = {
     "mappings": {
         "properties": {
@@ -61,6 +65,8 @@ def test_client_session(
         neo4j_project="test-datashare-project",
         neo4j_app_host="127.0.0.1",
         neo4j_port=NEO4J_TEST_PORT,
+        neo4j_user=NEO4J_TEST_USER,
+        neo4j_password=NEO4J_TEST_PASSWORD,
     )
     app = create_app(config)
     # Add a router which generates error in order to test error handling
@@ -158,7 +164,7 @@ async def es_test_client() -> AsyncGenerator[ESClient, None]:
 async def _build_neo4j_driver():
     uri = f"neo4j://127.0.0.1:{NEO4J_TEST_PORT}"
     async with AsyncGraphDatabase.driver(  # pylint: disable=not-async-context-manager
-        uri, auth=None
+        uri, auth=NEO4J_TEST_AUTH
     ) as driver:
         yield driver
 

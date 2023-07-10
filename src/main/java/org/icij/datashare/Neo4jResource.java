@@ -59,10 +59,12 @@ public class Neo4jResource {
     private static final HashMap<String, String> DEFAULT_NEO4J_PROPERTIES = new HashMap<>() {
         {
             put("neo4jAppPort", "8008");
+            put("neo4jAppSyslogFacility", "LOCAL7");
             put("neo4jHost", "neo4j");
+            put("neo4jPassword", "");
             put("neo4jPort", "7687");
             put("neo4jSingleProject", "local-datashare");
-            put("neo4jAppSyslogFacility", "LOCAL7");
+            put("neo4jUser", "");
         }
     };
     private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);

@@ -54,9 +54,11 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_connection_timeout: float = 5.0
     neo4j_host: str = "127.0.0.1"
     neo4j_import_batch_size: int = int(5e5)
+    neo4j_password: Optional[str] = None
     neo4j_port: int = 7687
     neo4j_project: str
     neo4j_transaction_batch_size = 50000
+    neo4j_user: Optional[str] = None
     force_migrations: bool = False
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
@@ -72,6 +74,13 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             raise ValueError(
                 "neo4j_import_batch_size must be <= neo4j_app_max_records_in_memory"
             )
+        return v
+
+    @validator("neo4j_user")
+    def neo4j_user_and_password_xor(cls, v, values):  # pylint: disable=no-self-argument
+        password = values.get("neo4j_password")
+        if bool(password) != bool(v):
+            raise ValueError("neo4j authentication is missing user or password")
         return v
 
     @classmethod
@@ -146,9 +155,13 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         return [{"host": self.es_host, "port": self.es_port}]
 
     def to_neo4j_driver(self) -> neo4j.AsyncDriver:
-        # TODO: forward the creds and the rest of the config...
+        auth = None
+        if self.neo4j_password:
+            auth = neo4j.basic_auth(self.neo4j_user, self.neo4j_password)
         driver = neo4j.AsyncGraphDatabase.driver(
-            self.neo4j_uri, connection_timeout=self.neo4j_connection_timeout
+            self.neo4j_uri,
+            connection_timeout=self.neo4j_connection_timeout,
+            auth=auth,
         )
         return driver
 
