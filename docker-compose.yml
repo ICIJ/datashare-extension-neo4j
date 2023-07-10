@@ -48,7 +48,7 @@ services:
       dockerfile: Dockerfile
       target: neo4j
     environment:
-      NEO4J_AUTH: none
+      NEO4J_AUTH: neo4j/theneo4jpassword
       NEO4JLABS_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_allow__csv__import__from__file__urls: true
     healthcheck:
