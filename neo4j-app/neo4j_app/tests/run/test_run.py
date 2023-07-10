@@ -32,4 +32,6 @@ def test_should_read_java_properties(tmpdir: Path):
     # Then
     assert exception.returncode == 1
     assert "Provided config path does not exists" in exception.stderr
+    # Check that the logger was used
+    assert "ERROR" in exception.stderr
     assert str(missing_config_file_path) in exception.stderr
