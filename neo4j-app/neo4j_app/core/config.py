@@ -156,6 +156,9 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     def to_neo4j_driver(self) -> neo4j.AsyncDriver:
         auth = None
         if self.neo4j_password:
+            # TODO: add support for expiring and auto renew auth:
+            #  https://neo4j.com/docs/api/python-driver/current/api.html
+            #  #neo4j.auth_management.AuthManagers.expiration_based
             auth = neo4j.basic_auth(self.neo4j_user, self.neo4j_password)
         driver = neo4j.AsyncGraphDatabase.driver(
             self.neo4j_uri,
