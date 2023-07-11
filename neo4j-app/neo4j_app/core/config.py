@@ -59,6 +59,8 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_project: str
     neo4j_transaction_batch_size = 50000
     neo4j_user: Optional[str] = None
+    # Other supported schemes are neo4j+ssc, neo4j+s, bolt, bolt+ssc, bolt+s
+    neo4j_uri_scheme: str = "neo4j"
     force_migrations: bool = False
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
@@ -124,7 +126,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
 
     @property
     def neo4j_uri(self) -> str:
-        return f"neo4j://{self.neo4j_host}:{self.neo4j_port}"
+        return f"{self.neo4j_uri_scheme}://{self.neo4j_host}:{self.neo4j_port}"
 
     @functools.cached_property
     def es_host(self) -> str:
