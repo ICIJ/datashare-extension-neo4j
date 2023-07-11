@@ -64,6 +64,7 @@ public class Neo4jResource {
             put("neo4jPassword", "");
             put("neo4jPort", "7687");
             put("neo4jSingleProject", "local-datashare");
+            put("neo4jUriScheme", "neo4j");
             put("neo4jUser", "");
         }
     };
