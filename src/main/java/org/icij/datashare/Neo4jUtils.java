@@ -83,26 +83,6 @@ public class Neo4jUtils {
         T into();
     }
 
-    protected static Statement documentSortToDumpStatement(
-        List<Objects.DocumentSortItem> sort, long limit
-    ) {
-        Node doc = Cypher.node(DOC_NODE).named("doc");
-        Node other = Cypher.anyNode().named("other");
-        Relationship rel = doc.relationshipBetween(other).named("rel");
-        SortItem[] orderBy = sort.stream().map(item -> {
-            if (item.direction == Objects.SortDirection.ASC) {
-                return doc.property(item.property).ascending();
-            } else {
-                return doc.property(item.property).descending();
-            }
-        }).toArray(SortItem[]::new);
-        return Cypher.match(rel)
-            .returning(doc, other, rel)
-            .orderBy(orderBy)
-            .limit(limit)
-            .build();
-    }
-
     protected static class Query {
         // TODO: make this generic, in order to support more match, where, orderBy and limit
         //  statement types... This could be done by implementing an Into<T> interface with a method

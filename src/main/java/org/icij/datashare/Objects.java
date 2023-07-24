@@ -1,5 +1,6 @@
 package org.icij.datashare;
 
+import static java.lang.Math.min;
 import static org.icij.datashare.Neo4jUtils.DOC_NODE;
 import static org.icij.datashare.Neo4jUtils.DOC_PATH;
 
@@ -211,21 +212,54 @@ public class Objects {
         }
     }
 
+    protected static class SortedDumpQuery {
+        protected final List<DocumentSortItem> sort;
+        protected final Long limit;
+
+        @JsonCreator
+        protected SortedDumpQuery(
+            @JsonProperty("sort") List<DocumentSortItem> sort,
+            @JsonProperty("limit") Long limit
+        ) {
+            this.sort = java.util.Objects.requireNonNull(sort, "missing sort");
+            this.limit = limit;
+        }
+
+        protected Statement defaultQueryStatement(long defaultLimit) {
+            Node doc = Cypher.node(DOC_NODE).named("doc");
+            Node other = Cypher.anyNode().named("other");
+            Relationship rel = doc.relationshipBetween(other).named("rel");
+            SortItem[] orderBy = this.sort.stream().map(item -> {
+                if (item.direction == Objects.SortDirection.ASC) {
+                    return doc.property(item.property).ascending();
+                } else {
+                    return doc.property(item.property).descending();
+                }
+            }).toArray(SortItem[]::new);
+            long limit = defaultLimit;
+            if (this.limit != null) {
+                limit = min(this.limit, defaultLimit);
+            }
+            return Cypher.match(rel)
+                .returning(doc, other, rel)
+                .orderBy(orderBy)
+                .limit(limit)
+                .build();
+        }
+    }
+
 
     protected static class SortedDumpRequest {
         protected final DumpFormat format;
-        protected final List<DocumentSortItem> sort;
-        protected final long limit;
+        protected final SortedDumpQuery query;
 
         @JsonCreator
         protected SortedDumpRequest(
             @JsonProperty("format") DumpFormat format,
-            @JsonProperty("sort") List<DocumentSortItem> sort,
-            @JsonProperty("limit") long limit
+            @JsonProperty("sort") SortedDumpQuery query
         ) {
             this.format = java.util.Objects.requireNonNull(format, "missing dump format");
-            this.sort = java.util.Objects.requireNonNull(sort, "missing sort");
-            this.limit = limit;
+            this.query = java.util.Objects.requireNonNull(query, "missing query");
         }
     }
 

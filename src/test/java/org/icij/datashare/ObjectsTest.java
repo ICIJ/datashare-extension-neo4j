@@ -2,7 +2,6 @@ package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -40,6 +39,33 @@ public class ObjectsTest {
             + "ORDER BY doc.path ASC "
             + "LIMIT 10";
         assertThat(defaultQuery).isEqualTo(expectedQuery);
+    }
+
+    @Test
+    public void test_sorted_dump_query_default_query_statement_should_override_limit() {
+        // Given
+        List<Objects.DocumentSortItem> sort = List.of(
+            new Objects.DocumentSortItem("path", Objects.SortDirection.DESC));
+        Long limit = 100L;
+        long defaultLimit = 10L;
+        Objects.SortedDumpQuery query = new Objects.SortedDumpQuery(sort, limit);
+        // When
+        String defaultQuery = query.defaultQueryStatement(defaultLimit).getCypher();
+        // Then
+        assertThat(defaultQuery).endsWith("LIMIT 10");
+    }
+
+    @Test
+    public void test_sorted_dump_query_default_query_statement_should_override_null_limit() {
+        // Given
+        List<Objects.DocumentSortItem> sort = List.of(
+            new Objects.DocumentSortItem("path", Objects.SortDirection.DESC));
+        long defaultLimit = 10L;
+        Objects.SortedDumpQuery query = new Objects.SortedDumpQuery(sort, null);
+        // When
+        String defaultQuery = query.defaultQueryStatement(defaultLimit).getCypher();
+        // Then
+        assertThat(defaultQuery).endsWith("LIMIT 10");
     }
 
     @ExtendWith(TestResources.class)
