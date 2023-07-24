@@ -70,9 +70,9 @@ public class Neo4jClientTest {
         private Payload mockDump(Context context) throws IOException {
             String db = context.query().get("database");
             if (db.equals("mydb")) {
-                org.icij.datashare.Objects.DumpRequest request =
+                org.icij.datashare.Objects.Neo4jAppDumpRequest request =
                     MAPPER.readValue(context.request().content(),
-                        org.icij.datashare.Objects.DumpRequest.class);
+                        org.icij.datashare.Objects.Neo4jAppDumpRequest.class);
                 String dump;
                 if (request.query == null) {
                     switch (request.format) {
@@ -270,8 +270,8 @@ public class Neo4jClientTest {
             throws URISyntaxException, IOException, InterruptedException {
             // Given
             neo4jApp.configure(routes -> routes.post("/graphs/dump?database=mydb", this::mockDump));
-            org.icij.datashare.Objects.DumpRequest body =
-                new org.icij.datashare.Objects.DumpRequest(
+            org.icij.datashare.Objects.Neo4jAppDumpRequest body =
+                new org.icij.datashare.Objects.Neo4jAppDumpRequest(
                     org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL, null);
             // When
             try (InputStream res = client.dumpGraph("mydb", body)) {
@@ -288,8 +288,8 @@ public class Neo4jClientTest {
             throws URISyntaxException, IOException, InterruptedException {
             // Given
             neo4jApp.configure(routes -> routes.post("/graphs/dump", this::mockDump));
-            org.icij.datashare.Objects.DumpRequest body =
-                new org.icij.datashare.Objects.DumpRequest(
+            org.icij.datashare.Objects.Neo4jAppDumpRequest body =
+                new org.icij.datashare.Objects.Neo4jAppDumpRequest(
                     org.icij.datashare.Objects.DumpFormat.GRAPHML, null);
             // When
             try (InputStream res = client.dumpGraph("mydb", body)) {
@@ -305,8 +305,8 @@ public class Neo4jClientTest {
             throws URISyntaxException, IOException, InterruptedException {
             // Given
             neo4jApp.configure(routes -> routes.post("/graphs/dump", this::mockDump));
-            org.icij.datashare.Objects.DumpRequest body =
-                new org.icij.datashare.Objects.DumpRequest(
+            org.icij.datashare.Objects.Neo4jAppDumpRequest body =
+                new org.icij.datashare.Objects.Neo4jAppDumpRequest(
                     org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL,
                     "MATCH (something) RETURN something LIMIT 100");
             // When
@@ -323,8 +323,8 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump", this::mockDump));
-            org.icij.datashare.Objects.DumpRequest body =
-                new org.icij.datashare.Objects.DumpRequest(
+            org.icij.datashare.Objects.Neo4jAppDumpRequest body =
+                new org.icij.datashare.Objects.Neo4jAppDumpRequest(
                     org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL, null);
 
             // When/Then

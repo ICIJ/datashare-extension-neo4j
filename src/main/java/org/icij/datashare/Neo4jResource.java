@@ -53,6 +53,7 @@ public class Neo4jResource {
     private static final Path TMP_ROOT = Path.of(
         FileSystems.getDefault().getSeparator(), "tmp");
     private static final String NEO4J_DEFAULT_DB = "neo4j";
+    private static final long NEO4J_DEFAULT_DUMPED_DOCUMENTS = 1000;
     private static final String SYSLOG_SPLIT_CHAR = "@";
 
     private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
@@ -64,6 +65,7 @@ public class Neo4jResource {
             put("neo4jHost", "neo4j");
             put("neo4jPassword", "");
             put("neo4jPort", "7687");
+            put("neo4jDocumentNodesLimit", String.valueOf(NEO4J_DEFAULT_DUMPED_DOCUMENTS));
             put("neo4jSingleProject", "local-datashare");
             put("neo4jUriScheme", "neo4j");
             put("neo4jUser", "");
@@ -395,7 +397,7 @@ public class Neo4jResource {
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     protected InputStream exportNeo4jCSVs(
-        String projectId,  org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request
+        String projectId, org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request
     )
         throws IOException, InterruptedException {
         // TODO: the database should be chosen dynamically with the Mode (local vs. server) and
@@ -425,18 +427,20 @@ public class Neo4jResource {
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
     protected InputStream dumpGraph(
-        String projectId, org.icij.datashare.Objects.DumpRequest request)
-        throws URISyntaxException, IOException, InterruptedException {
+        String projectId, org.icij.datashare.Objects.DumpRequest request
+    ) throws URISyntaxException, IOException, InterruptedException {
+        org.icij.datashare.Objects.Neo4jAppDumpRequest neo4jAppRequest = validateDumpRequest(
+            request);
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         String database = neo4jProjectDatabase(projectId);
-        return client.dumpGraph(database, request);
+        return client.dumpGraph(database, neo4jAppRequest);
     }
 
     private <T> Payload wrapNeo4jAppCall(Provider<T> responseProvider) {
         try {
             return new Payload(responseProvider.get()).withCode(200);
-        } catch (InvalidProjectError e) {
+        } catch (InvalidProjectError | InvalidDumpQuery e) {
             return new Payload("application/problem+json", e).withCode(401);
         } catch (Neo4jNotRunningError e) {
             return new Payload("application/problem+json", e).withCode(503);
@@ -456,8 +460,7 @@ public class Neo4jResource {
     }
 
     protected void checkCheckLocal() {
-        String mode = propertiesProvider.get("mode").orElse("SERVER");
-        if (!mode.equals("LOCAL") && !mode.equals("EMBEDDED")) {
+        if (!isLocal()) {
             throw new UnauthorizedException();
         }
     }
@@ -482,6 +485,37 @@ public class Neo4jResource {
                 throw error;
             }
         }
+    }
+
+    protected org.icij.datashare.Objects.Neo4jAppDumpRequest validateDumpRequest(
+        org.icij.datashare.Objects.DumpRequest request) {
+        String validated = null;
+        if (isLocal()) {
+            if (request.query != null) {
+                validated = request.query.asValidated().getCypher();
+            }
+        } else {
+            long defaultLimit = getDocumentNodesLimit();
+            if (request.query == null) {
+                validated = org.icij.datashare.Objects.DumpQuery.defaultQueryStatement(
+                    defaultLimit).getCypher();
+            } else {
+                validated = request.query.asValidated(getDocumentNodesLimit()).getCypher();
+            }
+        }
+        return new org.icij.datashare.Objects.Neo4jAppDumpRequest(request.format, validated);
+    }
+
+    private boolean isLocal() {
+        String mode = propertiesProvider.get("mode").orElse("SERVER");
+        return mode.equals("LOCAL") || mode.equals("EMBEDDED");
+    }
+
+    private long getDocumentNodesLimit() {
+        return propertiesProvider
+            .get("neo4jDocumentNodesLimit")
+            .map(Long::parseLong)
+            .orElse(NEO4J_DEFAULT_DUMPED_DOCUMENTS);
     }
 
 
@@ -572,6 +606,14 @@ public class Neo4jResource {
     static class InvalidNeo4jCommandError extends RuntimeException {
         public InvalidNeo4jCommandError(String emptyNeo4jServerCommand) {
             super(emptyNeo4jServerCommand);
+        }
+    }
+
+    static class InvalidDumpQuery extends HttpUtils.HttpError {
+        public static final String title = "Invalid dump request";
+
+        public InvalidDumpQuery(String reason) {
+            super(title, reason);
         }
     }
 
