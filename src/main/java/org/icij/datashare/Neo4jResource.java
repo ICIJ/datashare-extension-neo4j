@@ -2,8 +2,10 @@ package org.icij.datashare;
 
 
 import static java.io.File.createTempFile;
+import static java.lang.Math.min;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
+import static org.icij.datashare.Neo4jUtils.documentSortToDumpStatement;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -44,6 +46,7 @@ import net.codestory.http.errors.UnauthorizedException;
 import net.codestory.http.payload.Payload;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.icij.datashare.user.User;
+import org.neo4j.cypherdsl.core.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -212,6 +215,20 @@ public class Neo4jResource {
         return wrapNeo4jAppCall(() -> {
             try {
                 return this.dumpGraph(project, request);
+            } catch (URISyntaxException | IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Post("/graphs/sorted-dump?project=:project")
+    public Payload postSortedGraphDump(String project, Context context) throws IOException {
+        checkAccess(project, context);
+        org.icij.datashare.Objects.SortedDumpRequest request =
+            context.extract(org.icij.datashare.Objects.SortedDumpRequest.class);
+        return wrapNeo4jAppCall(() -> {
+            try {
+                return this.sortedDumpGraph(project, request);
             } catch (URISyntaxException | IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -434,6 +451,21 @@ public class Neo4jResource {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         String database = neo4jProjectDatabase(projectId);
+        return client.dumpGraph(database, neo4jAppRequest);
+    }
+
+    protected InputStream sortedDumpGraph(
+        String projectId, org.icij.datashare.Objects.SortedDumpRequest request
+    ) throws URISyntaxException, IOException, InterruptedException {
+        checkExtensionProject(projectId);
+        checkNeo4jAppStarted();
+        String database = neo4jProjectDatabase(projectId);
+        long limit = min(getDocumentNodesLimit(), request.limit);
+        Statement statement = documentSortToDumpStatement(request.sort, limit);
+        org.icij.datashare.Objects.Neo4jAppDumpRequest neo4jAppRequest =
+            new org.icij.datashare.Objects.Neo4jAppDumpRequest(
+                request.format, statement.getCypher()
+            );
         return client.dumpGraph(database, neo4jAppRequest);
     }
 

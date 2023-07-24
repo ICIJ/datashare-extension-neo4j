@@ -509,6 +509,50 @@ public class Neo4jResourceTest {
             assertThat(response.code()).isEqualTo(401);
         }
 
+        @Test
+        public void test_post_sorted_graph_dump_should_return_200()
+            throws IOException, InterruptedException {
+            // Given
+            neo4jAppResource.startServerProcess(false);
+            neo4jApp.configure(
+                routes -> routes.post("/graphs/dump",
+                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
+                )
+            );
+            // When
+            String body = "{"
+                + "\"format\": \"graphml\", "
+                + "\"sort\": [{\"property\": \"path\", \"direction\": \"DESC\"}]"
+                + "}";
+            Response response = post("/api/neo4j/graphs/sorted-dump?project=foo-datashare",
+                body).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(200);
+            String dumpAsString = response.content();
+            assertThat(dumpAsString).isEqualTo("somedump");
+        }
+
+        @Test
+        public void test_post_sorted_graph_dump_should_return_401_for_unauthorized_user()
+            throws IOException, InterruptedException {
+            // Given
+            neo4jAppResource.startServerProcess(false);
+            neo4jApp.configure(
+                routes -> routes.post("/graphs/dump",
+                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
+                )
+            );
+            // When
+            String body = "{"
+                + "\"format\": \"graphml\", "
+                + "\"sort\": [{\"property\": \"path\", \"direction\": \"DESC\"}]"
+                + "}";
+            Response response = post("/api/neo4j/graphs/sorted-dump?project=foo-datashare",
+                body).withPreemptiveAuthentication("unauthorized", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
     }
 
     @DisplayName("test admin import")
