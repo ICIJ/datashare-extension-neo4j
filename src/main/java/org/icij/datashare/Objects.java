@@ -256,7 +256,7 @@ public class Objects {
         @JsonCreator
         protected SortedDumpRequest(
             @JsonProperty("format") DumpFormat format,
-            @JsonProperty("sort") SortedDumpQuery query
+            @JsonProperty("query") SortedDumpQuery query
         ) {
             this.format = java.util.Objects.requireNonNull(format, "missing dump format");
             this.query = java.util.Objects.requireNonNull(query, "missing query");
