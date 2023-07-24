@@ -1,0 +1,12 @@
+{
+  "isEqualTo": {
+    "property": {
+      "variable": "person",
+      "name": "docId"
+    },
+    "value": {
+      "variable": "doc",
+      "name": "id"
+    }
+  }
+}

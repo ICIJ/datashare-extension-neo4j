@@ -1,0 +1,73 @@
+{
+  "matches": [
+    {
+      "path": {
+        "nodes": [
+          {
+            "name": "doc",
+            "labels": [
+              "Document",
+              "Important"
+            ],
+            "properties": {
+              "created": "someDate"
+            }
+          },
+          {
+            "name": "person",
+            "labels": [
+              "NamedEntity",
+              "Person"
+            ]
+          }
+        ],
+        "relationships": [
+          {
+            "direction": "from",
+            "name": "rel",
+            "types": [
+              "APPEARS_IN"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "where": {
+    "and": [
+      {
+        "startsWith": {
+          "property": {
+            "variable": "doc",
+            "name": "path"
+          },
+          "value": {
+            "literal": "some/path/prefix"
+          }
+        }
+      },
+      {
+        "isEqualTo": {
+          "property": {
+            "variable": "person",
+            "name": "docId"
+          },
+          "value": {
+            "variable": "doc",
+            "name": "id"
+          }
+        }
+      }
+    ]
+  },
+  "orderBy": [
+    {
+      "property": {
+        "variable": "doc",
+        "name": "path"
+      },
+      "direction": "DESC"
+    }
+  ],
+  "limit": 100
+}

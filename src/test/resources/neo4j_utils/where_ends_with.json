@@ -1,0 +1,11 @@
+{
+  "endsWith": {
+    "property": {
+      "variable": "doc",
+      "name": "id"
+    },
+    "value": {
+      "literal": "someSuffix"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "matches": [
+    {
+      "path": {
+        "optional": true,
+        "nodes": [
+          {
+            "name": "person",
+            "labels": [
+              "Person"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

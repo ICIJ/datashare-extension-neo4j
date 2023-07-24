@@ -1,0 +1,21 @@
+{
+  "path": {
+    "nodes": [
+      {
+        "name": "doc"
+      },
+      {
+        "name": "person"
+      }
+    ],
+    "relationships": [
+      {
+        "direction": "from",
+        "name": "rel",
+        "types": [
+          "APPEARS_IN"
+        ]
+      }
+    ]
+  }
+}

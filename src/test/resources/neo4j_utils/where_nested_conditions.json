@@ -1,0 +1,52 @@
+{
+  "and": [
+    {
+      "isEqualTo": {
+        "property": {
+          "variable": "doc",
+          "name": "path"
+        },
+        "value": {
+          "literal": "some_path"
+        }
+      }
+    },
+    {
+      "or": [
+        {
+          "isEqualTo": {
+            "property": {
+              "variable": "doc",
+              "name": "id"
+            },
+            "value": {
+              "literal": "some_id"
+            }
+          }
+        },
+        {
+          "isEqualTo": {
+            "property": {
+              "variable": "doc",
+              "name": "name"
+            },
+            "value": {
+              "literal": "some_name"
+            }
+          }
+        },
+        {
+          "startsWith": {
+            "property": {
+              "variable": "doc",
+              "name": "name"
+            },
+            "value": {
+              "literal": "some_prefix"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
