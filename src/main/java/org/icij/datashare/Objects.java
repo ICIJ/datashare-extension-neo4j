@@ -252,7 +252,6 @@ public class Objects {
     protected static class SortedDumpRequest {
         protected final DumpFormat format;
         protected final SortedDumpQuery query;
-        protected final long limit;
 
         @JsonCreator
         protected SortedDumpRequest(
