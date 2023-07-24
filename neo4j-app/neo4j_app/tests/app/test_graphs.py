@@ -36,24 +36,6 @@ async def _mocked_run(
             "data",
             None,
             call(
-                """CALL apoc.export.graphml.all(null, $config)
-YIELD data
-RETURN data;
-""",
-                config={
-                    "format": "gephi",
-                    "batchSize": 20000,
-                    "stream": True,
-                    "readLabels": True,
-                    "storeNodeIds": True,
-                },
-            ),
-        ),
-        (
-            "graphml",
-            "data",
-            "MATCH doc:Document RETURN doc;",
-            call(
                 """CALL apoc.export.graphml.query($query_filter, null, $config)
 YIELD data
 RETURN data;
@@ -65,15 +47,20 @@ RETURN data;
                     "readLabels": True,
                     "storeNodeIds": True,
                 },
-                query_filter="MATCH doc:Document RETURN doc;",
+                query_filter="""MATCH (node)
+OPTIONAL MATCH (d)-[r]-(other)
+WHERE NOT any(l IN labels(node) WHERE l = 'Migration')
+    AND NOT any(l IN labels(other) WHERE l = 'Migration')
+RETURN d, r, other
+""",
             ),
         ),
         (
             "cypher-shell",
             "cypherStatements",
-            None,
+            "MATCH doc:Document RETURN doc;",
             call(
-                """CALL apoc.export.cypher.all(null, $config)
+                """CALL apoc.export.cypher.query($query_filter, null, $config)
 YIELD cypherStatements
 RETURN cypherStatements;
 """,
@@ -87,6 +74,34 @@ RETURN cypherStatements;
                         "unwindBatchSize": 100,
                     },
                 },
+                query_filter="MATCH doc:Document RETURN doc;",
+            ),
+        ),
+        (
+            "cypher-shell",
+            "cypherStatements",
+            None,
+            call(
+                """CALL apoc.export.cypher.query($query_filter, null, $config)
+YIELD cypherStatements
+RETURN cypherStatements;
+""",
+                config={
+                    "format": "cypher-shell",
+                    "cypherFormat": "create",
+                    "streamStatements": True,
+                    "batchSize": 20000,
+                    "useOptimizations": {
+                        "type": "UNWIND_BATCH",
+                        "unwindBatchSize": 100,
+                    },
+                },
+                query_filter="""MATCH (node)
+OPTIONAL MATCH (d)-[r]-(other)
+WHERE NOT any(l IN labels(node) WHERE l = 'Migration')
+    AND NOT any(l IN labels(other) WHERE l = 'Migration')
+RETURN d, r, other
+""",
             ),
         ),
         (
