@@ -52,7 +52,11 @@ public class ObjectsTest {
         // When
         String defaultQuery = query.defaultQueryStatement(defaultLimit).getCypher();
         // Then
-        assertThat(defaultQuery).endsWith("LIMIT 10");
+        String expected = "MATCH (doc:`Document`)-[rel]-(other) "
+            + "RETURN doc, other, rel "
+            + "ORDER BY doc.path DESC "
+            + "LIMIT 10";
+        assertThat(defaultQuery).isEqualTo(expected);
     }
 
     @Test
@@ -65,7 +69,11 @@ public class ObjectsTest {
         // When
         String defaultQuery = query.defaultQueryStatement(defaultLimit).getCypher();
         // Then
-        assertThat(defaultQuery).endsWith("LIMIT 10");
+        String expected = "MATCH (doc:`Document`)-[rel]-(other) "
+            + "RETURN doc, other, rel "
+            + "ORDER BY doc.path DESC "
+            + "LIMIT 10";
+        assertThat(defaultQuery).isEqualTo(expected);
     }
 
     @ExtendWith(TestResources.class)
