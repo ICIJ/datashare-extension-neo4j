@@ -1,0 +1,20 @@
+{
+  "path": {
+    "nodes": [
+      {
+        "name": "person"
+      },
+      {
+        "name": "doc"
+      }
+    ],
+    "relationships": [
+      {
+        "direction": "to"
+      },
+      {
+        "direction": "from"
+      }
+    ]
+  }
+}

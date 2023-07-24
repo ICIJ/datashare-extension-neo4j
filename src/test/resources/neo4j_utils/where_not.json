@@ -1,0 +1,15 @@
+{
+  "not": {
+    "value": {
+      "isEqualTo": {
+        "property": {
+          "variable": "doc",
+          "name": "id"
+        },
+        "value": {
+          "literal": "someId"
+        }
+      }
+    }
+  }
+}

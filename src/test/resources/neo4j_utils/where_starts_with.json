@@ -1,0 +1,11 @@
+{
+  "startsWith": {
+    "property": {
+      "variable": "doc",
+      "name": "id"
+    },
+    "value": {
+      "literal": "somePrefix"
+    }
+  }
+}
