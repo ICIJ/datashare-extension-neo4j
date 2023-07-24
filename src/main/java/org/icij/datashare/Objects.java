@@ -197,7 +197,7 @@ public class Objects {
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
 
-    protected enum SortDirection {
+    protected enum  SortDirection {
         ASC, DESC;
 
         public SortItem.Direction toDsl() {
@@ -252,6 +252,7 @@ public class Objects {
     protected static class SortedDumpRequest {
         protected final DumpFormat format;
         protected final SortedDumpQuery query;
+        protected final long limit;
 
         @JsonCreator
         protected SortedDumpRequest(
