@@ -17,7 +17,6 @@ import org.neo4j.cypherdsl.core.Statement;
 //CHECKSTYLE.OFF: MemberName
 //CHECKSTYLE.OFF: ParameterName
 public class Objects {
-    // TODO: fix visibility
 
     protected static class DocumentSortItem {
         protected final String property;
@@ -31,7 +30,7 @@ public class Objects {
         }
     }
 
-    public enum DumpFormat {
+    protected enum DumpFormat {
         CYPHER_SHELL, GRAPHML;
 
         @JsonValue
@@ -72,9 +71,9 @@ public class Objects {
     }
 
 
-    public static class DumpRequest {
-        public final DumpFormat format;
-        public final DumpQuery query;
+    protected static class DumpRequest {
+        protected final DumpFormat format;
+        protected final DumpQuery query;
 
         @JsonCreator
         DumpRequest(@JsonProperty("format") DumpFormat format,
@@ -87,9 +86,9 @@ public class Objects {
 
 
     static class IncrementalImportResponse {
-        public final long imported;
-        public final long nodesCreated;
-        public final long relationshipsCreated;
+        protected final long imported;
+        protected final long nodesCreated;
+        protected final long relationshipsCreated;
 
 
         @JsonCreator
@@ -104,7 +103,7 @@ public class Objects {
     }
 
     static class IncrementalImportRequest {
-        public HashMap<String, Object> query;
+        protected HashMap<String, Object> query;
 
         @JsonCreator
         IncrementalImportRequest(@JsonProperty("query") HashMap<String, Object> query) {
@@ -115,7 +114,7 @@ public class Objects {
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     static class Neo4jAppNeo4jCSVRequest {
 
-        public HashMap<String, Object> query;
+        protected HashMap<String, Object> query;
 
         @JsonCreator
         Neo4jAppNeo4jCSVRequest(@JsonProperty("query") HashMap<String, Object> query) {
@@ -123,9 +122,9 @@ public class Objects {
         }
     }
 
-    public static class Neo4jAppDumpRequest {
-        public final DumpFormat format;
-        public final String query;
+    protected static class Neo4jAppDumpRequest {
+        protected final DumpFormat format;
+        protected final String query;
 
         @JsonCreator
         Neo4jAppDumpRequest(@JsonProperty("format") DumpFormat format,
@@ -136,8 +135,8 @@ public class Objects {
     }
 
     static class Neo4jCSVResponse {
-        public String path;
-        public Neo4jCSVMetadata metadata;
+        protected String path;
+        protected Neo4jCSVMetadata metadata;
 
         @JsonCreator
         Neo4jCSVResponse(@JsonProperty("path") String path,
@@ -148,8 +147,8 @@ public class Objects {
     }
 
     static class Neo4jCSVMetadata {
-        public List<NodeCSVs> nodes;
-        public List<RelationshipCSVs> relationships;
+        protected List<NodeCSVs> nodes;
+        protected List<RelationshipCSVs> relationships;
 
         @JsonCreator
         Neo4jCSVMetadata(@JsonProperty("nodes") List<NodeCSVs> nodes,
@@ -160,10 +159,10 @@ public class Objects {
     }
 
     static class NodeCSVs {
-        public List<String> labels;
-        public String headerPath;
-        public List<String> nodePaths;
-        public long nNodes;
+        protected List<String> labels;
+        protected String headerPath;
+        protected List<String> nodePaths;
+        protected long nNodes;
 
         @JsonCreator
         NodeCSVs(@JsonProperty("labels") List<String> labels,
@@ -178,10 +177,10 @@ public class Objects {
     }
 
     static class RelationshipCSVs {
-        public List<String> types;
-        public String headerPath;
-        public List<String> relationshipPaths;
-        public long nRelationships;
+        protected List<String> types;
+        protected String headerPath;
+        protected List<String> relationshipPaths;
+        protected long nRelationships;
 
         @JsonCreator
         RelationshipCSVs(@JsonProperty("types") List<String> types,
@@ -197,7 +196,7 @@ public class Objects {
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
 
-    public enum SortDirection {
+    protected enum SortDirection {
         ASC, DESC;
 
         public SortItem.Direction toDsl() {
@@ -229,7 +228,7 @@ public class Objects {
 
 
     static class StartNeo4jAppRequest {
-        public boolean forceMigration;
+        protected boolean forceMigration;
 
         @JsonCreator
         StartNeo4jAppRequest(@JsonProperty("forceMigration") boolean forceMigration) {
