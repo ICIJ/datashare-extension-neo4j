@@ -22,6 +22,7 @@ import org.neo4j.cypherdsl.core.Expression;
 import org.neo4j.cypherdsl.core.Node;
 import org.neo4j.cypherdsl.core.PatternElement;
 import org.neo4j.cypherdsl.core.Property;
+import org.neo4j.cypherdsl.core.Relationship;
 import org.neo4j.cypherdsl.core.RelationshipPattern;
 import org.neo4j.cypherdsl.core.SortItem;
 import org.neo4j.cypherdsl.core.Statement;
@@ -80,6 +81,26 @@ public class Neo4jUtils {
 
     protected interface Into<T> {
         T into();
+    }
+
+    protected static Statement documentSortToDumpStatement(
+        List<Objects.DocumentSortItem> sort, long limit
+    ) {
+        Node doc = Cypher.node(DOC_NODE).named("doc");
+        Node other = Cypher.anyNode().named("other");
+        Relationship rel = doc.relationshipBetween(other).named("rel");
+        SortItem[] orderBy = sort.stream().map(item -> {
+            if (item.direction == Objects.SortDirection.ASC) {
+                return doc.property(item.property).ascending();
+            } else {
+                return doc.property(item.property).descending();
+            }
+        }).toArray(SortItem[]::new);
+        return Cypher.match(rel)
+            .returning(doc, other, rel)
+            .orderBy(orderBy)
+            .limit(limit)
+            .build();
     }
 
     protected static class Query {
