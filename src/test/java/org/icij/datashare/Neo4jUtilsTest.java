@@ -100,6 +100,29 @@ public class Neo4jUtilsTest {
         assertThat(validatedWithLimit).endsWith("LIMIT 100");
     }
 
+    @Test
+    public void test_dump_query_should_override_limit() {
+        // Given
+
+        long limit = 1000;
+        long defaultLimit = 100;
+        List<Neo4jUtils.PatternNode> nodes = List.of(
+            new Neo4jUtils.PatternNode("doc", List.of("Document"), Map.of()));
+        Neo4jUtils.PathPattern pattern = new Neo4jUtils.PathPattern(
+            nodes,
+            null,
+            false
+        );
+        List<Neo4jUtils.Match> matches = List.of(pattern);
+        Neo4jUtils.Query query = new Neo4jUtils.Query(matches, null, null, limit);
+
+        // When
+        String validatedWithLimit = query.asValidated(defaultLimit).getCypher();
+
+        // Then
+        assertThat(validatedWithLimit).endsWith("LIMIT 100");
+    }
+
     @ExtendWith(TestResources.class)
     @DisplayName("object test using test resources")
     @Nested
