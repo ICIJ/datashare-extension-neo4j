@@ -10,7 +10,7 @@ def test_request_validation_error_handler(error_test_client_session: TestClient)
     res = client.post(url, json=dict())
 
     # Then
-    assert res.status_code == 422
+    assert res.status_code == 400
     error = res.json()
     assert error["title"] == "Request Validation Error"
     expected_detail = [
