@@ -522,7 +522,7 @@ public class Neo4jResourceTest {
             // When
             String body = "{"
                 + "\"format\": \"graphml\", "
-                + "\"sort\": [{\"property\": \"path\", \"direction\": \"DESC\"}]"
+                + "\"query\": {\"sort\": [{\"property\": \"path\", \"direction\": \"DESC\"}], \"limit\": 10}"
                 + "}";
             Response response = post("/api/neo4j/graphs/sorted-dump?project=foo-datashare",
                 body).withPreemptiveAuthentication("foo", "null").response();
