@@ -197,7 +197,7 @@ public class Objects {
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
 
-    protected enum  SortDirection {
+    protected enum SortDirection {
         ASC, DESC;
 
         public SortItem.Direction toDsl() {
