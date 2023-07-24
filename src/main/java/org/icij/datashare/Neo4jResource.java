@@ -2,10 +2,8 @@ package org.icij.datashare;
 
 
 import static java.io.File.createTempFile;
-import static java.lang.Math.min;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
-import static org.icij.datashare.Neo4jUtils.documentSortToDumpStatement;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -460,8 +458,7 @@ public class Neo4jResource {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         String database = neo4jProjectDatabase(projectId);
-        long limit = min(getDocumentNodesLimit(), request.limit);
-        Statement statement = documentSortToDumpStatement(request.sort, limit);
+        Statement statement = request.query.defaultQueryStatement(getDocumentNodesLimit());
         org.icij.datashare.Objects.Neo4jAppDumpRequest neo4jAppRequest =
             new org.icij.datashare.Objects.Neo4jAppDumpRequest(
                 request.format, statement.getCypher()
