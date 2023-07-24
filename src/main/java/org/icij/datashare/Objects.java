@@ -17,6 +17,19 @@ import org.neo4j.cypherdsl.core.Statement;
 //CHECKSTYLE.OFF: MemberName
 //CHECKSTYLE.OFF: ParameterName
 public class Objects {
+    // TODO: fix visibility
+
+    protected static class DocumentSortItem {
+        protected final String property;
+        protected final SortDirection direction;
+
+        @JsonCreator
+        DocumentSortItem(@JsonProperty("property") String property,
+                         @JsonProperty("query") SortDirection direction) {
+            this.property = property;
+            this.direction = direction;
+        }
+    }
 
     public enum DumpFormat {
         CYPHER_SHELL, GRAPHML;
@@ -57,7 +70,6 @@ public class Objects {
                 .build();
         }
     }
-
 
 
     public static class DumpRequest {
@@ -199,6 +211,22 @@ public class Objects {
             }
         }
     }
+
+
+    protected static class SortedDumpRequest {
+        protected final DumpFormat format;
+        protected final List<DocumentSortItem> sort;
+
+        @JsonCreator
+        protected SortedDumpRequest(
+            @JsonProperty("format") DumpFormat format,
+            @JsonProperty("sort") List<DocumentSortItem> sort
+        ) {
+            this.format = format;
+            this.sort = sort;
+        }
+    }
+
 
     static class StartNeo4jAppRequest {
         public boolean forceMigration;
