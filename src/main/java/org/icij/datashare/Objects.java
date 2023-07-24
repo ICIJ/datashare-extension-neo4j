@@ -215,14 +215,17 @@ public class Objects {
     protected static class SortedDumpRequest {
         protected final DumpFormat format;
         protected final List<DocumentSortItem> sort;
+        protected final long limit;
 
         @JsonCreator
         protected SortedDumpRequest(
             @JsonProperty("format") DumpFormat format,
-            @JsonProperty("sort") List<DocumentSortItem> sort
+            @JsonProperty("sort") List<DocumentSortItem> sort,
+            @JsonProperty("limit") long limit
         ) {
-            this.format = format;
-            this.sort = sort;
+            this.format = java.util.Objects.requireNonNull(format, "missing dump format");
+            this.sort = java.util.Objects.requireNonNull(sort, "missing sort");
+            this.limit = limit;
         }
     }
 
