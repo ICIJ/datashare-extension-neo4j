@@ -52,7 +52,7 @@ public class Neo4jClient {
         );
     }
 
-    public InputStream dumpGraph(String database, Objects.DumpRequest body)
+    public InputStream dumpGraph(String database, Objects.Neo4jAppDumpRequest body)
         throws URISyntaxException, IOException, InterruptedException {
         // Let's use the native HTTP client here as unirest doesn't offer an easy way to deal with
         // stream responses...
