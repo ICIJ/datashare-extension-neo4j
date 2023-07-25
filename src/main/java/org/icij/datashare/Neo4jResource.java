@@ -5,6 +5,7 @@ import static java.io.File.createTempFile;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.text.Project.isAllowed;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -40,7 +41,7 @@ import net.codestory.http.Context;
 import net.codestory.http.annotations.Get;
 import net.codestory.http.annotations.Post;
 import net.codestory.http.annotations.Prefix;
-import net.codestory.http.errors.UnauthorizedException;
+import net.codestory.http.errors.ForbiddenException;
 import net.codestory.http.payload.Payload;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.icij.datashare.user.User;
@@ -50,6 +51,7 @@ import org.slf4j.LoggerFactory;
 
 @Prefix("/api/neo4j")
 public class Neo4jResource {
+    private final Repository repository;
     private static final String NEO4J_APP_BIN = "neo4j-app";
     private static final Path TMP_ROOT = Path.of(
         FileSystems.getDefault().getSeparator(), "tmp");
@@ -86,7 +88,8 @@ public class Neo4jResource {
 
 
     @Inject
-    public Neo4jResource(PropertiesProvider propertiesProvider) {
+    public Neo4jResource(Repository repository, PropertiesProvider propertiesProvider) {
+        this.repository = repository;
         this.propertiesProvider = propertiesProvider;
         Properties neo4jDefaultProps = new Properties();
         neo4jDefaultProps.putAll(DEFAULT_NEO4J_PROPERTIES);
@@ -159,7 +162,7 @@ public class Neo4jResource {
     @Post("/documents?project=:project")
     public Payload postDocuments(String project, Context context)
         throws IOException {
-        checkAccess(project, context);
+        checkProjectAccess(project, context);
         // TODO: this should throw a bad request when not parsed correcly...
         org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
             context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
@@ -175,7 +178,7 @@ public class Neo4jResource {
     @Post("/named-entities?project=:project")
     public Payload postNamedEntities(String project, Context context)
         throws IOException {
-        checkAccess(project, context);
+        checkProjectAccess(project, context);
         // TODO: this should throw a bad request when not parsed correcly...
         org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
             context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
@@ -192,7 +195,7 @@ public class Neo4jResource {
     @Post("/admin/neo4j-csvs?project=:project")
     public Payload postNeo4jCSVs(String project, Context context) throws IOException {
         checkCheckLocal();
-        checkAccess(project, context);
+        checkProjectAccess(project, context);
         org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request =
             context.extract(org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest.class);
         return wrapNeo4jAppCall(() -> {
@@ -207,7 +210,7 @@ public class Neo4jResource {
 
     @Post("/graphs/dump?project=:project")
     public Payload postGraphDump(String project, Context context) throws IOException {
-        checkAccess(project, context);
+        checkProjectAccess(project, context);
         org.icij.datashare.Objects.DumpRequest request =
             context.extract(org.icij.datashare.Objects.DumpRequest.class);
         return wrapNeo4jAppCall(() -> {
@@ -221,7 +224,7 @@ public class Neo4jResource {
 
     @Post("/graphs/sorted-dump?project=:project")
     public Payload postSortedGraphDump(String project, Context context) throws IOException {
-        checkAccess(project, context);
+        checkProjectAccess(project, context);
         org.icij.datashare.Objects.SortedDumpRequest request =
             context.extract(org.icij.datashare.Objects.SortedDumpRequest.class);
         return wrapNeo4jAppCall(() -> {
@@ -469,8 +472,8 @@ public class Neo4jResource {
     private <T> Payload wrapNeo4jAppCall(Provider<T> responseProvider) {
         try {
             return new Payload(responseProvider.get()).withCode(200);
-        } catch (InvalidProjectError | InvalidDumpQuery e) {
-            return new Payload("application/problem+json", e).withCode(401);
+        } catch (InvalidProjectError e) {
+            return new Payload("application/problem+json", e).withCode(403);
         } catch (Neo4jNotRunningError e) {
             return new Payload("application/problem+json", e).withCode(503);
         } catch (Neo4jClient.Neo4jAppError e) { // TODO: this should be done automatically...
@@ -482,15 +485,18 @@ public class Neo4jResource {
         }
     }
 
-    protected void checkAccess(String project, Context context) {
+    protected void checkProjectAccess(String project, Context context) {
         if (!((User) context.currentUser()).isGranted(project)) {
-            throw new UnauthorizedException();
+            throw new ForbiddenException();
+        }
+        if (!isAllowed(repository.getProject(project), context.request().clientAddress())) {
+            throw new ForbiddenException();
         }
     }
 
     protected void checkCheckLocal() {
         if (!isLocal()) {
-            throw new UnauthorizedException();
+            throw new ForbiddenException();
         }
     }
 
@@ -635,14 +641,6 @@ public class Neo4jResource {
     static class InvalidNeo4jCommandError extends RuntimeException {
         public InvalidNeo4jCommandError(String emptyNeo4jServerCommand) {
             super(emptyNeo4jServerCommand);
-        }
-    }
-
-    static class InvalidDumpQuery extends HttpUtils.HttpError {
-        public static final String title = "Invalid dump request";
-
-        public InvalidDumpQuery(String reason) {
-            super(title, reason);
         }
     }
 
