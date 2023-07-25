@@ -2,6 +2,9 @@ package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.TestUtils.assertJson;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.when;
+import static org.mockito.MockitoAnnotations.initMocks;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -11,6 +14,7 @@ import net.codestory.http.filters.basic.BasicAuthFilter;
 import net.codestory.http.payload.Payload;
 import net.codestory.rest.FluentRestTest;
 import net.codestory.rest.Response;
+import org.icij.datashare.text.Project;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,6 +22,7 @@ import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.Mock;
 
 public class Neo4jResourceTest {
 
@@ -27,6 +32,7 @@ public class Neo4jResourceTest {
     private static int neo4jAppPort;
     private static ProdWebServerRuleExtension neo4jApp;
     private static PropertiesProvider propertyProvider;
+    private static Repository parentRepository;
 
     public static class MockAppProperties implements BeforeAllCallback {
         @Override
@@ -85,11 +91,17 @@ public class Neo4jResourceTest {
         }
     }
 
-    public static class BindNeo4jResource extends ProdWebServerRuleExtension
+    public static class BindNeo4jResource
+        extends ProdWebServerRuleExtension
         implements BeforeAllCallback, AfterEachCallback {
+        @Mock
+        private static Repository mockedRepository;
+
         @Override
-        public void beforeAll(ExtensionContext extensionContext) throws IOException {
-            neo4jAppResource = new Neo4jResource(propertyProvider);
+        public void beforeAll(ExtensionContext extensionContext) {
+            initMocks(this);
+            parentRepository = mockedRepository;
+            neo4jAppResource = new Neo4jResource(mockedRepository, propertyProvider);
             this.configure(
                 routes -> routes
                     .add(neo4jAppResource)
@@ -102,6 +114,7 @@ public class Neo4jResourceTest {
         public void afterEach(ExtensionContext extensionContext)
             throws IOException, InterruptedException {
             Neo4jResource.stopServerProcess();
+            reset(parentRepository);
         }
     }
 
@@ -393,13 +406,13 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_documents_import_should_return_401_for_invalid_project() {
+        public void test_post_documents_import_should_return_403_for_invalid_project() {
             // When
             Response response = post("/api/neo4j/documents?project=unknownproject")
                 .withPreemptiveAuthentication("foo", "null")
                 .response();
             // Then
-            assertThat(response.code()).isEqualTo(401);
+            assertThat(response.code()).isEqualTo(403);
         }
 
         @Test
@@ -442,13 +455,13 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_named_entities_import_should_return_401_for_invalid_project() {
+        public void test_post_named_entities_import_should_return_403_for_invalid_project() {
             // When
             Response response = post(
                 "/api/neo4j/named-entities?project=unknownproject").withPreemptiveAuthentication(
                 "foo", "null").response();
             // Then
-            assertThat(response.code()).isEqualTo(401);
+            assertThat(response.code()).isEqualTo(403);
         }
 
         @Test
@@ -462,13 +475,13 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_admin_neo4j_csvs_should_return_401_when_not_in_local() {
+        public void test_post_admin_neo4j_csvs_should_return_403_when_not_in_local() {
             // When
             Response response = post(
                 "/api/neo4j/admin/neo4j-csvs?project=foo-datashare").withPreemptiveAuthentication(
                 "foo", "null").response();
             // Then
-            assertThat(response.code()).isEqualTo(401);
+            assertThat(response.code()).isEqualTo(403);
         }
 
         @Test
@@ -507,6 +520,26 @@ public class Neo4jResourceTest {
                 body).withPreemptiveAuthentication("unauthorized", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_graph_dump_should_return_403_for_forbidden_mask()
+            throws IOException, InterruptedException {
+            // Given
+            neo4jAppResource.startServerProcess(false);
+            neo4jApp.configure(
+                routes -> routes.post("/graphs/dump",
+                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
+                )
+            );
+            // When
+            when(parentRepository.getProject("foo-datashare"))
+                .thenReturn(new Project("foo-datashare", "1.2.3.4"));
+            String body = "{\"format\": \"graphml\"}";
+            Response response = post("/api/neo4j/graphs/dump?project=foo-datashare",
+                body).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(403);
         }
 
         @Test
@@ -551,6 +584,26 @@ public class Neo4jResourceTest {
                 body).withPreemptiveAuthentication("unauthorized", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_sorted_graph_dump_should_return_403_for_forbidden_mask()
+            throws IOException, InterruptedException {
+            // Given
+            neo4jAppResource.startServerProcess(false);
+            neo4jApp.configure(
+                routes -> routes.post("/graphs/dump",
+                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
+                )
+            );
+            // When
+            when(parentRepository.getProject("foo-datashare"))
+                .thenReturn(new Project("foo-datashare", "1.2.3.4"));
+            String body = "{\"format\": \"graphml\"}";
+            Response response = post("/api/neo4j/graphs/sorted-dump?project=foo-datashare",
+                body).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(403);
         }
 
     }
