@@ -22,7 +22,6 @@ import org.neo4j.cypherdsl.core.Expression;
 import org.neo4j.cypherdsl.core.Node;
 import org.neo4j.cypherdsl.core.PatternElement;
 import org.neo4j.cypherdsl.core.Property;
-import org.neo4j.cypherdsl.core.Relationship;
 import org.neo4j.cypherdsl.core.RelationshipPattern;
 import org.neo4j.cypherdsl.core.SortItem;
 import org.neo4j.cypherdsl.core.Statement;
@@ -198,10 +197,14 @@ public class Neo4jUtils {
         @Override
         public SortItem into() {
             org.neo4j.cypherdsl.core.Property sortByProp = this.property.into();
-            if (this.direction.equals(Objects.SortDirection.ASC)) {
-                return sortByProp.ascending();
+            switch (this.direction) {
+                case ASC:
+                    return sortByProp.ascending();
+                case DESC:
+                    return sortByProp.descending();
+                default:
+                    throw new IllegalStateException("Unexpected value: " + this.direction);
             }
-            return sortByProp.descending();
         }
 
         @Override
