@@ -131,6 +131,7 @@ public class Neo4jUtils {
             }
             ExposesReturning returned;
             if (this.where != null) {
+                // OK here since this.match can't be empty, hence statement != null
                 returned = statement.where(this.where.into());
             } else {
                 returned = statement;
@@ -352,6 +353,7 @@ public class Neo4jUtils {
             @JsonProperty("relationships") List<PatternRelationship> relationships,
             @JsonProperty("optional") Boolean optional
         ) {
+            java.util.Objects.requireNonNull(nodes, "missing pattern nodes");
             int numNodes = nodes.size();
             if (numNodes > 0) {
                 if (relationships == null) {
