@@ -7,6 +7,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,12 +20,27 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 
 public class ObjectsTest {
 
-    protected static String queryDumpFile;
+    protected static Map<String, String> TEST_FILES;
 
     public static class TestResources implements BeforeAllCallback {
+        protected static final List<String> TEST_FILE_NAMES = List.of(
+            "dump_query",
+            "dump_query_without_matches",
+            "dump_query_with_empty_matches"
+        );
+
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
-            queryDumpFile = Neo4jUtilsTest.class.getResource("/objects/dump_query.json").getFile();
+            TEST_FILES = TEST_FILE_NAMES
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        Function.identity(),
+                        name -> java.util.Objects.requireNonNull(
+                                Neo4jUtilsTest.class.getResource("/objects/" + name + ".json"))
+                            .getFile()
+                    )
+                );
         }
     }
 
@@ -85,7 +103,8 @@ public class ObjectsTest {
         public void test_dump_query_should_deserialize()
             throws IOException {
             // When
-            try (FileInputStream fileInputStream = new FileInputStream(queryDumpFile)) {
+            try (FileInputStream fileInputStream = new FileInputStream(
+                TEST_FILES.get("dump_query"))) {
 
                 Objects.DumpQuery query = MAPPER.readValue(
                     fileInputStream, Objects.DumpQuery.class);
@@ -133,7 +152,9 @@ public class ObjectsTest {
                 // Limit
                 Long limit = 100L;
 
-                Objects.DumpQuery expected = new Objects.DumpQuery(matches, where, orderBy, limit);
+                Objects.DumpQuery expected = Objects.DumpQuery.createDumpQuery(
+                    matches, where, orderBy, limit
+                );
                 assertThat(query).isEqualTo(expected);
             }
         }
@@ -141,7 +162,8 @@ public class ObjectsTest {
         @Test
         public void test_dump_query_as_validated() throws IOException {
             // Given
-            try (FileInputStream fileInputStream = new FileInputStream(queryDumpFile)) {
+            try (FileInputStream fileInputStream = new FileInputStream(
+                TEST_FILES.get("dump_query"))) {
 
                 Objects.DumpQuery query = MAPPER.readValue(
                     fileInputStream, Objects.DumpQuery.class);
@@ -158,6 +180,42 @@ public class ObjectsTest {
                         + "RETURN * "
                         + "ORDER BY doc.path DESC "
                         + "LIMIT 100";
+                assertThat(cypher).isEqualTo(expected);
+            }
+        }
+
+        @Test
+        public void test_dump_query_without_match() throws IOException {
+            // Given
+            try (FileInputStream fileInputStream = new FileInputStream(
+                TEST_FILES.get("dump_query_without_matches"))) {
+                Objects.DumpQuery query = MAPPER.readValue(
+                    fileInputStream, Objects.DumpQuery.class);
+                // When
+                String cypher = query.asValidated().getCypher();
+
+                // Then
+                String expected = "MATCH (doc:`Document`) "
+                    + "OPTIONAL MATCH (doc)-[rel]-(other) "
+                    + "RETURN *";
+                assertThat(cypher).isEqualTo(expected);
+            }
+        }
+
+        @Test
+        public void test_dump_query_with_empty_match() throws IOException {
+            // Given
+            try (FileInputStream fileInputStream = new FileInputStream(
+                TEST_FILES.get("dump_query_with_empty_matches"))) {
+                Objects.DumpQuery query = MAPPER.readValue(
+                    fileInputStream, Objects.DumpQuery.class);
+                // When
+                String cypher = query.asValidated().getCypher();
+
+                // Then
+                String expected = "MATCH (doc:`Document`) "
+                    + "OPTIONAL MATCH (doc)-[rel]-(other) "
+                    + "RETURN *";
                 assertThat(cypher).isEqualTo(expected);
             }
         }
