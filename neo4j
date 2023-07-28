@@ -87,6 +87,11 @@ function _helpers() {
         cd "$ROOT_DIR"
     }
 
+    function _build_neo4j_dump_widget_plugin() {
+        cd "$ROOT_DIR"/plugins/neo4j-dump-widget
+        yarn pretest
+    }
+
     function _check_release_version() {
         local file_version
         file_version=$(head -n 1 "$ROOT_DIR"/version)
@@ -168,6 +173,10 @@ function _helpers() {
 
     function _make_neoj_binary_name() {
         echo "$NEO4J_APP_BIN-$BIN_PLATFORM-$(_print_version)"
+    }
+
+    function _make_neoj_dump_widget_binary_name() {
+        echo "datashare-plugin-neo4j-dump-widget-$(_print_version)"
     }
 
     function _pip_install() (
@@ -303,6 +312,10 @@ function _commands() {
             _print_step "Compiling the java extension"
             cd "$ROOT_DIR"
             mvn validate package -Dmaven.test.skip=true
+            cp "$ROOT_DIR"/target/*-jar-with-dependencies.jar "$ROOT_DIR"/bins
+        elif _should_run_project "neo4j_dump_widget_plugin"; then
+            _print_step "Compiling the dump widget plugin"
+            _build_neo4j_dump_widget_plugin
         else
             _exit_with_message "Can't build project $PROJECT"
         fi
@@ -431,6 +444,10 @@ Please run ./neo4j format"
         fi
     }
 
+    function run_datashare() {
+        datashare --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins -s "$ROOT_DIR"/datashare.properties
+    }
+
     function set_version() {
         # Update root file
         local file_version
@@ -557,6 +574,7 @@ function _main() {
     PRINT_VERSION=
     PROJECT=
     PROJECTS=
+    PORT=8081
 
     # Define sub projects here
     PROJECTS=(
@@ -565,6 +583,7 @@ function _main() {
         neo4j_app
         neo4j_app_format
         neo4j_extension
+        neo4j_dump_widget_plugin
         neo4j_extension_format
         neo4j_script
         release_version
@@ -612,6 +631,9 @@ function _main() {
                         CREATE_RELEASE=true
                     elif [[ $TYPE_ARG = "--sha" ]]; then
                         PRINT_SHA=1
+                    elif [[ $TYPE_ARG = "--port" ]]; then
+                        PORT=$VALUE_ARG
+                        SKIP_NEXT_TYPE_ARG=true
                     fi
                 else
                     unset SKIP_NEXT_TYPE_ARG
