@@ -14,6 +14,7 @@ import org.neo4j.cypherdsl.core.Node;
 import org.neo4j.cypherdsl.core.Relationship;
 import org.neo4j.cypherdsl.core.SortItem;
 import org.neo4j.cypherdsl.core.Statement;
+import org.neo4j.cypherdsl.core.SymbolicName;
 
 //CHECKSTYLE.OFF: MemberName
 //CHECKSTYLE.OFF: ParameterName
@@ -48,26 +49,51 @@ public class Objects {
     }
 
     protected static class DumpQuery extends Neo4jUtils.Query {
+        private DumpQuery(
+            List<Neo4jUtils.Match> matches,
+            Neo4jUtils.Where where,
+            List<Neo4jUtils.OrderBy> orderBy,
+            Long limit
+        ) {
+            super(matches, where, orderBy, limit);
+        }
+
         @JsonCreator
-        protected DumpQuery(
+        protected static DumpQuery createDumpQuery(
             @JsonProperty("matches") List<Neo4jUtils.Match> matches,
             @JsonProperty("where") Neo4jUtils.Where where,
             @JsonProperty("orderBy") List<Neo4jUtils.OrderBy> orderBy,
             @JsonProperty("limit") Long limit
         ) {
-            super(matches, where, orderBy, limit);
+            if (matches == null || matches.isEmpty()) {
+                matches = defaultMatchClause();
+            }
+            return new DumpQuery(matches, where, orderBy, limit);
         }
 
         protected static Statement defaultQueryStatement(long defaultLimit) {
-            Node doc = Cypher.node(DOC_NODE).named("doc");
-            Node other = Cypher.anyNode().named("other");
-            Relationship rel = doc.relationshipBetween(other).named("rel");
-            return Cypher.match(doc)
-                .optionalMatch(rel)
-                .returning(doc, other, rel)
+            SymbolicName doc = Cypher.name("doc");
+            return buildMatch(defaultMatchClause())
+                .returning(doc, Cypher.name("other"), Cypher.name("rel"))
                 .orderBy(doc.property(DOC_PATH).ascending())
                 .limit(defaultLimit)
                 .build();
+        }
+        private static List<Neo4jUtils.Match> defaultMatchClause() {
+            Neo4jUtils.PatternNode doc = new Neo4jUtils.PatternNode(
+                "doc", List.of(DOC_NODE), null);
+            Neo4jUtils.PatternNode other =
+                new Neo4jUtils.PatternNode(
+                    "other", null, null);
+            Neo4jUtils.PathPattern match = new Neo4jUtils.PathPattern(
+                List.of(doc), null, false
+            );
+            Neo4jUtils.PatternRelationship rel = new Neo4jUtils.PatternRelationship(
+                "rel", Neo4jUtils.PatternRelationship.Direction.BETWEEN, null);
+            Neo4jUtils.PathPattern optionalMatch = new Neo4jUtils.PathPattern(
+                List.of(doc, other), List.of(rel), true
+            );
+            return List.of(match, optionalMatch);
         }
     }
 

@@ -118,17 +118,7 @@ public class Neo4jUtils {
         }
 
         protected Statement validated(Long defaultLimit) {
-            StatementBuilder.OngoingReadingWithoutWhere statement = null;
-            for (Match match : this.matches) {
-                PatternElement pattern = match.into();
-                if (statement == null) {
-                    statement = match.isOptional() ? Cypher.optionalMatch(pattern) :
-                        Cypher.match(pattern);
-                } else {
-                    statement = match.isOptional() ? statement.optionalMatch(pattern) :
-                        statement.match(pattern);
-                }
-            }
+            StatementBuilder.OngoingReadingWithoutWhere statement = buildMatch(this.matches);
             ExposesReturning returned;
             if (this.where != null) {
                 // OK here since this.match can't be empty, hence statement != null
@@ -161,6 +151,23 @@ public class Neo4jUtils {
                 .build();
         }
 
+        protected static StatementBuilder.OngoingReadingWithoutWhere buildMatch(
+            List<Neo4jUtils.Match> matches
+        ) {
+            StatementBuilder.OngoingReadingWithoutWhere statement = null;
+            for (Match match : matches) {
+                PatternElement pattern = match.into();
+                if (statement == null) {
+                    statement = match.isOptional() ? Cypher.optionalMatch(pattern) :
+                        Cypher.match(pattern);
+                } else {
+                    statement = match.isOptional() ? statement.optionalMatch(pattern) :
+                        statement.match(pattern);
+                }
+            }
+            return statement;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -180,6 +187,8 @@ public class Neo4jUtils {
         public int hashCode() {
             return java.util.Objects.hash(matches, where, orderBy, limit);
         }
+
+
     }
 
     protected static class SortByProperty implements OrderBy {
