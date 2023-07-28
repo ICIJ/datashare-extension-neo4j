@@ -14,6 +14,8 @@ Users are expected to have the following dependencies on their file system:
 
 - Docker
 - [maven](https://maven.apache.org/) `>3.8,<4.0`
+- [yarn](https://yarnpkg.com/) `>1.22,<2.0`
+- [npm](https://www.npmjs.com/) `>1.22,<2.0`
 - [git](https://git-scm.com/)
 
 ## Commands
