@@ -45,3 +45,4 @@ neo4jImportBatchSize=100000
 neo4jTransactionBatchSize=100000
 esDefaultPageSize=500
 esMaxConcurrency=20
+neo4jStartServerCmd=

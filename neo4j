@@ -150,10 +150,10 @@ function _helpers() {
         else
             upload_url=$(
                 curl -L \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer $GITHUB_TOKEN" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases | jq --arg jq_version $version 'map(select(.tag_name == $jq_version))[0].upload_url'
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer $GITHUB_TOKEN" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases | jq --arg jq_version $version 'map(select(.tag_name == $jq_version))[0].upload_url'
             )
         fi
         upload_url=$(echo "${upload_url%\{*}" | tr -d '"')
@@ -452,7 +452,19 @@ Please run ./neo4j format"
     }
 
     function run_datashare() {
-        datashare -s "$ROOT_DIR"/.data/datashare.properties --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins
+        local template_path
+        template_path="$ROOT_DIR"/.data/datashare.properties.template
+        local settings_path
+        settings_path="$ROOT_DIR"/.data/datashare.properties
+        if [ -n "$DEV_FLAG" ]; then
+            local local_extension_path
+            local_extension_path="$ROOT_DIR/bins/$(_make_neoj_binary_name)"
+            sed -r "s@^neo4jStartServerCmd=.*\$@neo4jStartServerCmd=$local_extension_path --config-path $settings_path@" \
+                $template_path >"$settings_path"
+        else
+            cp "$settings_path" "$template_path"
+        fi
+        datashare -s $settings_path --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins
     }
 
     function set_version() {
@@ -492,16 +504,16 @@ Please run ./neo4j format"
     function start_all_test_services() (
         if [[ -z $OLD_ELASTICSEARCH ]]; then
             docker compose up --detach \
-            --wait \
-            --build \
-            test-elasticsearch \
-            test-neo4j
+                --wait \
+                --build \
+                test-elasticsearch \
+                test-neo4j
         else
             docker compose up --detach \
-            --wait \
-            --build \
-            test-old-elasticsearch \
-            test-neo4j
+                --wait \
+                --build \
+                test-old-elasticsearch \
+                test-neo4j
         fi
     )
 
@@ -575,6 +587,7 @@ Please run ./neo4j format"
 
 function _main() {
     CREATE_RELEASE=
+    DEV_FLAG=
     OLD_ELASTICSEARCH=
     OPENSEARCH_SUPPORT=
     PRINT_SHA=
@@ -630,6 +643,8 @@ function _main() {
                     if [[ "$TYPE_ARG" == "-p" ]]; then
                         _parse_project_flag $VALUE_ARG
                         SKIP_NEXT_TYPE_ARG=true
+                    elif [[ "$TYPE_ARG" == "--dev" ]]; then
+                        DEV_FLAG=true
                     elif [[ "$TYPE_ARG" == "--opensearch-support" ]]; then
                         OPENSEARCH_SUPPORT=true
                     elif [[ "$TYPE_ARG" == "--old-elasticsearch" ]]; then
