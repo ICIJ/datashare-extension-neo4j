@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.utils import is_body_allowed_for_status_code
+from pydantic.error_wrappers import display_errors
 from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
@@ -39,14 +40,9 @@ async def request_validation_error_handler(
     request: Request, exc: RequestValidationError
 ):
     title = _REQUEST_VALIDATION_ERROR
-    detail = exc.errors()
+    detail = display_errors(exc.errors())
     error = json_error(title=title, detail=detail)
-    logger.error(
-        "%s\nURL: %s\nDetail: %s",
-        title,
-        request.url,
-        DifferedLoggingMessage(_display_errors, detail),
-    )
+    logger.error("%s\nURL: %s\nDetail: %s", title, request.url, detail)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST, content=jsonable_encoder(error)
     )
