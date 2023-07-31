@@ -175,6 +175,10 @@ function _helpers() {
         echo "$NEO4J_APP_BIN-$BIN_PLATFORM-$(_print_version)"
     }
 
+    function _make_neo4j_extension_jar_name() {
+        echo "datashare-extension-neo4j-$(_print_version)-jar-with-dependencies.jar"
+    }
+
     function _make_neoj_dump_widget_binary_name() {
         echo "datashare-plugin-neo4j-dump-widget-$(_print_version)"
     }
@@ -312,7 +316,10 @@ function _commands() {
             _print_step "Compiling the java extension"
             cd "$ROOT_DIR"
             mvn validate package -Dmaven.test.skip=true
-            cp "$ROOT_DIR"/target/*-jar-with-dependencies.jar "$ROOT_DIR"/bins
+            local jar
+            jar="$ROOT_DIR"/target/$(_make_neo4j_extension_jar_name)
+            chmod +x "$jar"
+            cp "$jar" "$ROOT_DIR/bins"
         elif _should_run_project "neo4j_dump_widget_plugin"; then
             _print_step "Compiling the dump widget plugin"
             _build_neo4j_dump_widget_plugin
@@ -445,7 +452,7 @@ Please run ./neo4j format"
     }
 
     function run_datashare() {
-        datashare --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins -s "$ROOT_DIR"/datashare.properties
+        datashare -s "$ROOT_DIR"/.data/datashare.properties --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins
     }
 
     function set_version() {
