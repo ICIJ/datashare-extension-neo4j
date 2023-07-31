@@ -75,6 +75,7 @@ public class Neo4jClient {
         java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
             .uri(new URI(buildNeo4jUrl("/graphs/dump?database=" + database)))
             .POST(serializedBody)
+            .header("Content-Type", "application/json")
             .build();
         return handleErrors(
             this.httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofInputStream()));
