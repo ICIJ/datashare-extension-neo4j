@@ -46,7 +46,7 @@ def _start_app(config_path: Optional[str] = None, force_migrations: bool = False
         )
     app = create_app(config)
     uvicorn_config = config.to_uvicorn()
-    uvicorn.run(app, **uvicorn_config.dict())
+    uvicorn.run(app, **uvicorn_config.dict(), ws="websockets")
 
 
 def get_arg_parser():
