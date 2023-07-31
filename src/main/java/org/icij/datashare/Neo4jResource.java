@@ -273,7 +273,8 @@ public class Neo4jResource {
 
         List<String> startServerCmd;
         Optional<String> propertiesCmd = this.propertiesProvider
-            .get("neo4jStartServerCmd");
+            .get("neo4jStartServerCmd")
+            .filter(p -> !p.isEmpty());
         if (propertiesCmd.isPresent()) {
             startServerCmd = Arrays.asList(propertiesCmd.get().split("\\s+"));
         } else {
