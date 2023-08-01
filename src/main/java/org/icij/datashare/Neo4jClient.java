@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.http.HttpClient;
 import kong.unirest.HttpRequest;
 import kong.unirest.HttpResponse;
 import kong.unirest.Unirest;
@@ -72,11 +73,13 @@ public class Neo4jClient {
         logger.debug("Dumping graph with request: {}", lazy(() -> MAPPER.writeValueAsString(body)));
         java.net.http.HttpRequest.BodyPublisher serializedBody =
             java.net.http.HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body));
-        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-            .uri(new URI(buildNeo4jUrl("/graphs/dump?database=" + database)))
-            .POST(serializedBody)
-            .header("Content-Type", "application/json")
-            .build();
+        java.net.http.HttpRequest request =
+            java.net.http.HttpRequest.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .uri(new URI(buildNeo4jUrl("/graphs/dump?database=" + database)))
+                .POST(serializedBody)
+                .header("Content-Type", "application/json")
+                .build();
         return handleErrors(
             this.httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofInputStream()));
     }
