@@ -1,0 +1,39 @@
+{
+  "name": "datashare-plugin-neo4j-dump-widget",
+  "description": "A Datashare plugin to dump a neo4j graph",
+  "version": "0.2.0",
+  "main": "dist/index.umd.min.js",
+  "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "axios": "^1.4",
+    "node-sass": "^8",
+    "sass-loader": "^10",
+    "v-calendar": "^2.4.1"
+  },
+  "devDependencies": {
+    "@vue/cli": "^4.2.3",
+    "@vue/cli-service-global": "^4.2.3",
+    "geckodriver": "^1.19.1",
+    "nightwatch": "^1.3.4"
+  },
+  "private": false,
+  "datashare": {},
+  "scripts": {
+    "test:e2e": "nightwatch",
+    "test:pack": "cat \"$(npm pack)\" | tar zxvf - -C $(pwd)/../../bins",
+    "test:datashare": "datashare --tcpListenPort 8008 --pluginsDir=$(pwd)/../../bins",
+    "test:clean": "rm *.tgz || /bin/true",
+    "test": "yarn test:e2e",
+    "pretest": "yarn build && yarn test:pack",
+    "posttest": "yarn test:clean",
+    "build": "npx vue build --target lib --name index",
+    "prepublishOnly": "yarn build"
+  },
+  "license": "MIT",
+  "vue": {
+    "filenameHashing": false
+  },
+  "files": [
+    "dist/*.{css,js,map}"
+  ]
+}
