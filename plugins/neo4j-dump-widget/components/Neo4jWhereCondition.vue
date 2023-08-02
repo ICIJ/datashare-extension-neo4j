@@ -28,7 +28,7 @@
   
 <script>
 
-import Neo4jWhereCondition from "../store/Neo4jWhereCondition"
+import Neo4jWhereCondition from "../core/Neo4jWhereCondition"
 
 
 export default {

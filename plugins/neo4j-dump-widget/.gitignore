@@ -1,6 +1,6 @@
 dist
 node_modules
-icij-datashare-plugin-site-alert-*.tgz
+datashare-plugin-neo4j-dump-widget-*.tgz
 geckodriver.log
 tests_output
 package
