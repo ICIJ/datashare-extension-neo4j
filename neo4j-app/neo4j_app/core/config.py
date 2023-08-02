@@ -3,7 +3,6 @@ from __future__ import annotations
 import configparser
 import functools
 import logging
-import re
 import sys
 from configparser import ConfigParser
 from logging.handlers import SysLogHandler
@@ -66,8 +65,11 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     _global: Optional[AppConfig] = None
 
     @validator("neo4j_import_batch_size")
-    def neo4j_import_batch_size_must_be_less_than_max_records_in_memory(  # pylint: disable=no-self-argument
-        cls, v, values
+    def neo4j_import_batch_size_must_be_less_than_max_records_in_memory(
+        # pylint: disable=no-self-argument
+        cls,
+        v,
+        values,
     ):
         max_records = values["neo4j_app_max_records_in_memory"]
         if v > max_records:
@@ -126,34 +128,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     def neo4j_uri(self) -> str:
         return f"{self.neo4j_uri_scheme}://{self.neo4j_host}:{self.neo4j_port}"
 
-    @functools.cached_property
-    def es_host(self) -> str:
-        try:
-            host = self._es_address_match.group("host")
-        except IndexError as e:
-            msg = f"Couldn't find host name in {self.elasticsearch_address}"
-            raise ValueError(msg) from e
-        if isinstance(host, tuple):
-            msg = f"Found several potential hosts in {self.elasticsearch_address}"
-            raise ValueError(msg)
-        return host
-
-    @functools.cached_property
-    def es_port(self) -> int:
-        try:
-            port = self._es_address_match.group("port")
-        except IndexError as e:
-            msg = f"Couldn't find port name in {self.elasticsearch_address}"
-            raise ValueError(msg) from e
-        if isinstance(port, tuple):
-            msg = f"Found several potential ports in {self.elasticsearch_address}"
-            raise ValueError(msg)
-        return int(port)
-
-    @functools.cached_property
-    def es_hosts(self) -> List[Dict]:
-        return [{"host": self.es_host, "port": self.es_port}]
-
     def to_neo4j_driver(self) -> neo4j.AsyncDriver:
         auth = None
         if self.neo4j_password:
@@ -173,8 +147,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         client_cls = OSClient if self.neo4j_app_uses_opensearch else ESClient
         # TODO: read the index name in a secure manner...
         client = client_cls(
-            hosts=[self.es_host],
-            port=self.es_port,
+            hosts=[self.elasticsearch_address],
             pagination=self.es_default_page_size,
             max_concurrency=self.es_max_concurrency,
         )
@@ -229,18 +202,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         except AttributeError as e:
             msg = f"Invalid syslog facility {self.neo4j_app_syslog_facility}"
             raise ValueError(msg) from e
-
-    @functools.cached_property
-    def _es_address_match(self) -> re.Match:
-        # It's acceptable not to pre-compile the regex here, it will only be called once
-        match = re.match(
-            r"^.*://(?P<host>.*):(?P<port>\d{4})$", self.elasticsearch_address
-        )
-        if match is None:
-            raise ValueError(
-                f"Ill formatted elasticsearch address: {self.elasticsearch_address}"
-            )
-        return match
 
 
 class UviCornModel(BaseICIJModel):
