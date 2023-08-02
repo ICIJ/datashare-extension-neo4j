@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from neo4j_app.core import AppConfig, UviCornModel
+from neo4j_app.tests.conftest import fail_if_exception
 
 
 def test_should_support_alias():
@@ -89,16 +90,16 @@ def test_to_uvicorn(config: AppConfig, expected_uvicorn_config: UviCornModel):
     assert uvicorn_config == expected_uvicorn_config
 
 
-def test_should_parse_elasticsearch_address():
+@pytest.mark.pull(id="")
+def test_should_support_address_without_port():
     # Given
     config = AppConfig(
-        elasticsearch_address="http://elasticsearch:9222",
+        elasticsearch_address="http://elasticsearch",
         neo4j_project="test-project",
     )
     # Then
-    assert config.es_host == "elasticsearch"
-    assert config.es_port == 9222
-    assert config.es_hosts == [{"host": "elasticsearch", "port": 9222}]
+    with fail_if_exception("Failed to initialize ES client"):
+        config.to_es_client()
 
 
 @pytest.mark.parametrize("user,password", [(None, "somepass"), ("someuser", None)])

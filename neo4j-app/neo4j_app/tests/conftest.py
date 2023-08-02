@@ -3,8 +3,9 @@ import asyncio
 import contextlib
 import os
 import random
+import traceback
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, Generator, Tuple, Union
+from typing import Any, AsyncGenerator, Dict, Generator, Optional, Tuple, Union
 
 import neo4j
 import pytest
@@ -422,3 +423,14 @@ def xml_elements_equal(actual, expected) -> bool:
     if len(actual) != len(expected):
         return False
     return all(xml_elements_equal(c1, c2) for c1, c2 in zip(actual, expected))
+
+
+@contextlib.contextmanager
+def fail_if_exception(msg: Optional[str] = None):
+    try:
+        yield
+    except Exception as e:  # pylint: disable=W0703
+        trace = "".join(traceback.format_exception(None, e, e.__traceback__))
+        if msg is None:
+            msg = "Test failed due to the following error"
+        pytest.fail(f"{msg}\n{trace}")
