@@ -7,7 +7,7 @@
 
 <script>
 
-import { default as Widget } from '../store/WidgetNeo4jDump';
+import { default as Widget } from '../core/WidgetNeo4jDump';
 import WidgetNeo4jDump from '../components/WidgetNeo4jDump';
 
 export default {
