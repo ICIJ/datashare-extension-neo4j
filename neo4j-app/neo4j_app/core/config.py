@@ -175,7 +175,10 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
 
         for logger in loggers:
             logger = logging.getLogger(logger)
-            logger.setLevel(self.neo4j_app_log_level)
+            level = getattr(logging, self.neo4j_app_log_level)
+            if logger == elasticsearch.__name__:
+                level = max(logging.INFO, level)
+            logger.setLevel(level)
             logger.handlers = []
             for handler in self._handlers:
                 logger.addHandler(handler)
