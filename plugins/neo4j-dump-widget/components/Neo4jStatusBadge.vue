@@ -19,7 +19,6 @@ export default {
     batchVariant() { return this.badge.variant },
     batchLabel() { return this.badge.label },
     badge() {
-      console.log(this.status)
       switch (this.status) {
         case AppStatus.Error:
           return { variant: "danger", label: "Error" }
