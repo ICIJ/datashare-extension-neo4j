@@ -32,7 +32,10 @@
                 </b-row>
               </b-col>
               <b-col md="2" align-self="end">
-                <b-button type="submit">Dump graph</b-button>
+                <span id="disabled-wrapper" class="d-inline-block" tabindex="0">
+                  <b-button type="submit" :disabled="!neo4jAppIsRunning">Dump graph</b-button>
+                </span>
+                <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">{{ dumpButtonToolTip }}</b-tooltip>
               </b-col>
             </b-row>
           </b-form>
@@ -105,11 +108,22 @@ export default {
     docFields() {
       return this.getDBSchema()
     },
+    dumpButtonToolTip() {
+      if (this.neo4jAppStatus === AppStatus.Starting) {
+        return "neo4j extension is starting..."
+      } else if (!this.neo4jAppIsRunning) {
+        return "neo4j extension is not running, refresh this page to start it or wait "
+      }
+      return null
+    },
     project() {
       return this.$store.state.search.index
     },
     neo4jAppStatus() {
       return this.$store.getters['neo4j/status']
+    },
+    neo4jAppIsRunning() {
+      return this.neo4jAppStatus === AppStatus.Running
     },
   },
   methods: {
