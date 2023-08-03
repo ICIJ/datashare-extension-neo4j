@@ -7,7 +7,7 @@ import pytest
 import pytest_asyncio
 
 import neo4j_app
-from neo4j_app.core.neo4j import FIRST_MIGRATION, Migration, migrate_db_schema
+from neo4j_app.core.neo4j import FIRST_MIGRATION, Migration, migrate_db_schemas
 from neo4j_app.core.neo4j.migrations import migrate
 from neo4j_app.core.neo4j.migrations.migrate import (
     MigrationError,
@@ -21,12 +21,12 @@ _BASE_REGISTRY = [FIRST_MIGRATION]
 
 @pytest_asyncio.fixture(scope="function")
 async def _migration_index_and_constraint(
-    neo4j_test_session: neo4j.AsyncSession,
-) -> neo4j.AsyncSession:
-    await migrate_db_schema(
-        neo4j_test_session, _BASE_REGISTRY, timeout_s=30, throttle_s=0.1
+    neo4j_test_driver: neo4j.AsyncDriver,
+) -> neo4j.AsyncDriver:
+    await migrate_db_schemas(
+        neo4j_test_driver, _BASE_REGISTRY, timeout_s=30, throttle_s=0.1
     )
-    return neo4j_test_session
+    return neo4j_test_driver
 
 
 async def _create_indexes_tx(tx: neo4j.AsyncTransaction):
@@ -70,33 +70,33 @@ _MIGRATION_1 = Migration(
     ],
 )
 async def test_migrate_db_schema(
-    _migration_index_and_constraint: neo4j.AsyncSession,  # pylint: disable=invalid-name
+    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
     registry: List[Migration],
     expected_indexes: Set[str],
     not_expected_indexes: Set[str],
 ):
     # Given
-    neo4j_session = _migration_index_and_constraint
+    neo4j_driver = _migration_index_and_constraint
 
     # When
-    await migrate_db_schema(neo4j_session, registry, timeout_s=10, throttle_s=0.1)
+    await migrate_db_schemas(neo4j_driver, registry, timeout_s=10, throttle_s=0.1)
 
     # Then
-    index_res = await neo4j_session.run("SHOW INDEXES")
+    index_res, _, _ = await neo4j_driver.execute_query("SHOW INDEXES")
     existing_indexes = set()
-    async for rec in index_res:
+    for rec in index_res:
         existing_indexes.add(rec["name"])
     missing_indexes = expected_indexes - existing_indexes
     assert not missing_indexes
     assert not not_expected_indexes.intersection(existing_indexes)
 
     if registry:
-        db_migrations_res = await neo4j_session.run(
+        db_migrations_recs, _, _ = await neo4j_driver.execute_query(
             "MATCH (m:Migration) RETURN m as migration"
         )
         db_migrations = [
             Neo4jMigration.from_neo4j(rec, key="migration")
-            async for rec in db_migrations_res
+            for rec in db_migrations_recs
         ]
         assert len(db_migrations) == len(registry) + 1
         assert all(m.status is MigrationStatus.DONE for m in db_migrations)
@@ -107,26 +107,27 @@ async def test_migrate_db_schema(
 
 @pytest.mark.asyncio
 async def test_migrate_db_schema_should_raise_after_timeout(
-    neo4j_test_session_session: neo4j.AsyncSession,
+    neo4j_test_driver_session: neo4j.AsyncDriver,
 ):
     # Given
-    neo4j_session = neo4j_test_session_session
+    neo4j_driver = neo4j_test_driver_session
     registry = [_MIGRATION_0]
 
     # When
     expected_msg = "Migration timeout expired"
     with pytest.raises(MigrationError, match=expected_msg):
-        await migrate_db_schema(neo4j_session, registry, timeout_s=0, throttle_s=0.1)
+        await migrate_db_schemas(neo4j_driver, registry, timeout_s=0, throttle_s=0.1)
 
 
 @pytest.mark.asyncio
 async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
     caplog,
     monkeypatch,
-    _migration_index_and_constraint: neo4j.AsyncSession,  # pylint: disable=invalid-name
+    _migration_index_and_constraint: neo4j.AsyncDriver,
+    # pylint: disable=invalid-name
 ):
     # Given
-    neo4j_session_0 = _migration_index_and_constraint
+    neo4j_driver_0 = _migration_index_and_constraint
     caplog.set_level(logging.INFO, logger=neo4j_app.__name__)
 
     async def mocked_get_migrations(
@@ -148,8 +149,8 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
     with pytest.raises(MigrationError, match=expected_msg):
         timeout_s = 0.5
         wait_s = 0.1
-        await migrate_db_schema(
-            neo4j_session_0,
+        await migrate_db_schemas(
+            neo4j_driver_0,
             [_MIGRATION_0, _MIGRATION_1],
             timeout_s=timeout_s,
             throttle_s=wait_s,
@@ -164,10 +165,12 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
 
 @pytest.mark.asyncio
 async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
-    monkeypatch, caplog, _migration_index_and_constraint  # pylint: disable=invalid-name
+    monkeypatch,
+    caplog,
+    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
 ):
     # Given
-    neo4j_session = _migration_index_and_constraint
+    neo4j_driver = _migration_index_and_constraint
     caplog.set_level(logging.INFO, logger=neo4j_app.__name__)
 
     async def mocked_get_migrations(
@@ -186,7 +189,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
     started: $started
 })
 """
-    await neo4j_session.run(
+    await neo4j_driver.execute_query(
         query, version=str(_MIGRATION_0.version), started=datetime.now()
     )
     try:
@@ -195,8 +198,8 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
         with pytest.raises(MigrationError, match=expected_msg):
             timeout_s = 0.5
             wait_s = 0.1
-            await migrate_db_schema(
-                neo4j_session,
+            await migrate_db_schemas(
+                neo4j_driver,
                 [_MIGRATION_0],
                 timeout_s=timeout_s,
                 throttle_s=wait_s,
@@ -209,4 +212,5 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
         )
     finally:
         # Don't forget to cleanup other the DB will be locked
-        await wipe_db(neo4j_session)
+        async with neo4j_driver.session(database="neo4j") as sess:
+            await wipe_db(sess)

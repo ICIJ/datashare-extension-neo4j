@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 MigrationFn = Callable[[neo4j.AsyncTransaction], Coroutine]
 
+_NEO4J_SYSTEM_DB = "system"
+
 _MIGRATION_TIMEOUT_MSG = """Migration timeout expired !
 Please check that a migration is indeed in progress. If the application is in a \
 deadlock restart it forcing the migration index cleanup."""
@@ -156,57 +158,94 @@ RETURN m as migration
     return migrations
 
 
-async def delete_all_migrations_tx(tx: neo4j.AsyncTransaction):
+async def delete_all_migrations(driver: neo4j.AsyncDriver):
     query = f"""MATCH (m:{MIGRATION_NODE})
 DETACH DELETE m
     """
-    await tx.run(query)
+    await driver.execute_query(query)
 
 
-async def migrate_db_schema(
-    neo4j_session: neo4j.AsyncSession,
+async def retrieve_project_dbs(neo4j_driver: neo4j.AsyncDriver) -> List[str]:
+    query = f"""SHOW DATABASES YIELD name, currentStatus
+WHERE currentStatus = "online" and name <> "{_NEO4J_SYSTEM_DB}"
+RETURN name
+"""
+    records, _, _ = await neo4j_driver.execute_query(query)
+    project_dbs = [rec["name"] for rec in records]
+    return project_dbs
+
+
+async def migrate_db_schemas(
+    neo4j_driver: neo4j.AsyncDriver,
     registry: MigrationRegistry,
     *,
     timeout_s: float,
     throttle_s: float,
 ):
+    project_dbs = await retrieve_project_dbs(neo4j_driver)
+    tasks = [
+        migrate_project_db_schema(
+            neo4j_driver, registry, db=db, timeout_s=timeout_s, throttle_s=throttle_s
+        )
+        for db in project_dbs
+    ]
+    await asyncio.gather(*tasks)
+
+
+# Retrieve all project DBs
+
+
+async def migrate_project_db_schema(
+    neo4j_driver: neo4j.AsyncDriver,
+    registry: MigrationRegistry,
+    db: str,
+    *,
+    timeout_s: float,
+    throttle_s: float,
+):
+    logger.info("Migrating project DB %s", db)
     start = time.monotonic()
     if not registry:
         return
     todo = sorted(registry, key=lambda m: m.version)
-    while "Waiting for DB to be migrated or for a timeout":
-        elapsed = time.monotonic() - start
-        if elapsed > timeout_s:
-            logger.error(_MIGRATION_TIMEOUT_MSG)
-            raise MigrationError(_MIGRATION_TIMEOUT_MSG)
-        migrations = await neo4j_session.execute_read(migrations_tx)
-        in_progress = [m for m in migrations if m.status is MigrationStatus.IN_PROGRESS]
-        if len(in_progress) > 1:
-            raise MigrationError(f"Found several migration in progress: {in_progress}")
-        if in_progress:
-            logger.info(
-                "Found that %s is in progress, waiting for %s seconds...",
-                in_progress[0].label,
-                throttle_s,
-            )
-            await asyncio.sleep(throttle_s)
-            continue
-        done = [m for m in migrations if m.status is MigrationStatus.DONE]
-        if done:
-            current_version = max((m.version for m in done))
-            todo = [m for m in todo if m.version > current_version]
-        if not todo:
-            break
-        try:
-            await _migration_wrapper(neo4j_session, todo[0])
-            todo = todo[1:]
-            continue
-        except ConstraintError:
-            logger.info(
-                "Migration %s has just started somewhere else, "
-                " waiting for %s seconds...",
-                todo[0].label,
-                throttle_s,
-            )
-            await asyncio.sleep(throttle_s)
-            continue
+    async with neo4j_driver.session(database=db) as sess:
+        while "Waiting for DB to be migrated or for a timeout":
+            elapsed = time.monotonic() - start
+            if elapsed > timeout_s:
+                logger.error(_MIGRATION_TIMEOUT_MSG)
+                raise MigrationError(_MIGRATION_TIMEOUT_MSG)
+            migrations = await sess.execute_read(migrations_tx)
+            in_progress = [
+                m for m in migrations if m.status is MigrationStatus.IN_PROGRESS
+            ]
+            if len(in_progress) > 1:
+                raise MigrationError(
+                    f"Found several migration in progress: {in_progress}"
+                )
+            if in_progress:
+                logger.info(
+                    "Found that %s is in progress, waiting for %s seconds...",
+                    in_progress[0].label,
+                    throttle_s,
+                )
+                await asyncio.sleep(throttle_s)
+                continue
+            done = [m for m in migrations if m.status is MigrationStatus.DONE]
+            if done:
+                current_version = max((m.version for m in done))
+                todo = [m for m in todo if m.version > current_version]
+            if not todo:
+                break
+            try:
+                await _migration_wrapper(sess, todo[0])
+                todo = todo[1:]
+                continue
+            except ConstraintError:
+                logger.info(
+                    "Migration %s has just started somewhere else, "
+                    " waiting for %s seconds...",
+                    todo[0].label,
+                    throttle_s,
+                )
+                await asyncio.sleep(throttle_s)
+                continue

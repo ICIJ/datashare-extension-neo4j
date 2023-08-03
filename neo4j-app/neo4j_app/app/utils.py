@@ -18,8 +18,8 @@ from neo4j_app.app.graphs import graphs_router
 from neo4j_app.app.main import main_router
 from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.core import AppConfig
-from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schema
-from neo4j_app.core.neo4j.migrations import delete_all_migrations_tx
+from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
+from neo4j_app.core.neo4j.migrations import delete_all_migrations
 from neo4j_app.core.utils.logging import DifferedLoggingMessage
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
@@ -100,7 +100,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, internal_exception_handler)
     app.add_event_handler("startup", app.state.config.setup_loggers)
-    app.add_event_handler("startup", functools.partial(migrate_app_db, app))
+    app.add_event_handler("startup", functools.partial(migrate_app_dbs, app))
     app.include_router(main_router())
     app.include_router(documents_router())
     app.include_router(named_entities_router())
@@ -109,19 +109,19 @@ def create_app(config: AppConfig) -> FastAPI:
     return app
 
 
-async def migrate_app_db(app: FastAPI):
+async def migrate_app_dbs(app: FastAPI):
     config: AppConfig = app.state.config
     async with config.to_neo4j_driver() as driver:
-        async with driver.session() as sess:
-            logger.info("Running schema migrations at application startup...")
-            if config.force_migrations:
-                await sess.execute_write(delete_all_migrations_tx)
-            await migrate_db_schema(
-                sess,
-                registry=MIGRATIONS,
-                timeout_s=config.neo4j_app_migration_timeout_s,
-                throttle_s=config.neo4j_app_migration_throttle_s,
-            )
+        logger.info("Running schema migrations at application startup...")
+        if config.force_migrations:
+            # TODO: improve this as is could lead to race conditions...
+            await delete_all_migrations(driver)
+        await migrate_db_schemas(
+            driver,
+            registry=MIGRATIONS,
+            timeout_s=config.neo4j_app_migration_timeout_s,
+            throttle_s=config.neo4j_app_migration_throttle_s,
+        )
 
 
 def _display_errors(errors: List[Dict]) -> str:

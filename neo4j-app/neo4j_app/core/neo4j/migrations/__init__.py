@@ -1,1 +1,1 @@
-from .migrate import Migration, delete_all_migrations_tx
+from .migrate import Migration, delete_all_migrations
