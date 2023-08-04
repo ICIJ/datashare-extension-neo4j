@@ -134,7 +134,7 @@ public class Neo4jResource {
                 return;
             } else {
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     throw new RuntimeException("Thread killed while slipping", e);
                 }
