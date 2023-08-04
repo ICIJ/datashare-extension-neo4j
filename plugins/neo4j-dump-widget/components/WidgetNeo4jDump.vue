@@ -19,8 +19,13 @@
                   </b-col>
                 </b-row>
                 <ul>
-                  <neo4j-where-condition v-for="(cond, index) in conditions" :condition=cond :key="cond.name"
-                    v-on:removeCondition="conditions.splice(index, 1)"></neo4j-where-condition>
+                  <neo4j-where-condition
+                    v-for="(cond, index) in conditions"
+                    :project="project"
+                    :condition=cond
+                    :key="cond.name"
+                    v-on:removeCondition="conditions.splice(index, 1)">
+                  </neo4j-where-condition>
                 </ul>
                 <b-row align-h="start">
                   <b-col md="auto" class="pb-2">
@@ -58,7 +63,7 @@ import { default as polling } from '../core/mixin/polling'
 const DOC_CONTENT_TYPE = "contentType"
 const DOC_PATH = "path"
 const DOC_PROPERTIES = Object.fromEntries([
-  [DOC_PATH, { type: "string" }],
+  [DOC_PATH, { type: "localPath" }],
   [DOC_CONTENT_TYPE, { type: "string" }]
 ])
 // TODO: can we do simpler than this
@@ -117,6 +122,7 @@ export default {
       return null
     },
     project() {
+      // Modify this when in the project page
       return this.$store.state.search.index
     },
     neo4jAppStatus() {
