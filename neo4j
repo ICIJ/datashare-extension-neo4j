@@ -464,7 +464,12 @@ Please run ./neo4j format"
         else
             cp "$settings_path" "$template_path"
         fi
-        datashare -s $settings_path --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins
+        local ds_data_dir
+        ds_data_dir=""
+        if [[ -n $DS_DOCKER_DATA_DIR ]]; then
+            ds_data_dir=" --dataDir $DS_DOCKER_DATA_DIR"
+        fi
+        datashare -s $settings_path "$ds_data_dir" --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins
     }
 
     function set_version() {
