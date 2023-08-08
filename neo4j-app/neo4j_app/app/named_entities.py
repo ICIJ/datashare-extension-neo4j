@@ -27,7 +27,7 @@ def named_entities_router() -> APIRouter:
         description=NE_IMPORT_DESC,
     )
     async def _import_named_entities(
-        database: str,
+        project: str,
         index: str,
         payload: IncrementalImportRequest,
         request: Request,
@@ -39,13 +39,13 @@ def named_entities_router() -> APIRouter:
             logger, logging.INFO, "Imported named entities in {elapsed_time} !"
         ):
             res = await import_named_entities(
+                project=project,
                 es_client=es_client,
                 es_index=index,
                 es_query=payload.query,
                 es_concurrency=es_client.max_concurrency,
                 es_keep_alive=config.es_keep_alive,
                 es_doc_type_field=config.es_doc_type_field,
-                neo4j_db=database,
                 neo4j_driver=neo4j_driver,
                 neo4j_import_batch_size=config.neo4j_import_batch_size,
                 neo4j_transaction_batch_size=config.neo4j_transaction_batch_size,

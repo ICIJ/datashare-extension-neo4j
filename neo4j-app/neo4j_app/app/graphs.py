@@ -23,7 +23,7 @@ def graphs_router() -> APIRouter:
         description=DOC_GRAPH_DUMP_DESC,
     )
     async def _graph_dump(
-        database: str,
+        project: str,
         payload: DumpRequest,
         neo4j_driver: neo4j.AsyncDriver = Depends(neo4j_driver_dep),
     ) -> StreamingResponse:
@@ -32,9 +32,9 @@ def graphs_router() -> APIRouter:
         ):
             res = StreamingResponse(
                 dump_graph(
+                    project=project,
                     dump_format=payload.format,
                     neo4j_driver=neo4j_driver,
-                    neo4j_db=database,
                     query=payload.query,
                 ),
                 media_type="binary/octet-stream",

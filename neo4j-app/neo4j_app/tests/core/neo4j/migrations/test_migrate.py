@@ -5,26 +5,38 @@ from typing import List, Set
 import neo4j
 import pytest
 import pytest_asyncio
+from neo4j.exceptions import ClientError
 
 import neo4j_app
-from neo4j_app.core.neo4j import FIRST_MIGRATION, Migration, migrate_db_schemas
+from neo4j_app.core.neo4j import Migration, migrate_db_schemas, V_0_1_0
 from neo4j_app.core.neo4j.migrations import migrate
 from neo4j_app.core.neo4j.migrations.migrate import (
     MigrationError,
     MigrationStatus,
     Neo4jMigration,
+    init_project,
+    retrieve_projects,
 )
-from neo4j_app.tests.conftest import wipe_db
+from neo4j_app.core.neo4j.projects import NEO4J_COMMUNITY_DB, Project
+from neo4j_app.tests.conftest import TEST_PROJECT, wipe_db
 
-_BASE_REGISTRY = [FIRST_MIGRATION]
+_BASE_REGISTRY = [V_0_1_0]
+
+
+async def _mocked_is_enterprise(_: neo4j.AsyncDriver) -> bool:
+    return True
+
+
+async def _mocked_project_registry_db(_: neo4j.AsyncDriver) -> str:
+    return NEO4J_COMMUNITY_DB
 
 
 @pytest_asyncio.fixture(scope="function")
 async def _migration_index_and_constraint(
     neo4j_test_driver: neo4j.AsyncDriver,
 ) -> neo4j.AsyncDriver:
-    await migrate_db_schemas(
-        neo4j_test_driver, _BASE_REGISTRY, timeout_s=30, throttle_s=0.1
+    await init_project(
+        neo4j_test_driver, TEST_PROJECT, _BASE_REGISTRY, timeout_s=30, throttle_s=0.1
     )
     return neo4j_test_driver
 
@@ -92,7 +104,7 @@ async def test_migrate_db_schema(
 
     if registry:
         db_migrations_recs, _, _ = await neo4j_driver.execute_query(
-            "MATCH (m:Migration) RETURN m as migration"
+            "MATCH (m:_Migration) RETURN m as migration"
         )
         db_migrations = [
             Neo4jMigration.from_neo4j(rec, key="migration")
@@ -107,10 +119,10 @@ async def test_migrate_db_schema(
 
 @pytest.mark.asyncio
 async def test_migrate_db_schema_should_raise_after_timeout(
-    neo4j_test_driver_session: neo4j.AsyncDriver,
+    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
 ):
     # Given
-    neo4j_driver = neo4j_test_driver_session
+    neo4j_driver = _migration_index_and_constraint
     registry = [_MIGRATION_0]
 
     # When
@@ -131,10 +143,11 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
     caplog.set_level(logging.INFO, logger=neo4j_app.__name__)
 
     async def mocked_get_migrations(
-        sess: neo4j.AsyncSession,  # pylint: disable=unused-argument
+        sess: neo4j.AsyncSession, project: str  # pylint: disable=unused-argument
     ) -> List[Neo4jMigration]:
         return [
             Neo4jMigration(
+                project=TEST_PROJECT,
                 version="0.1.0",
                 label="migration in progress",
                 status=MigrationStatus.IN_PROGRESS,
@@ -142,7 +155,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
             )
         ]
 
-    monkeypatch.setattr(migrate, "migrations_tx", mocked_get_migrations)
+    monkeypatch.setattr(migrate, "project_migrations_tx", mocked_get_migrations)
 
     # When/Then
     expected_msg = "Migration timeout expired "
@@ -174,23 +187,29 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
     caplog.set_level(logging.INFO, logger=neo4j_app.__name__)
 
     async def mocked_get_migrations(
-        sess: neo4j.AsyncSession,  # pylint: disable=unused-argument
+        sess: neo4j.AsyncSession, project: str  # pylint: disable=unused-argument
     ) -> List[Neo4jMigration]:
         return []
 
     # No migration in progress
-    monkeypatch.setattr(migrate, "migrations_tx", mocked_get_migrations)
+    monkeypatch.setattr(migrate, "project_migrations_tx", mocked_get_migrations)
 
     # However we simulate _MIGRATION_0 being running just before our migrate_db_schema
     # by inserting it in progress
-    query = """CREATE (m:Migration {
+    query = """CREATE (m:_Migration {
+    project: $project,
     version: $version, 
     label: 'someLabel', 
     started: $started
 })
 """
     await neo4j_driver.execute_query(
-        query, version=str(_MIGRATION_0.version), started=datetime.now()
+        query,
+        project="test_project",
+        version=str(_MIGRATION_0.version),
+        label=str(_MIGRATION_0.label),
+        started=datetime.now(),
+        status=MigrationStatus.IN_PROGRESS.value,
     )
     try:
         # When/Then
@@ -214,3 +233,49 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
         # Don't forget to cleanup other the DB will be locked
         async with neo4j_driver.session(database="neo4j") as sess:
             await wipe_db(sess)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("enterprise", [True, False])
+async def test_retrieve_project_dbs(
+    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
+    enterprise: bool,
+    monkeypatch,
+):
+    # Given
+    neo4j_driver = _migration_index_and_constraint
+    projects = await retrieve_projects(neo4j_driver)
+
+    if enterprise:
+        monkeypatch.setattr(
+            neo4j_app.core.neo4j.projects, "is_enterprise", _mocked_is_enterprise
+        )
+        monkeypatch.setattr(
+            neo4j_app.core.neo4j.projects,
+            "project_registry_db",
+            _mocked_project_registry_db,
+        )
+
+    # Then
+    assert projects == [Project(name=TEST_PROJECT)]
+
+
+@pytest.mark.asyncio
+async def test_migrate_should_use_registry_db_when_with_enterprise_support(
+    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
+    monkeypatch,
+):
+    # Given
+    registry = _BASE_REGISTRY
+    monkeypatch.setattr(
+        neo4j_app.core.neo4j.projects, "is_enterprise", _mocked_is_enterprise
+    )
+    neo4j_driver = _migration_index_and_constraint
+
+    # When/Then
+    expected = (
+        "Unable to get a routing table for database 'datashare-project-registry'"
+        " because this database does not exist"
+    )
+    with pytest.raises(ClientError, match=expected):
+        await migrate_db_schemas(neo4j_driver, registry, timeout_s=10, throttle_s=0.1)

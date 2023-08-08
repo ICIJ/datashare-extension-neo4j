@@ -37,6 +37,7 @@ from neo4j_app.tests.conftest import (
     NEO4J_TEST_AUTH,
     NEO4J_TEST_PORT,
     TEST_INDEX,
+    TEST_PROJECT,
     assert_content,
     index_docs,
     index_named_entities,
@@ -123,13 +124,13 @@ async def test_import_documents(
 
     # When
     response = await import_documents(
+        project=TEST_PROJECT,
         es_index=TEST_INDEX,
         es_client=es_client,
         es_query=query,
         es_keep_alive="10s",
         es_doc_type_field=doc_type_field,
         neo4j_driver=neo4j_driver,
-        neo4j_db="neo4j",
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
@@ -167,13 +168,13 @@ async def test_import_documents_should_forward_db(
         with patch.object(neo4j_driver, attribute="session", new=mock_session):
             # When/Then
             res = await import_documents(
+                project=TEST_PROJECT,
                 es_index=TEST_INDEX,
                 es_client=es_client,
                 es_query=dict(),
                 es_keep_alive="10s",
                 es_doc_type_field="type",
                 neo4j_driver=neo4j_driver,
-                neo4j_db=project_db,
                 neo4j_import_batch_size=10,
                 neo4j_transaction_batch_size=10,
                 max_records_in_memory=10,
@@ -252,13 +253,13 @@ async def test_import_named_entities(
 
     # When
     response = await import_named_entities(
+        project=TEST_PROJECT,
         es_client=es_client,
         es_index=TEST_INDEX,
         es_query=query,
         es_keep_alive="10s",
         es_doc_type_field=doc_type_field,
         neo4j_driver=neo4j_driver,
-        neo4j_db="neo4j",
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
@@ -288,13 +289,13 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
 
     # When
     await import_named_entities(
+        project=TEST_PROJECT,
         es_client=es_client,
         es_query=query,
         es_index=TEST_INDEX,
         es_keep_alive="10s",
         es_doc_type_field="type",
         neo4j_driver=neo4j_driver,
-        neo4j_db="neo4j",
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
@@ -352,13 +353,13 @@ async def test_import_named_entities_should_forward_db(
         with patch.object(neo4j_driver, attribute="session", new=mock_session):
             # When/Then
             await import_named_entities(
+                project=TEST_PROJECT,
                 es_client=es_client,
                 es_query=dict(),
                 es_index=TEST_INDEX,
                 es_keep_alive="10s",
                 es_doc_type_field="type",
                 neo4j_driver=neo4j_driver,
-                neo4j_db=project_db,
                 neo4j_import_batch_size=10,
                 neo4j_transaction_batch_size=10,
                 max_records_in_memory=10,
@@ -448,9 +449,12 @@ def _expected_ne_doc_rel_lines() -> str:
 
 
 @pytest.mark.asyncio
-async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
+async def test_to_neo4j_csvs(
+    _populate_es: ESClient, neo4j_test_driver_session: neo4j.AsyncDriver, tmpdir
+):
     # pylint: disable=line-too-long,invalid-name
     # Given
+    neo4j_driver = neo4j_test_driver_session
     export_dir = Path(tmpdir)
     es_doc_type_field = "type"
     es_client = _populate_es
@@ -461,6 +465,8 @@ async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
 
     # When
     res = await to_neo4j_csvs(
+        project=TEST_PROJECT,
+        neo4j_driver=neo4j_driver,
         es_query=es_query,
         es_index=TEST_INDEX,
         export_dir=export_dir,
@@ -468,7 +474,6 @@ async def test_to_neo4j_csvs(_populate_es: ESClient, tmpdir):
         es_concurrency=None,
         es_keep_alive="1m",
         es_doc_type_field=es_doc_type_field,
-        neo4j_db="neo4j",
     )
     archive_dir = export_dir.joinpath("archive")
     archive_dir.mkdir()

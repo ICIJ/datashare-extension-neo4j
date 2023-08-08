@@ -13,7 +13,11 @@ from neo4j_app.core.objects import (
     NodeCSVs,
     RelationshipCSVs,
 )
-from neo4j_app.tests.conftest import TEST_INDEX, populate_es_with_doc_and_named_entities
+from neo4j_app.tests.conftest import (
+    TEST_INDEX,
+    TEST_PROJECT,
+    populate_es_with_doc_and_named_entities,
+)
 
 
 @pytest_asyncio.fixture(scope="module")
@@ -30,7 +34,7 @@ async def test_post_named_entities_import_should_return_200(
     # Given
     test_client = test_client_module
     query = {"ids": {"values": ["doc-0"]}}
-    url = f"/admin/neo4j-csvs?database=neo4j&index={TEST_INDEX}"
+    url = f"/admin/neo4j-csvs?project={TEST_PROJECT}&index={TEST_INDEX}"
     payload = {"query": query}
 
     # When

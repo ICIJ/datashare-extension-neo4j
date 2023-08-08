@@ -1,5 +1,7 @@
 from neo4j_app.core.elasticsearch.utils import JOIN
 
+PROJECT_REGISTRY_DB = "datashare-project-registry"
+
 NEO4J_CSV_COL = "node_col"
 
 # TODO: replicate other doc attributes
@@ -24,13 +26,18 @@ DOC_COLUMNS = {
 
 DOC_ES_SOURCES = list(DOC_COLUMNS) + [JOIN, DOC_ROOT_ID]
 
+PROJECT_RUNS_MIGRATION = "_RUNS"
+PROJECT_NAME = "name"
+PROJECT_NODE = "_Project"
 
 MIGRATION_COMPLETED = "completed"
 MIGRATION_LABEL = "label"
-MIGRATION_NODE = "Migration"
+MIGRATION_NODE = "_Migration"
+MIGRATION_PROJECT = "project"
 MIGRATION_STARTED = "started"
 MIGRATION_STATUS = "status"
 MIGRATION_VERSION = "version"
+
 
 # TODO: replicate other named entities attributes
 NE_APPEARS_IN_DOC = "APPEARS_IN"
