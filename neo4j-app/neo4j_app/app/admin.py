@@ -3,10 +3,12 @@ import os
 from pathlib import Path
 from tempfile import mkdtemp
 
+import neo4j
 from fastapi import APIRouter, Depends, Request
 
 from neo4j_app.app.dependencies import (
     es_client_dep,
+    neo4j_driver_dep,
 )
 from neo4j_app.app.doc import (
     ADMIN_TAG,
@@ -35,11 +37,12 @@ def admin_router() -> APIRouter:
         description=DOC_NEO4J_CSV_DESC,
     )
     async def _neo4j_csv(
-        database: str,
+        project: str,
         index: str,
         payload: Neo4jCSVRequest,
         request: Request,
         es_client: ESClientABC = Depends(es_client_dep),
+        neo4j_driver: neo4j.AsyncDriver = Depends(neo4j_driver_dep),
     ) -> Neo4jCSVResponse:
         config: AppConfig = request.app.state.config
 
@@ -48,6 +51,7 @@ def admin_router() -> APIRouter:
         ):
             tmpdir = mkdtemp()
             res = await to_neo4j_csvs(
+                project=project,
                 export_dir=Path(tmpdir),
                 es_query=payload.query,
                 es_client=es_client,
@@ -55,7 +59,7 @@ def admin_router() -> APIRouter:
                 es_concurrency=config.es_max_concurrency,
                 es_keep_alive=config.es_keep_alive,
                 es_doc_type_field=config.es_doc_type_field,
-                neo4j_db=database,
+                neo4j_driver=neo4j_driver,
             )
         os.chmod(tmpdir, 0o744)
         os.chmod(res.path, 0o744)

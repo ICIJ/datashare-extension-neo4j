@@ -7,6 +7,7 @@ import random
 import traceback
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, Optional, Tuple, Union
+from unittest.mock import AsyncMock, MagicMock
 
 import neo4j
 import pytest
@@ -28,6 +29,7 @@ from neo4j_app.core.utils.pydantic import BaseICIJModel
 #  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
 
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
+TEST_PROJECT = "test_project"
 NEO4J_TEST_IMPORT_DIR = DATA_DIR.joinpath("neo4j", "import")
 NEO4J_IMPORT_PREFIX = Path(os.sep).joinpath(".neo4j", "import")
 ELASTICSEARCH_TEST_PORT = 9201
@@ -70,6 +72,20 @@ class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def _mocked_search(self, **kwargs):
         pass
+
+
+class AsyncContextManagerMock(AsyncMock):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        for key in ("aenter_return", "aexit_return"):
+            setattr(self, key, kwargs[key] if key in kwargs else MagicMock())
+
+    async def __aenter__(self):
+        return self.aenter_return
+
+    async def __aexit__(self, *args):
+        return self.aexit_return
 
 
 # Define a session level even_loop fixture to overcome limitation explained here:

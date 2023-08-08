@@ -91,6 +91,7 @@ from neo4j_app.core.neo4j.named_entities import (
     import_named_entity_rows,
     ne_creation_stats_tx,
 )
+from neo4j_app.core.neo4j.projects import project_db
 from neo4j_app.core.objects import (
     IncrementalImportResponse,
     Neo4jCSVResponse,
@@ -125,6 +126,7 @@ class ImportTransactionFunction(Protocol):
 
 async def import_documents(
     *,
+    project: str,
     es_client: ESClientABC,
     es_index: str,
     es_query: Optional[Dict],
@@ -132,11 +134,11 @@ async def import_documents(
     es_keep_alive: Optional[str] = None,
     es_doc_type_field: str,
     neo4j_driver: neo4j.AsyncDriver,
-    neo4j_db: str,
     neo4j_import_batch_size: int,
     neo4j_transaction_batch_size: int,
     max_records_in_memory: int,
 ) -> IncrementalImportResponse:
+    neo4j_db = await project_db(neo4j_driver, project)
     es_query = _make_document_query(es_query, es_doc_type_field)
     if es_concurrency is None:
         es_concurrency = es_client.max_concurrency
@@ -179,6 +181,7 @@ async def import_documents(
 
 async def import_named_entities(
     *,
+    project: str,
     es_client: ESClientABC,
     es_index: str,
     es_query: Optional[Dict],
@@ -186,11 +189,11 @@ async def import_named_entities(
     es_keep_alive: Optional[str] = None,
     es_doc_type_field: str,
     neo4j_driver: neo4j.AsyncDriver,
-    neo4j_db: str,
     neo4j_import_batch_size: int,
     neo4j_transaction_batch_size: int,
     max_records_in_memory: int,
 ) -> IncrementalImportResponse:
+    neo4j_db = await project_db(neo4j_driver, project)
     async with neo4j_driver.session(database=neo4j_db) as neo4j_session:
         document_ids = await neo4j_session.execute_read(documents_ids_tx)
         # Because of this neo4j limitation (https://github.com/neo4j/neo4j/issues/13139)
@@ -287,6 +290,7 @@ async def _es_to_neo4j_import(
 
 async def to_neo4j_csvs(
     *,
+    project: str,
     export_dir: Path,
     es_query: Optional[Dict],
     es_client: ESClientABC,
@@ -294,8 +298,9 @@ async def to_neo4j_csvs(
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
     es_doc_type_field: str,
-    neo4j_db: str,
+    neo4j_driver: neo4j.AsyncDriver,
 ) -> Neo4jCSVResponse:
+    neo4j_db = await project_db(neo4j_driver, project)
     nodes = []
     relationships = []
     async with es_client.try_open_pit(index=es_index, keep_alive=es_keep_alive) as pit:

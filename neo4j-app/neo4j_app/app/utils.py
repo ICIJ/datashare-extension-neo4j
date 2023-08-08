@@ -13,14 +13,15 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
 from neo4j_app.app.admin import admin_router
-from neo4j_app.app.documents import documents_router
 from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
+from neo4j_app.app.documents import documents_router
 from neo4j_app.app.graphs import graphs_router
 from neo4j_app.app.main import main_router
 from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
 from neo4j_app.core.neo4j.migrations import delete_all_migrations
+from neo4j_app.core.neo4j.projects import create_project_registry_db
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
 
@@ -95,6 +96,11 @@ def create_app(config: AppConfig) -> FastAPI:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, internal_exception_handler)
     app.add_event_handler("startup", app.state.config.setup_loggers)
+    # This one is not a migration, migrations run on project DBs, this one runs on a
+    # utility DB
+    app.add_event_handler(
+        "startup", functools.partial(create_project_registry_db_, app)
+    )
     app.add_event_handler("startup", functools.partial(migrate_app_dbs, app))
     app.include_router(main_router())
     app.include_router(documents_router())
@@ -102,6 +108,12 @@ def create_app(config: AppConfig) -> FastAPI:
     app.include_router(admin_router())
     app.include_router(graphs_router())
     return app
+
+
+async def create_project_registry_db_(app: AppConfig):
+    config: AppConfig = app.state.config
+    async with config.to_neo4j_driver() as driver:
+        await create_project_registry_db(driver)
 
 
 async def migrate_app_dbs(app: FastAPI):

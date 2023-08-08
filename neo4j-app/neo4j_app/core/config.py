@@ -166,10 +166,12 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             uvicorn.__name__,
             elasticsearch.__name__,
         ]
+        force_info = {elasticsearch.__name__}
         try:
             import opensearchpy
 
             loggers.append(opensearchpy.__name__)
+            force_info.add(opensearchpy.__name__)
         except ImportError:
             pass
 
@@ -179,7 +181,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         for logger in loggers:
             logger = logging.getLogger(logger)
             level = getattr(logging, self.neo4j_app_log_level)
-            if logger == elasticsearch.__name__:
+            if logger in force_info:
                 level = max(logging.INFO, level)
             logger.setLevel(level)
             logger.handlers = []

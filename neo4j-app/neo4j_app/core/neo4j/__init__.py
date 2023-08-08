@@ -8,28 +8,19 @@ from typing import Dict, Iterable, List, Optional, TextIO, Tuple
 from .imports import Neo4Import, Neo4jImportWorker
 from .migrations import Migration
 from .migrations.migrate import MigrationError, migrate_db_schemas
-from .migrations.migrations import (
-    create_document_and_ne_id_unique_constraint_tx,
-    create_migration_unique_constraint_tx,
-    replace_ne_constraint_on_id_by_index_on_mention_norm_tx,
-)
+from .migrations.migrations import migration_v_0_1_0_tx, migration_v_0_2_0_tx
 
-FIRST_MIGRATION = Migration(
+V_0_1_0 = Migration(
     version="0.1.0",
-    label="Create migration index and constraints",
-    migration_fn=create_migration_unique_constraint_tx,
+    label="Create migration and project and constraints",
+    migration_fn=migration_v_0_1_0_tx,
 )
-V_O_2_0 = Migration(
+V_0_2_0 = Migration(
     version="0.2.0",
-    label="Add uniqueness constraint for documents and named entities",
-    migration_fn=create_document_and_ne_id_unique_constraint_tx,
+    label="Create doc and named entities index and constraints",
+    migration_fn=migration_v_0_2_0_tx,
 )
-V_O_3_0 = Migration(
-    version="0.3.0",
-    label="Replace named entity unique ID constraint by index on mention norm",
-    migration_fn=replace_ne_constraint_on_id_by_index_on_mention_norm_tx,
-)
-MIGRATIONS = [FIRST_MIGRATION, V_O_2_0, V_O_3_0]
+MIGRATIONS = [V_0_1_0, V_0_2_0]
 
 
 def get_neo4j_csv_reader(

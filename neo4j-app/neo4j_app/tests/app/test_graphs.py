@@ -49,8 +49,8 @@ RETURN data;
                 },
                 query_filter="""MATCH (node)
 OPTIONAL MATCH (d)-[r]-(other)
-WHERE NOT any(l IN labels(node) WHERE l = 'Migration')
-    AND NOT any(l IN labels(other) WHERE l = 'Migration')
+WHERE NOT any(l IN labels(node) WHERE l = '_Migration')
+    AND NOT any(l IN labels(other) WHERE l = '_Migration')
 RETURN d, r, other
 """,
             ),
@@ -98,8 +98,8 @@ RETURN cypherStatements;
                 },
                 query_filter="""MATCH (node)
 OPTIONAL MATCH (d)-[r]-(other)
-WHERE NOT any(l IN labels(node) WHERE l = 'Migration')
-    AND NOT any(l IN labels(other) WHERE l = 'Migration')
+WHERE NOT any(l IN labels(node) WHERE l = '_Migration')
+    AND NOT any(l IN labels(other) WHERE l = '_Migration')
 RETURN d, r, other
 """,
             ),
@@ -138,7 +138,7 @@ async def test_post_graph_dump_should_return_200(
     # pylint: disable=invalid-name,unused-argument
     # Given
     test_client = test_client_module
-    url = "/graphs/dump?database=neo4j"
+    url = "/graphs/dump?project={TEST_PROJECT}"
     payload = {"query": query, "format": dump_format}
     exported_lines = ["exported\n", "lines"]
 
@@ -183,7 +183,7 @@ async def test_post_graph_dump_should_return_400_for_invalid_dump_format(
     # pylint: disable=invalid-name,unused-argument
     # Given
     test_client = test_client_module
-    url = "/graphs/dump?database=neo4j"
+    url = "/graphs/dump?project={TEST_PROJECT}"
     payload = {"query": None, "format": "idontexist"}
 
     # When/Then

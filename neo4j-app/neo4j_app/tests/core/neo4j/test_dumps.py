@@ -36,7 +36,7 @@ async def test_dump_full_graph_to_graphml(_populate_neo4j: neo4j.AsyncDriver):
     async for line in dump_graph(
         dump_format=dump_format,
         neo4j_driver=driver,
-        neo4j_db=neo4j.DEFAULT_DATABASE,
+        project=neo4j.DEFAULT_DATABASE,
         query=None,
     ):
         output.write(line)
@@ -86,7 +86,7 @@ RETURN person;
     async for line in dump_graph(
         dump_format=dump_format,
         neo4j_driver=driver,
-        neo4j_db=neo4j.DEFAULT_DATABASE,
+        project=neo4j.DEFAULT_DATABASE,
         query=query,
     ):
         output.write(line)
@@ -129,7 +129,7 @@ async def test_should_dump_full_graph_to_cypher(_populate_neo4j: neo4j.AsyncDriv
     # When
     output = StringIO()
     async for line in dump_graph(
-        dump_format=dump_format, neo4j_driver=driver, neo4j_db=neo4j.DEFAULT_DATABASE
+        dump_format=dump_format, neo4j_driver=driver, project=neo4j.DEFAULT_DATABASE
     ):
         output.write(line)
 
@@ -154,7 +154,7 @@ RETURN person;
     async for line in dump_graph(
         dump_format=dump_format,
         neo4j_driver=driver,
-        neo4j_db=neo4j.DEFAULT_DATABASE,
+        project=neo4j.DEFAULT_DATABASE,
         query=query,
     ):
         output.write(line)
@@ -180,6 +180,6 @@ async def test_should_raise_for_invalid_dump_format(
         async for _ in dump_graph(
             dump_format=dump_format,
             neo4j_driver=driver,
-            neo4j_db=neo4j.DEFAULT_DATABASE,
+            project=neo4j.DEFAULT_DATABASE,
         ):
             pass

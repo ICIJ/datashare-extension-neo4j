@@ -3,6 +3,7 @@ from typing import AsyncGenerator, Optional
 import neo4j
 
 from neo4j_app.constants import MIGRATION_NODE
+from neo4j_app.core.neo4j.projects import project_db
 from neo4j_app.core.objects import DumpFormat
 
 _GRAPHML_DUMP_CONFIG = {
@@ -30,12 +31,13 @@ RETURN d, r, other
 
 
 async def dump_graph(
+    project: str,
     dump_format: DumpFormat,
     neo4j_driver: neo4j.AsyncDriver,
-    neo4j_db: str,
     query: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     # TODO: support batchsize ?
+    neo4j_db = await project_db(neo4j_driver, project)
     if query is None:
         query = _DEFAULT_DUMP_QUERY
     if dump_format is DumpFormat.GRAPHML:

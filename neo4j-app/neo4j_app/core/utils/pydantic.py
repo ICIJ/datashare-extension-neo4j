@@ -37,6 +37,6 @@ class IgnoreExtraModel(BaseICIJModel):
         extra = "ignore"
 
 
-class NoEnumModel(BaseModel):
+class NoEnumModel(BaseICIJModel):
     class Config:
         use_enum_values = False
