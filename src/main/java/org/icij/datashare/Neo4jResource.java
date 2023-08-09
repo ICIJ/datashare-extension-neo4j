@@ -2,6 +2,8 @@ package org.icij.datashare;
 
 
 import static java.io.File.createTempFile;
+import static org.icij.datashare.HttpUtils.fromException;
+import static org.icij.datashare.HttpUtils.parseContext;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
@@ -12,6 +14,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -30,11 +33,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.inject.Inject;
-import javax.inject.Provider;
 import kong.unirest.Unirest;
 import kong.unirest.apache.ApacheClient;
 import net.codestory.http.Context;
@@ -119,132 +122,112 @@ public class Neo4jResource {
         }
     }
 
-    protected void waitForServerToBeUp() throws InterruptedException {
+    protected void waitForServerToBeUp() {
         for (int nbTries = 0; nbTries < 60; nbTries++) {
             if (isOpen(this.host, this.port)) {
                 return;
             } else {
-                Thread.sleep(500);
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException("Thread killed while slipping", e);
+                }
             }
         }
         throw new RuntimeException("Couldn't start Python 30s after starting it !");
     }
 
     @Post("/start")
-    public Payload postStartNeo4jApp(Context context) throws IOException, InterruptedException {
-        // TODO: check that the user is allowed
-        boolean forceMigrations = false;
-        if (!context.request().content().isBlank()) {
-            forceMigrations = context.extract(
-                org.icij.datashare.Objects.StartNeo4jAppRequest.class).forceMigration;
-        }
-        boolean alreadyRunning;
-        try {
-            alreadyRunning = this.startNeo4jApp(forceMigrations);
-        } catch (Neo4jAlreadyRunningError e) {
-            return new Payload("application/problem+json", e).withCode(500);
-        }
-        return new Payload(new ServerStartResponse(alreadyRunning));
+    public Payload postStartNeo4jApp(Context context) {
+        return wrapNeo4jAppCall(() -> {
+                boolean forceMigrations = false;
+                if (!context.request().content().isBlank()) {
+                    forceMigrations = parseContext(context,
+                        org.icij.datashare.Objects.StartNeo4jAppRequest.class
+                    ).forceMigration;
+                }
+                boolean alreadyRunning = this.startNeo4jApp(forceMigrations);
+                return new Payload(new ServerStartResponse(alreadyRunning));
+            }
+        );
     }
 
     @Post("/stop")
-    public ServerStopResponse postStopNeo4jApp() throws IOException, InterruptedException {
-        // TODO: ideally user can't stop the extension unless in LOCAL model
-        return new ServerStopResponse(stopServerProcess());
+    public Payload postStopNeo4jApp() {
+        return wrapNeo4jAppCall(() -> new ServerStopResponse(stopServerProcess())
+        );
     }
 
     @Get("/status")
-    public Neo4jAppStatus getStopNeo4jApp() throws IOException, InterruptedException {
-        boolean isRunning = neo4jAppPid() != null;
-        return new Neo4jAppStatus(isRunning);
+    public Payload getStopNeo4jApp() {
+        return wrapNeo4jAppCall(() -> {
+            boolean isRunning = neo4jAppPid() != null;
+            return new Neo4jAppStatus(isRunning);
+        });
     }
 
     @Post("/documents?project=:project")
-    public Payload postDocuments(String project, Context context)
-        throws IOException {
-        checkProjectAccess(project, context);
-        // TODO: this should throw a bad request when not parsed correcly...
-        org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
-            context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
+    public Payload postDocuments(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
-            try {
-                return this.importDocuments(project, incrementalImportRequest);
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            checkProjectAccess(project, context);
+            org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
+                parseContext(context, org.icij.datashare.Objects.IncrementalImportRequest.class);
+            return this.importDocuments(project, incrementalImportRequest);
         });
     }
 
     @Post("/named-entities?project=:project")
-    public Payload postNamedEntities(String project, Context context)
-        throws IOException {
-        checkProjectAccess(project, context);
-        // TODO: this should throw a bad request when not parsed correcly...
-        org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
-            context.extract(org.icij.datashare.Objects.IncrementalImportRequest.class);
+    public Payload postNamedEntities(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
-            try {
-                return this.importNamedEntities(project, incrementalImportRequest);
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            checkProjectAccess(project, context);
+            // TODO: this should throw a bad request when not parsed correcly...
+            org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
+                parseContext(context, org.icij.datashare.Objects.IncrementalImportRequest.class);
+            return this.importNamedEntities(project, incrementalImportRequest);
         });
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     @Post("/admin/neo4j-csvs?project=:project")
-    public Payload postNeo4jCSVs(String project, Context context) throws IOException {
-        checkCheckLocal();
-        checkProjectAccess(project, context);
-        org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request =
-            context.extract(org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest.class);
+    public Payload postNeo4jCSVs(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
-            try {
-                return this.exportNeo4jCSVs(project, request);
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            checkCheckLocal();
+            checkProjectAccess(project, context);
+            org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request = parseContext(
+                context, org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest.class);
+            return this.exportNeo4jCSVs(project, request);
         });
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
     @Post("/graphs/dump?project=:project")
-    public Payload postGraphDump(String project, Context context) throws IOException {
-        checkProjectAccess(project, context);
-        org.icij.datashare.Objects.DumpRequest request =
-            context.extract(org.icij.datashare.Objects.DumpRequest.class);
+    public Payload postGraphDump(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
-            try {
-                return this.dumpGraph(project, request);
-            } catch (URISyntaxException | IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            checkProjectAccess(project, context);
+            org.icij.datashare.Objects.DumpRequest request = parseContext(
+                context, org.icij.datashare.Objects.DumpRequest.class);
+            return this.dumpGraph(project, request);
         });
     }
 
     @Post("/graphs/sorted-dump?project=:project")
-    public Payload postSortedGraphDump(String project, Context context) throws IOException {
-        checkProjectAccess(project, context);
-        org.icij.datashare.Objects.SortedDumpRequest request =
-            context.extract(org.icij.datashare.Objects.SortedDumpRequest.class);
+    public Payload postSortedGraphDump(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
-            try {
-                return this.sortedDumpGraph(project, request);
-            } catch (URISyntaxException | IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            checkProjectAccess(project, context);
+            org.icij.datashare.Objects.SortedDumpRequest request = parseContext(
+                context, org.icij.datashare.Objects.SortedDumpRequest.class);
+            return this.sortedDumpGraph(project, request);
         });
     }
 
 
-    private void checkNeo4jAppStarted() throws IOException, InterruptedException {
+    private void checkNeo4jAppStarted() {
         if (neo4jAppPid() == null) {
             throw new Neo4jNotRunningError();
         }
     }
 
-    private boolean startNeo4jApp(boolean forceMigrations)
-        throws IOException, InterruptedException {
+    private boolean startNeo4jApp(boolean forceMigrations) {
         boolean alreadyRunning = neo4jAppPid() != null;
         if (!alreadyRunning) {
             synchronized (Neo4jResource.class) {
@@ -259,15 +242,23 @@ public class Neo4jResource {
         return alreadyRunning;
     }
 
-    protected void startServerProcess(boolean forceMigrations)
-        throws IOException, InterruptedException {
-        File propertiesFile = createTempFile("neo4j-", "-datashare.properties");
+    protected void startServerProcess(boolean forceMigrations) {
+        File propertiesFile;
+        try {
+            propertiesFile = createTempFile("neo4j-", "-datashare.properties");
+        } catch (IOException e) {
+            throw new RuntimeException("Failed create temporary properties file", e);
+        }
         logger.debug("Copying Datashare properties to temporary location {}",
             lazy(propertiesFile::getAbsolutePath));
 
-        this.propertiesProvider
-            .getProperties()
-            .store(Files.newOutputStream(propertiesFile.toPath().toAbsolutePath()), null);
+        try {
+            this.propertiesProvider
+                .getProperties()
+                .store(Files.newOutputStream(propertiesFile.toPath().toAbsolutePath()), null);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write properties in temporary location", e);
+        }
 
         List<String> startServerCmd;
         Optional<String> propertiesCmd = this.propertiesProvider
@@ -277,7 +268,12 @@ public class Neo4jResource {
         } else {
             String version = getExtensionVersion();
             logger.debug("Load neo4j app version {}", version);
-            File serverBinary = this.appLoader.downloadApp(version);
+            File serverBinary;
+            try {
+                serverBinary = this.appLoader.downloadApp(version);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to download app", e);
+            }
             // Let's copy the app binary somewhere accessible on the fs
             try (InputStream serverBytesStream = new FileInputStream(serverBinary)) {
                 Path tmpServerBinaryPath = Files.createTempDirectory("neo4j-app")
@@ -291,6 +287,8 @@ public class Neo4jResource {
                     appBinaryPath = tmpServerBinaryPath;
                 }
                 (new File(tmpServerBinaryPath.toAbsolutePath().toString())).setExecutable(true);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read app binary", e);
             }
             startServerCmd = Arrays.asList(
                 appBinaryPath.toString(),
@@ -320,11 +318,20 @@ public class Neo4jResource {
         checkServerCommand(startServerCmd);
         logger.info("Starting Python app running \"{}\"",
             lazy(() -> String.join(" ", startServerCmd)));
-        Process serverProcess = new ProcessBuilder(startServerCmd).start();
-        ProcessUtils.dumpPid(
-            Files.createTempFile(TMP_ROOT, NEO4J_APP_BIN + "_", ".pid").toFile(),
-            serverProcess.pid()
-        );
+        Process serverProcess;
+        try {
+            serverProcess = new ProcessBuilder(startServerCmd).start();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to start sever process", e);
+        }
+        try {
+            ProcessUtils.dumpPid(
+                Files.createTempFile(TMP_ROOT, NEO4J_APP_BIN + "_", ".pid").toFile(),
+                serverProcess.pid()
+            );
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to dump app PID in " + TMP_ROOT, e);
+        }
         this.waitForServerToBeUp();
     }
 
@@ -343,7 +350,7 @@ public class Neo4jResource {
         }
     }
 
-    protected static boolean stopServerProcess() throws IOException, InterruptedException {
+    protected static boolean stopServerProcess() {
         boolean alreadyStopped = neo4jAppPid() == null;
         if (!alreadyStopped) {
             synchronized (Neo4jResource.class) {
@@ -352,7 +359,13 @@ public class Neo4jResource {
                     ProcessUtils.killProcessById(pid);
                     Path maybePidPath = neo4jAppPidPath();
                     if (maybePidPath != null) {
-                        Files.delete(maybePidPath);
+                        try {
+                            Files.delete(maybePidPath);
+                        } catch (IOException e) {
+                            throw new RuntimeException(
+                                "Failed to delete PID file at " + maybePidPath, e
+                            );
+                        }
                     }
                 }
             }
@@ -360,7 +373,7 @@ public class Neo4jResource {
         return alreadyStopped;
     }
 
-    private static Path neo4jAppPidPath() throws IOException {
+    private static Path neo4jAppPidPath() {
         PathMatcher pathMatcher = FileSystems.getDefault().getPathMatcher(PID_FILE_PATTERN);
         try (Stream<Path> paths = Files.list(TMP_ROOT)) {
             List<Path> pidFilePaths = paths
@@ -377,10 +390,12 @@ public class Neo4jResource {
                 throw new RuntimeException(msg);
             }
             return pidFilePaths.get(0);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to list files in " + TMP_ROOT, e);
         }
     }
 
-    private static Long neo4jAppPid() throws IOException, InterruptedException {
+    private static Long neo4jAppPid() {
         Path maybePidPath = neo4jAppPidPath();
         if (maybePidPath != null) {
             Long maybePid = ProcessUtils.isProcessRunning(maybePidPath, 500, TimeUnit.MILLISECONDS);
@@ -388,7 +403,11 @@ public class Neo4jResource {
                 return maybePid;
             }
             // If the process is dead, let's clean the pid file
-            Files.delete(maybePidPath);
+            try {
+                Files.delete(maybePidPath);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to deleted PID file at " + maybePidPath, e);
+            }
         }
         return null;
     }
@@ -397,7 +416,7 @@ public class Neo4jResource {
     protected org.icij.datashare.Objects.IncrementalImportResponse importDocuments(
         String projectId,
         org.icij.datashare.Objects.IncrementalImportRequest request
-    ) throws IOException, InterruptedException {
+    ) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         String db = neo4jProjectDatabase(projectId);
@@ -406,7 +425,7 @@ public class Neo4jResource {
 
     protected org.icij.datashare.Objects.IncrementalImportResponse importNamedEntities(
         String projectId, org.icij.datashare.Objects.IncrementalImportRequest request
-    ) throws IOException, InterruptedException {
+    ) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         String db = neo4jProjectDatabase(projectId);
@@ -416,8 +435,7 @@ public class Neo4jResource {
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     protected InputStream exportNeo4jCSVs(
         String projectId, org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request
-    )
-        throws IOException, InterruptedException {
+    ) {
         // TODO: the database should be chosen dynamically with the Mode (local vs. server) and
         //  the project
         checkExtensionProject(projectId);
@@ -433,12 +451,18 @@ public class Neo4jResource {
             exportDir = Paths.get(res.path);
             InputStream is = new FileInputStream(res.path);
             return new BufferedInputStream(is);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException("Failed to read exported CSV", e);
         } finally {
             if (exportDir != null) {
-                Files.walk(exportDir)
-                    .sorted(Comparator.reverseOrder())
-                    .map(Path::toFile)
-                    .forEach(File::delete);
+                try {
+                    Files.walk(exportDir)
+                        .sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
     }
@@ -469,9 +493,9 @@ public class Neo4jResource {
         return client.dumpGraph(database, neo4jAppRequest);
     }
 
-    private <T> Payload wrapNeo4jAppCall(Provider<T> responseProvider) {
+    private <T> Payload wrapNeo4jAppCall(Callable<T> responseProvider) {
         try {
-            return new Payload(responseProvider.get()).withCode(200);
+            return new Payload(responseProvider.call()).withCode(200);
         } catch (InvalidProjectError e) {
             return new Payload("application/problem+json", e).withCode(403);
         } catch (Neo4jNotRunningError e) {
@@ -479,13 +503,17 @@ public class Neo4jResource {
         } catch (Neo4jClient.Neo4jAppError e) { // TODO: this should be done automatically...
             logger.error("internal error on the python app side {}", e.getMessage());
             return new Payload("application/problem+json", e).withCode(500);
+        } catch (ForbiddenException e) {
+            return new Payload("application/problem+json", fromException(e)).withCode(403);
+        } catch (HttpUtils.BadRequest e) {
+            return new Payload("application/problem+json", fromException(e)).withCode(400);
         } catch (Exception e) { // TODO: this should be done automatically...
             logger.error("internal error on the java extension side {}", e.getMessage());
-            return new Payload("application/problem+json", e).withCode(500);
+            return new Payload("application/problem+json", fromException(e)).withCode(500);
         }
     }
 
-    protected void checkProjectAccess(String project, Context context) {
+    protected void checkProjectAccess(String project, Context context) throws ForbiddenException {
         if (!((User) context.currentUser()).isGranted(project)) {
             throw new ForbiddenException();
         }
@@ -562,11 +590,7 @@ public class Neo4jResource {
         }
 
         public void run() {
-            try {
-                this.resource.stopServerProcess();
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            this.resource.stopServerProcess();
             if (this.resource.appBinaryPath != null) {
                 File appBinFile = new File(this.resource.appBinaryPath.toAbsolutePath().toString());
                 if (appBinFile.exists()) {
@@ -615,13 +639,10 @@ public class Neo4jResource {
         }
     }
 
-    static class Neo4jAlreadyRunningError extends HttpUtils.HttpError {
-        public static final String title = "neo4j app already running";
-        public static final String detail =
-            "neo4j Python app is already running likely in another phantom process";
-
-        Neo4jAlreadyRunningError() {
-            super(title, detail);
+    protected static class Neo4jAlreadyRunningError extends HttpUtils.HttpError {
+        protected Neo4jAlreadyRunningError() {
+            super(Neo4jAlreadyRunningError.class.getSimpleName(),
+                "neo4j Python app is already running, likely in another phantom process");
         }
     }
 
