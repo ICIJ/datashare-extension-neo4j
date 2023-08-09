@@ -111,8 +111,7 @@ public class Neo4jResourceTest {
         }
 
         @Override
-        public void afterEach(ExtensionContext extensionContext)
-            throws IOException, InterruptedException {
+        public void afterEach(ExtensionContext extensionContext) {
             Neo4jResource.stopServerProcess();
             reset(parentRepository);
         }
@@ -138,8 +137,7 @@ public class Neo4jResourceTest {
         }
 
         @Override
-        public void afterEach(ExtensionContext extensionContext)
-            throws IOException, InterruptedException {
+        public void afterEach(ExtensionContext extensionContext) {
             Neo4jResource.stopServerProcess();
         }
     }
@@ -151,8 +149,7 @@ public class Neo4jResourceTest {
         }
 
         @Override
-        public void afterEach(ExtensionContext extensionContext)
-            throws IOException, InterruptedException {
+        public void afterEach(ExtensionContext extensionContext) {
             Neo4jResource.stopServerProcess();
         }
     }
@@ -170,9 +167,11 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_not_be_running_by_default() throws IOException, InterruptedException {
+        public void test_not_be_running_by_default() {
             // When
-            Neo4jResource.Neo4jAppStatus status = neo4jAppResource.getStopNeo4jApp();
+            Payload payload = neo4jAppResource.getStopNeo4jApp();
+            Neo4jResource.Neo4jAppStatus status =
+                (Neo4jResource.Neo4jAppStatus) payload.rawContent();
             // Then
             assertThat(status.isRunning).isFalse();
         }
@@ -235,7 +234,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_status_when_running() throws IOException, InterruptedException {
+        public void test_get_status_when_running() {
             // When
             neo4jAppResource.startServerProcess(false);
             Response response =
@@ -264,8 +263,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_start_should_return_200_when_already_started()
-            throws IOException, InterruptedException {
+        public void test_post_start_should_return_200_when_already_started() {
             // When
             neo4jAppResource.startServerProcess(false);
             Response response =
@@ -294,8 +292,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_stop_should_return_200_when_already_started()
-            throws IOException, InterruptedException {
+        public void test_post_stop_should_return_200_when_already_started() {
             // When
             neo4jAppResource.startServerProcess(false);
             Response response =
@@ -322,13 +319,12 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_start_should_return_500_for_phantom_process()
-            throws InterruptedException {
+        public void test_post_start_should_return_500_for_phantom_process() {
             // Given
             try (PhantomPythonServerMock ignored = new PhantomPythonServerMock()) {
                 // When
-                Response response =
-                    post("/api/neo4j/start").withPreemptiveAuthentication("foo", "null").response();
+                Response response = post("/api/neo4j/start").withPreemptiveAuthentication(
+                    "foo", "null").response();
                 // Then
                 assertThat(response.code()).isEqualTo(500);
                 assertJson(
@@ -336,25 +332,27 @@ public class Neo4jResourceTest {
                     HttpUtils.HttpError.class,
                     status -> assertThat(status.detail)
                         .isEqualTo(
-                            "neo4j Python app is already running likely in another phantom process")
+                            "neo4j Python app is already running, likely in another phantom process")
                 );
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
         }
 
         class PhantomPythonServerMock implements AutoCloseable {
             private final Process process;
 
-            public PhantomPythonServerMock() throws IOException, InterruptedException {
-                this.process = new ProcessBuilder(
-                    "python3",
-                    "-m",
-                    "http.server",
-                    "-d",
-                    "src/test/resources/python_mock",
-                    "8080"
-                ).start();
+            public PhantomPythonServerMock() {
+                try {
+                    this.process = new ProcessBuilder(
+                        "python3",
+                        "-m",
+                        "http.server",
+                        "-d",
+                        "src/test/resources/python_mock",
+                        "8080"
+                    ).start();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 neo4jAppResource.waitForServerToBeUp();
             }
 
@@ -377,8 +375,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_documents_import_should_return_200()
-            throws IOException, InterruptedException {
+        public void test_post_documents_import_should_return_200() {
             // Given
             neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
@@ -426,8 +423,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_named_entities_import_should_return_200()
-            throws IOException, InterruptedException {
+        public void test_post_named_entities_import_should_return_200() {
             // Given
             neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
@@ -485,8 +481,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_graph_dump_should_return_200()
-            throws IOException, InterruptedException {
+        public void test_post_graph_dump_should_return_200() {
             // Given
             neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
@@ -505,8 +500,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_graph_dump_should_return_401_for_unauthorized_user()
-            throws IOException, InterruptedException {
+        public void test_post_graph_dump_should_return_401_for_unauthorized_user() {
             // Given
             neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
@@ -523,8 +517,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_graph_dump_should_return_403_for_forbidden_mask()
-            throws IOException, InterruptedException {
+        public void test_post_graph_dump_should_return_403_for_forbidden_mask() {
             // Given
             neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
@@ -543,8 +536,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_sorted_graph_dump_should_return_200()
-            throws IOException, InterruptedException {
+        public void test_post_sorted_graph_dump_should_return_200() {
             // Given
             neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
@@ -566,8 +558,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_sorted_graph_dump_should_return_401_for_unauthorized_user()
-            throws IOException, InterruptedException {
+        public void test_post_sorted_graph_dump_should_return_401_for_unauthorized_user() {
             // Given
             neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
@@ -587,8 +578,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_sorted_graph_dump_should_return_403_for_forbidden_mask()
-            throws IOException, InterruptedException {
+        public void test_post_sorted_graph_dump_should_return_403_for_forbidden_mask() {
             // Given
             neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
@@ -620,8 +610,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_admin_neo4j_csvs_should_return_200()
-            throws IOException, InterruptedException {
+        public void test_post_admin_neo4j_csvs_should_return_200() throws IOException {
             // Given
             Path exportPath = null;
             byte[] exportContent = "exportbytescompressedintoatargz".getBytes();
@@ -683,8 +672,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_admin_neo4j_csvs_should_return_200()
-            throws IOException, InterruptedException {
+        public void test_post_admin_neo4j_csvs_should_return_200() throws IOException {
             // Given
             Path exportPath = null;
             byte[] exportContent = "exportbytescompressedintoatargz".getBytes();

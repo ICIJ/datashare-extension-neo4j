@@ -45,11 +45,15 @@ public class Neo4jAppLoader {
         this.propertiesProvider = propertiesProvider;
     }
 
-    public static String getExtensionVersion() throws IOException {
+    public static String getExtensionVersion() {
         Properties neo4jExtensionProps = new Properties();
         InputStream propStream = ClassLoader.getSystemResourceAsStream(
             "datashare-extension-neo4j.properties");
-        neo4jExtensionProps.load(propStream);
+        try {
+            neo4jExtensionProps.load(propStream);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed load extension properties", e);
+        }
         return Objects.requireNonNull(neo4jExtensionProps.getProperty("project.version"),
             "Couldn't find project.version in extension properties");
     }

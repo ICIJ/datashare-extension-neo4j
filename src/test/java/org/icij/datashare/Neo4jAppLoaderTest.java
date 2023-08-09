@@ -77,7 +77,7 @@ public class Neo4jAppLoaderTest {
     }
 
     @Test
-    public void test_get_extension_version() throws IOException {
+    public void test_get_extension_version() {
         // When
         String version = getExtensionVersion();
         // Then

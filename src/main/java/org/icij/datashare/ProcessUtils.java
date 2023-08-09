@@ -18,8 +18,7 @@ public class ProcessUtils {
         }
     }
 
-    public static Long isProcessRunning(Path pidPath, int timeout, TimeUnit timeunit)
-        throws IOException, InterruptedException {
+    public static Long isProcessRunning(Path pidPath, int timeout, TimeUnit timeunit) {
         try (Stream<String> lines = Files.lines(pidPath)) {
             Long pid = Long.parseLong(
                 lines.findFirst()
@@ -29,30 +28,36 @@ public class ProcessUtils {
             if (isProcessRunning(pid, timeout, timeunit)) {
                 return pid;
             }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read PID file", e);
         }
         return null;
     }
 
-    public static boolean isProcessRunning(Long pid, int timeout, TimeUnit timeunit)
-        throws IOException, InterruptedException {
+    public static boolean isProcessRunning(Long pid, int timeout, TimeUnit timeunit) {
         boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
         if (isWindows) {
             throw new RuntimeException("Datashare neo4j extension is not supported on Windows");
         }
         ProcessBuilder builder = new ProcessBuilder();
         builder.command("ps", "-p", pid.toString());
-        Process process = builder.start();
-        if (process.waitFor(timeout, timeunit)) {
-            return process.exitValue() == 0;
-        } else {
-            throw new RuntimeException(
-                "Failed to process "
-                    + pid
-                    + "status using the ps command in less than "
-                    + timeout
-                    + timeunit.toString()
-            );
+        Process process;
+        try {
+            process = builder.start();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to build ps command", e);
         }
+        try {
+            process.waitFor(timeout, timeunit);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(
+                "Failed to execute ps command for process "
+                    + pid
+                    + " in less than "
+                    + timeout
+                    + timeunit.toString(), e);
+        }
+        return process.exitValue() == 0;
     }
 
     public static void killProcessById(Long pid) {
