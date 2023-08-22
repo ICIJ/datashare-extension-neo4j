@@ -500,14 +500,14 @@ public class Neo4jResource {
             return new Payload("application/problem+json", e).withCode(403);
         } catch (Neo4jNotRunningError e) {
             return new Payload("application/problem+json", e).withCode(503);
-        } catch (Neo4jClient.Neo4jAppError e) { // TODO: this should be done automatically...
+        } catch (Neo4jClient.Neo4jAppError e) {
             logger.error("internal error on the python app side {}", e.getMessage());
             return new Payload("application/problem+json", e).withCode(500);
         } catch (ForbiddenException e) {
             return new Payload("application/problem+json", fromException(e)).withCode(403);
         } catch (HttpUtils.BadRequest e) {
             return new Payload("application/problem+json", fromException(e)).withCode(400);
-        } catch (Exception e) { // TODO: this should be done automatically...
+        } catch (Exception e) {
             logger.error("internal error on the java extension side {}", e.getMessage());
             return new Payload("application/problem+json", fromException(e)).withCode(500);
         }
