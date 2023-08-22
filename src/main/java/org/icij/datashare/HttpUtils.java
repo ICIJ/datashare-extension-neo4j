@@ -35,7 +35,7 @@ public class HttpUtils {
 
         @Override
         public String getMessage() {
-            String msg = "Title: " + this.title;
+            String msg = this.title;
             msg += "\nDetail: " + this.detail;
             if (this.trace != null) {
                 msg += "\nTrace: " + this.trace;
