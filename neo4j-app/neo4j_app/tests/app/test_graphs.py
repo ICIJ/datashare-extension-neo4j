@@ -44,8 +44,8 @@ RETURN data;
                     "format": "gephi",
                     "batchSize": 20000,
                     "stream": True,
-                    "readLabels": True,
-                    "storeNodeIds": True,
+                    "readLabels": False,
+                    "storeNodeIds": False,
                 },
                 query_filter="""MATCH (node)
 OPTIONAL MATCH (d)-[r]-(other)
