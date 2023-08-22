@@ -9,8 +9,8 @@ _GRAPHML_DUMP_CONFIG = {
     "format": "gephi",
     "batchSize": 20000,
     "stream": True,
-    "readLabels": True,
-    "storeNodeIds": True,
+    "readLabels": False,
+    "storeNodeIds": False,
 }
 
 _CYPHER_DUMP_CONFIG = {
