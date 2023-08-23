@@ -79,6 +79,7 @@ public class Objects {
                 .limit(defaultLimit)
                 .build();
         }
+
         private static List<Neo4jUtils.Match> defaultMatchClause() {
             Neo4jUtils.PatternNode doc = new Neo4jUtils.PatternNode(
                 "doc", List.of(DOC_NODE), null);
