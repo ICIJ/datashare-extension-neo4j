@@ -1,8 +1,5 @@
 <template>
-  <div>
-    <!-- TODO: display error in href when in error ? -->
-    <b-badge :variant="batchVariant"> {{ batchLabel }}</b-badge>
-  </div>
+    <b-badge :variant="batchVariant">{{ batchLabel }}</b-badge>
 </template>
 
 <script>
@@ -21,13 +18,13 @@ export default {
     badge() {
       switch (this.status) {
         case AppStatus.Error:
-          return { variant: "danger", label: "Error" }
+          return { variant: "danger", label: "ERROR" }
         case AppStatus.Running:
-          return { variant: "success", label: "Running" }
+          return { variant: "success", label: "RUNNING" }
         case AppStatus.Starting:
-          return { variant: "primary", label: "Starting" }
+          return { variant: "primary", label: "STARTING" }
         default:
-          return { variant: "secondary", label: "Stopped" }
+          return { variant: "secondary", label: "STOPPED" }
       }
     },
   }

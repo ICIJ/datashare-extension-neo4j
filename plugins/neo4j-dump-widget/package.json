@@ -6,6 +6,7 @@
   "dependencies": {
     "@popperjs/core": "^2.11.8",
     "axios": "^1.4",
+    "bodybuilder": "^2.5.1",
     "node-sass": "^8",
     "sass-loader": "^10",
     "v-calendar": "^2.4.1",

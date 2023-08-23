@@ -1,64 +1,89 @@
 <template>
-  <div class="project-view-insights">
-    <div class="container project-view-insights__container">
-      <div class="project-view-insights__container__widget" :class="{ card: widget.card }">
-        <b-container fluid>
-          <b-row>
-            <neo4j-status-badge :status="neo4jAppStatus"></neo4j-status-badge>
-          </b-row>
-          <b-form @submit.prevent="dumpGraph" @reset="clearConditions">
-            <b-row>
-              <b-col md="10">
-                <b-row>
-                  <b-col md="auto">
-                    <label :for="`dump-format`">Dump format:</label>
-                  </b-col>
-                  <b-col md="4">
-                    <b-form-select v-model="dumpFormat" :options="availableFormats" id="dump-format" required>Dump
-                      format</b-form-select>
-                  </b-col>
-                </b-row>
-                <ul>
-                  <neo4j-where-condition
-                    v-for="(cond, index) in conditions"
-                    :project="project"
-                    :condition=cond
-                    :key="cond.name"
-                    v-on:removeCondition="conditions.splice(index, 1)">
-                  </neo4j-where-condition>
-                </ul>
-                <b-row align-h="start">
-                  <b-col md="auto" class="pb-2">
-                    <b-button v-on:click="addCondition">Add a filter</b-button>
-                  </b-col>
-                  <b-col md="auto" class="pb-2">
-                    <b-button type="reset">Reset</b-button>
-                  </b-col>
-                </b-row>
-              </b-col>
-              <b-col md="2" align-self="end">
-                <span id="disabled-wrapper" class="d-inline-block" tabindex="0">
-                  <b-button type="submit" :disabled="!neo4jAppIsRunning">Dump graph</b-button>
-                </span>
-                <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">{{ dumpButtonToolTip }}</b-tooltip>
-              </b-col>
-            </b-row>
-          </b-form>
-        </b-container>
-      </div>
+  <div>
+    <div class="widget__header align-items-center card-header d-md-flex">
+      <h4 class="m-0 mr-2">Entity graph</h4>
+      <neo4j-status-badge :status="neo4jAppStatus"></neo4j-status-badge>
+    </div>
+    <div class="project-view-insights card-body">
+      <b-form flex-column @submit.prevent="dumpGraph" @reset="clear">
+        <div class="row">
+          <div class="col-12 col-md-6 flex-column">
+            <b-form-group>
+              <label for="dump-format" class="col-md-4 col-form-label">Dump format</label>
+              <b-form-select
+                class="col-md-8"
+                v-model="dumpFormat"
+                :options="availableFormats"
+                id="dump-format"
+                required>Dump format
+              </b-form-select>
+            </b-form-group>
+            <b-form-group>
+              <label for="file-types" class="col-md-4 col-form-label">File types</label>
+              <b-overlay :show="$wait.is('load all file types')" opacity="0.6" rounded spinner-small no-wrap>
+              </b-overlay>
+              <b-form-select
+                class="col-md-8"
+                v-model="selectedFileTypes"
+                multiple
+                :options="fileTypes"
+                id="file-types">
+              </b-form-select>
+            </b-form-group>
+            <b-form-group>
+              <div class="d-flex flex-nowrap g-0">
+                <label for="input-selected-path" class="col-md-4 col-form-label">Project directory</label>
+                <div class="col-md-8 px-0">
+                  <b-input-group>
+                    <b-form-input :value="selectedPath"
+                      id="input-selected-path"
+                      type="text"
+                      disabled></b-form-input>
+                    <b-button variant="primary" v-b-modal="`treeview`" class="input-group-append">
+                      Select path
+                    </b-button>
+                    <b-modal
+                      id="treeview"
+                      lazy scrollable
+                      size="lg">
+                      <component :is="treeView"
+                        v-model="selectedPath"
+                        id="treeview"
+                        :projects="[project]"
+                        selectable
+                        count>
+                      </component>
+                    </b-modal>
+                  </b-input-group>
+                </div>
+              </div>
+            </b-form-group>
+          </div>
+          <div class="col-12 col-md-6 flex-column d-flex justify-content-end align-items-end">
+            <div>
+              <b-button type="reset" variant="danger" class="mr-2">Reset</b-button>
+              <span id="disabled-wrapper">
+                <b-button type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Dump graph</b-button>
+              </span>
+              <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">{{ dumpButtonToolTip }}</b-tooltip>
+            </div>
+          </div>
+        </div>
+      </b-form>
     </div>
   </div>
 </template>
 
 
 <script>
-import { random } from 'lodash'
+import bodybuilder from 'bodybuilder'
+import { concat, get, map, random } from 'lodash'
+import { mapState } from 'vuex'
 import { default as Condition } from '../core/Neo4jWhereCondition.js'
-import { neo4jModule, AppStatus } from '../store/Neo4jModule'
-import { default as Utils } from '../core/Utils'
-import { default as Neo4jWhereCondition } from '../components/Neo4jWhereCondition.vue'
+import { AppStatus } from '../store/Neo4jModule'
 import { default as Neo4jStatusBadge } from '../components/Neo4jStatusBadge.vue'
 import { default as polling } from '../core/mixin/polling'
+
 
 const DOC_CONTENT_TYPE = "contentType"
 const DOC_PATH = "path"
@@ -66,8 +91,8 @@ const DOC_PROPERTIES = Object.fromEntries([
   [DOC_PATH, { type: "localPath" }],
   [DOC_CONTENT_TYPE, { type: "string" }]
 ])
-// TODO: can we do simpler than this
 const SHOULD_START_APP_STATUSES = new Set([AppStatus.Error, AppStatus.Stopped].map(x => AppStatus[x]))
+const GRAPHML = 'graphml'
 
 export default {
   name: 'WidgetNeo4jDump',
@@ -78,33 +103,32 @@ export default {
   },
   mixins: [polling],
   components: {
-    Neo4jWhereCondition,
     Neo4jStatusBadge,
   },
   data() {
     return {
-      conditions: [],
-      dumpFormat: null,
       availableFormats: [
         { value: null, text: 'Select a format' },
         { value: 'cypher-shell', text: 'Cypher shell' },
-        { value: 'graphml', text: 'GraphML' },
+        { value: GRAPHML, text: 'GraphML' },
       ],
+      dumpFormat: null,
+      fileType: null,
+      fileTypes: [],
+      selectedFileTypes: [],
+      selectedPath: this.$config.get('mountedDataDir') || this.$config.get('dataDir'),
     }
   },
   async created() {
-    // TODO: this should not be here, other components might use the state...
-    const binded = this.$store.hasModule('neo4j')
-    if (!binded) {
-      this.$store.registerModule('neo4j', neo4jModule)
-    }
+    this.getFileTypes()
     await this.resfreshNeo4jAppStatus()
-    // TODO: probably same here
     await this.startNeo4jAppIfNeed()
-    // TODO: probably same here
     const fn = this.resfreshNeo4jAppStatus
     const timeout = () => random(5000, 10000)
     this.registerPollOnce({ fn, timeout })
+  },
+  unmounted() {
+    this.unregisteredPolls()
   },
   computed: {
     locale() {
@@ -121,91 +145,150 @@ export default {
       }
       return null
     },
-    project() {
-      // Modify this when in the project page
-      return this.$store.state.search.index
+    dumpExtension() {
+      if (this.dumpFormat === null) {
+        return null
+      }
+      return this.dumpFormat === GRAPHML ? '.graphml' : '.dump'
     },
-    neo4jAppStatus() {
-      return this.$store.getters['neo4j/status']
+    project() {
+      return this.$store.state.search.index
     },
     neo4jAppIsRunning() {
       return this.neo4jAppStatus === AppStatus.Running
     },
+    ...mapState('neo4j', ['neo4jAppStatus'])
   },
   methods: {
     addCondition() {
       this.conditions.push(new Condition({ properties: DOC_PROPERTIES, variableName: 'doc' }))
     },
+    async aggregate(field, name) {
+      let body, options, responses, searchResult
+      let after = null
+      let result = []
+      while (responses === undefined || responses.length === 10) {
+        options = after ? { after } : {}
+        body = bodybuilder()
+          .size(0)
+          .agg('composite', { sources: [{ field: { terms: { field } } }] }, options, name)
+          .build()
+        searchResult = await this.$core.api.elasticsearch.search({
+          index: this.project,
+          body
+        })
+        after = get(searchResult, ['aggregations', name, 'after_key'], null)
+        responses = get(searchResult, ['aggregations', name, 'buckets'], [])
+        result = concat(result, map(responses, 'key.field'))
+      }
+      return result
+    },
     async dumpGraph() {
       const request = this.getDumpRequest()
-      let blob = this.postDumpRequest(request)
-      if (blob) {
-        // TODO: is this right ????
-        const url = window.URL.createObjectURL(new Blob([blob]));
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = 'neo4j.dump';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-      } else {
-        // TODO: handle error
+      const res = await this.postDumpRequest(request)
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `datashare-graph${this.dumpExtension}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    },
+    clear() {
+      this.dumpFormat = null
+      this.selectedPath = this.$config.get('mountedDataDir') || this.$config.get('dataDir')
+      this.selectedFileTypes = []
+    },
+    fileTypeToWhere(type) {
+      return {
+        isEqualTo: {
+          property: {
+            variable: 'doc',
+            name: 'contentType',
+          },
+          value: {
+            literal: type,
+          }
+        }
       }
     },
-    clearConditions() {
-      this.conditions = []
+    filePathToWhere(path) {
+      return {
+        startsWith: {
+          property: {
+            variable: 'doc',
+            name: 'path',
+          },
+          value: {
+            literal: path,
+          }
+        }
+      }
     },
     getDBSchema() {
-      // TODO: actually get the schema
       return [
         {
-          property: "dirname",
-          type: "text",
-          label: "Directory",
-          placeholder: "Ex: /some/directory"
+          property: 'dirname',
+          type: 'text',
+          label: 'Directory',
+          placeholder: 'Ex: /some/directory'
         },
         {
-          property: "contentType",
-          type: "text",
-          label: "Content type",
-          placeholder: "comma separated list of extension: pdf,png"
+          property: 'contentType',
+          type: 'text',
+          label: 'Content type',
+          placeholder: 'comma separated list of extension: pdf,png'
         },
         {
-          property: "maxExtractionDate",
-          type: "date",
-          label: "Content type",
-          placeholder: "comma separated list of extension: pdf,png"
+          property: 'maxExtractionDate',
+          type: 'date',
+          label: 'Content type',
+          placeholder: 'comma separated list of extension: pdf,png'
         }
       ]
     },
     getDumpRequest() {
       return {
         format: this.dumpFormat,
-        query: this.getGumpQuery(),
+        query: this.getDumpQuery(),
       }
     },
-    getGumpQuery() {
-      var where = this.conditions.map(c => c.toWhere()).filter(w => w !== null)
-      if (!where.length) {
-        return {}
+    getDumpQuery() {
+      let where = []
+      if (this.selectedFileTypes) {
+        where = this.selectedFileTypes.map(t => this.fileTypeToWhere(t))
       }
-      if (where.length > 1) {
-        where = { and: where }
+      if (this.selectedPath) {
+        where.push(this.filePathToWhere(this.selectedPath))
       }
-      return { where: where }
+      if (where) {
+        if (where.length > 1) {
+          where = { and: where }
+        } else {
+          where = where[0]
+        }
+        return { where: null }
+      }
+      return {}
     },
-    async postDumpRequest(request) {
+    postDumpRequest(request) {
       const config = {
         method: 'POST',
         data: request,
         headers: {
           "Content-Type": "application/json",
         },
+        responseType: 'stream'
       }
-      return await Utils.request(`/graphs/dump?project=${this.project}`, config)
+      return this.$neo4jCore.request(`/api/neo4j/graphs/dump?project=${this.project}`, config)
     },
-    // TODO: move this elsewhere this shouldn't be handled here
+    async getFileTypes() {
+      this.$wait.start('load all file types')
+      this.fileTypes = await this.aggregate('contentType', 'contentType')
+      this.$wait.end('load all file types')
+    },
     async startNeo4jAppIfNeed() {
       const shouldStart = SHOULD_START_APP_STATUSES;
       if (shouldStart.has(this.$store.getters['neo4j/status'])) {
@@ -220,19 +303,17 @@ export default {
         },
       }
       this.$store.commit('neo4j/status', AppStatus.Starting)
-      await Utils.request(`/start`, config)
+      await this.$neo4jCore.request('/api/neo4j/start', config)
       this.$store.commit('neo4j/status', AppStatus.Started)
     },
-    // TODO: we might want to use the mapActions here
     async resfreshNeo4jAppStatus() {
       await this.$store.dispatch('neo4j/refreshStatus')
-    }
+    },
+    async treeView() {
+      return this.$core.findComponent('TreeView')
+    },
   }
 }
 </script>
 
-<style lang="scss" scoped>
-.widget--text {
-  min-height: 100%;
-}
-</style>
+<style lang="scss" scoped></style>
