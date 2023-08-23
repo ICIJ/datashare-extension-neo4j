@@ -21,7 +21,6 @@ from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
 from neo4j_app.core.neo4j.migrations import delete_all_migrations
-from neo4j_app.core.utils.logging import DifferedLoggingMessage
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
 
