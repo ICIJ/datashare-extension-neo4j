@@ -1,5 +1,3 @@
-import { default as Utils } from '../core/Utils'
-
 export const AppStatus = {
   Error: 'Error',
   Running: 'Running',
@@ -7,23 +5,11 @@ export const AppStatus = {
   Stopped: 'Stopped',
 }
 
-export const neo4jModule = {
-  namespaced: true,
-  state: () => ({ neo4jAppStatus: AppStatus.Stopped }),
-  getters: {
-    status(state) {
-      return state.neo4jAppStatus
-    }
-  },
-  mutations: {
-    status(state, newStatus) {
-      state.neo4jAppStatus = newStatus
-    }
-  },
-  actions: {
+function actionBuilder(extension) {
+  return {
     async refreshStatus({ commit, state }) {
-      const res = await Utils.request('/status', { method: 'GET' })
-      const {isRunning} = await res.json()
+      const res = await extension.request('/api/neo4j/status', { method: 'GET' })
+      const { isRunning } = await res.json()
       if (isRunning) {
         if (state.neo4jAppStatus !== AppStatus.Running) {
           commit('status', AppStatus.Running)
@@ -35,4 +21,29 @@ export const neo4jModule = {
   }
 }
 
-export default neo4jModule
+function initialState() { return { neo4jAppStatus: AppStatus.Stopped } }
+
+const state = initialState()
+const mutations = {
+  status(state, newStatus) {
+    state.neo4jAppStatus = newStatus
+  }
+}
+const getters = {
+  status(state) {
+    return state.neo4jAppStatus
+  }
+}
+
+function neo4jStoreBuilder(extension) {
+  return {
+    namespaced: true,
+    state,
+    mutations,
+    getters,
+    actions: actionBuilder(extension)
+  }
+}
+
+
+export default neo4jStoreBuilder

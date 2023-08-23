@@ -18,7 +18,6 @@ redisPoolSize=1
 mode=LOCAL
 previewHost=http\://localhost\:5000
 busType=MEMORY
-defaultProject=local
 scrollSize=1000
 oauthTokenUrl=http\://xemx\:3001/oauth/token
 tcpListenPort=8080
