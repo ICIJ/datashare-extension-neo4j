@@ -23,7 +23,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 
 public class Neo4jAppLoaderTest {
-    private final static String mockedBinaryName = "neo4j-app";
+    private static final String mockedBinaryName = "neo4j-app";
     @TempDir
     private static Path tmpDir;
     private static String mockedBinaryPath;

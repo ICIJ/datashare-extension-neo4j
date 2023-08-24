@@ -327,12 +327,13 @@ public class Neo4jResourceTest {
                     "foo", "null").response();
                 // Then
                 assertThat(response.code()).isEqualTo(500);
+                String expected = "neo4j Python app is already running, likely in another phantom"
+                    + " process";
                 assertJson(
                     response.content(),
                     HttpUtils.HttpError.class,
                     status -> assertThat(status.detail)
-                        .isEqualTo(
-                            "neo4j Python app is already running, likely in another phantom process")
+                        .isEqualTo(expected)
                 );
             }
         }
@@ -547,7 +548,8 @@ public class Neo4jResourceTest {
             // When
             String body = "{"
                 + "\"format\": \"graphml\", "
-                + "\"query\": {\"sort\": [{\"property\": \"path\", \"direction\": \"DESC\"}], \"limit\": 10}"
+                + "\"query\": {\"sort\": [{\"property\": \"path\", \"direction\": \"DESC\"}],"
+                + " \"limit\": 10}"
                 + "}";
             Response response = post("/api/neo4j/graphs/sorted-dump?project=foo-datashare",
                 body).withPreemptiveAuthentication("foo", "null").response();
@@ -625,10 +627,10 @@ public class Neo4jResourceTest {
                         "/admin/neo4j-csvs",
                         context -> new Payload(
                             "application/json",
-                            "{" +
-                                "\"path\": \"" + exportPathAsString + "\"," +
-                                "\"metadata\": {\"nodes\": [], \"relationships\": []}" +
-                                "}"
+                            "{"
+                                + "\"path\": \"" + exportPathAsString + "\","
+                                + "\"metadata\": {\"nodes\": [], \"relationships\": []}"
+                            + "}"
                         )
                     )
                 );
@@ -687,10 +689,10 @@ public class Neo4jResourceTest {
                         "/admin/neo4j-csvs",
                         context -> new Payload(
                             "application/json",
-                            "{" +
-                                "\"path\": \"" + exportPathAsString + "\"," +
-                                "\"metadata\": {\"nodes\": [], \"relationships\": []}" +
-                                "}"
+                            "{"
+                                + "\"path\": \"" + exportPathAsString + "\","
+                                + "\"metadata\": {\"nodes\": [], \"relationships\": []}"
+                                + "}"
                         )
                     )
                 );

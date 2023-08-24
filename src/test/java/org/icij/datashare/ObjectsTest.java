@@ -93,9 +93,11 @@ public class ObjectsTest {
                 // match
                 Neo4jUtils.PatternNode node0 =
                     new Neo4jUtils.PatternNode("doc", List.of("Document", "Important"),
-                        new HashMap<>() {{
-                            put("created", "someDate");
-                        }});
+                        new HashMap<>() {
+                            {
+                                put("created", "someDate");
+                            }
+                        });
                 Neo4jUtils.PatternNode node1 =
                     new Neo4jUtils.PatternNode("person", List.of("NamedEntity", "Person"), null);
                 Neo4jUtils.PatternRelationship rel =
@@ -149,8 +151,10 @@ public class ObjectsTest {
 
                 // Then
                 String expected =
-                    "MATCH (doc:`Document`:`Important` {created: 'someDate'})<-[rel:`APPEARS_IN`]-(person:`NamedEntity`:`Person`) "
-                        + "WHERE (doc.path STARTS WITH 'some/path/prefix' AND person.docId = doc.id) "
+                    "MATCH (doc:`Document`:`Important` {created: 'someDate'})"
+                        + "<-[rel:`APPEARS_IN`]-(person:`NamedEntity`:`Person`) "
+                        + "WHERE (doc.path STARTS WITH 'some/path/prefix'"
+                        + " AND person.docId = doc.id) "
                         + "RETURN * "
                         + "ORDER BY doc.path DESC "
                         + "LIMIT 100";
