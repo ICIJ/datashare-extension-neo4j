@@ -22,6 +22,7 @@ elasticsearch = {version = "<7.14", extras = ["async"]}
 neo4j = "^5.5.0"
 setuptools = "^67.6.1"
 datrie = "^0.8.2"
+tenacity = "^8.2.3"
 
 [tool.poetry.group.dev.dependencies]
 fastapi = { version = "^0.99.1", extras = ["all"] }

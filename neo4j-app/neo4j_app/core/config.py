@@ -37,6 +37,8 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_doc_type_field: str = Field(alias="docTypeField", default="type")
     es_default_page_size: int = 1000
     es_max_concurrency: int = 5
+    es_max_retries: int = 0
+    es_max_retry_wait_s: Union[int, float] = 60
     es_timeout_s: Union[int, float] = 60 * 5
     es_keep_alive: str = "1m"
     neo4j_app_host: str = "127.0.0.1"
@@ -149,6 +151,8 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             pagination=self.es_default_page_size,
             max_concurrency=self.es_max_concurrency,
             timeout=self.es_timeout_s,
+            max_retries=self.es_max_retries,
+            max_retry_wait_s=self.es_max_retry_wait_s,
         )
         return client
 
