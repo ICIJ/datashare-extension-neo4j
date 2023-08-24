@@ -3,6 +3,8 @@ package org.icij.datashare;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -27,7 +29,7 @@ public class Neo4jClient {
     }
 
     public Objects.IncrementalImportResponse importDocuments(
-        String database, String  index, Objects.IncrementalImportRequest body
+        String database, String index, Objects.IncrementalImportRequest body
     ) {
         String url = buildNeo4jUrl("/documents?database=" + database + "&index=" + index);
         logger.debug("Importing documents to neo4j with request: {}",
@@ -42,7 +44,7 @@ public class Neo4jClient {
     public Objects.IncrementalImportResponse importNamedEntities(
         String database, String index, Objects.IncrementalImportRequest body
     ) {
-        String url = buildNeo4jUrl("/named-entities?database=" + database  + "&index=" + index);
+        String url = buildNeo4jUrl("/named-entities?database=" + database + "&index=" + index);
         logger.debug("Importing named entities to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
@@ -71,7 +73,7 @@ public class Neo4jClient {
     public Objects.Neo4jCSVResponse exportNeo4jCSVs(
         String database, String index, Objects.Neo4jAppNeo4jCSVRequest body
     ) {
-        String url = buildNeo4jUrl("/admin/neo4j-csvs?database=" + database  + "&index=" + index);
+        String url = buildNeo4jUrl("/admin/neo4j-csvs?database=" + database + "&index=" + index);
         logger.debug("Exporting data to neo4j csv with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
@@ -119,13 +121,42 @@ public class Neo4jClient {
         return response.body();
     }
 
-    static class Neo4jAppError extends HttpUtils.HttpError {
-        Neo4jAppError(String title, String detail) {
-            super(title, detail);
+    static class Neo4jAppError extends RuntimeException {
+        protected String title;
+        protected String detail;
+        protected String trace;
+
+        @JsonCreator
+        protected Neo4jAppError(
+            @JsonProperty("title") String title,
+            @JsonProperty("detail") String detail,
+            @JsonProperty("trace") String trace
+        ) {
+            this.title = title;
+            this.detail = detail;
+            this.trace = trace;
         }
 
-        Neo4jAppError(HttpUtils.HttpError error) {
-            super(error.title, error.detail, error.trace);
+        protected Neo4jAppError(String title, String detail) {
+            this(title, detail, null);
+        }
+
+        protected Neo4jAppError(HttpUtils.HttpError error) {
+            this(error.title, error.detail, error.trace);
+        }
+
+        HttpUtils.HttpError toHttp() {
+            return new HttpUtils.HttpError(this.title, this.detail, this.trace);
+        }
+
+        @Override
+        public String getMessage() {
+            String msg = this.title;
+            msg += "\nDetail: " + this.detail;
+            if (this.trace != null) {
+                msg += "\nTrace: " + this.trace;
+            }
+            return msg;
         }
     }
 

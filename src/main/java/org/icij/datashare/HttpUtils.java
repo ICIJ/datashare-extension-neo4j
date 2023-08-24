@@ -1,6 +1,7 @@
 package org.icij.datashare;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIncludeProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.IOException;
@@ -12,6 +13,7 @@ public class HttpUtils {
 
     // Follow the JSON error + detail spec https://datatracker.ietf.org/doc/html/draft-ietf-appsawg-http-problem-00#page-4
     @JsonIncludeProperties({"title", "detail", "trace"})
+    @JsonIgnoreProperties(value = {"trace"})
     protected static class HttpError extends RuntimeException {
         public String title;
         public String detail;
@@ -35,8 +37,11 @@ public class HttpUtils {
 
         @Override
         public String getMessage() {
-            String msg = this.title;
-            msg += "\nDetail: " + this.detail;
+            return this.title + "\nDetail: " + this.detail;
+        }
+
+        protected String getMessageWithTrace() {
+            String msg = this.getMessage();
             if (this.trace != null) {
                 msg += "\nTrace: " + this.trace;
             }
