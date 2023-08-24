@@ -1,12 +1,23 @@
+import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, AsyncGenerator, Collection, Dict, List, Mapping, Optional, Type
 
 import pytest
 import pytest_asyncio
+from elasticsearch import TransportError
+from tenacity import RetryCallState, Retrying
 
 from neo4j_app.core.elasticsearch import ESClient
+from neo4j_app.core.elasticsearch.client import PointInTime, _retry_if_error_code
+from neo4j_app.core.elasticsearch.utils import HITS, SCROLL_ID_, SORT
 from neo4j_app.core.neo4j import get_neo4j_csv_writer
-from neo4j_app.tests.conftest import TEST_INDEX, index_noise
+from neo4j_app.tests.conftest import (
+    ELASTICSEARCH_TEST_PORT,
+    TEST_INDEX,
+    fail_if_exception,
+    index_noise,
+)
 
 
 @pytest_asyncio.fixture(scope="module")
@@ -80,3 +91,139 @@ async def test_write_concurrently_neo4j_csv(
     # Then
     assert total_hits == expected_num_lines - 1
     assert num_lines == expected_num_lines
+
+
+class _MockFailingESClient(ESClient):
+    _returned = {SCROLL_ID_: "scroll-0", HITS: {HITS: [{SORT: None}]}}
+    _last_returned = {SCROLL_ID_: "scroll-0", HITS: {HITS: []}}
+
+    def __init__(
+        self,
+        hits: int,
+        failure: Optional[Exception],
+        fail_at: List[int] = None,
+        **kwargs,
+    ):
+        hosts = [{"host": "localhost", "port": ELASTICSEARCH_TEST_PORT}]
+        super().__init__(pagination=1, hosts=hosts, **kwargs)
+        self._n_calls: int = 0
+        self._n_returned: int = 0
+        if fail_at is None:
+            fail_at = []
+        self._fail_at = set(fail_at)
+        self._failure = failure
+        self._hits = hits
+
+    async def search(self, **kwargs) -> Dict[str, Any]:
+        # pylint: disable=arguments-differ
+        return await self._call(**kwargs)
+
+    async def scroll(self, **kwargs) -> Any:
+        # pylint: disable=arguments-differ
+        return await self._call(**kwargs)
+
+    async def clear_scroll(self, **kwargs) -> Any:
+        # pylint: disable=arguments-differ
+        pass
+
+    @asynccontextmanager
+    async def try_open_pit(
+        self, *, index: str, keep_alive: str, **kwargs
+    ) -> AsyncGenerator[Optional[PointInTime], None]:
+        yield dict()
+
+    async def _call(self, **kwargs) -> Dict[str, Any]:
+        # pylint: disable=unused-argument
+        if isinstance(self._failure, Exception) and self._n_calls in self._fail_at:
+            self._n_calls += 1
+            raise self._failure
+        self._n_calls += 1
+        self._n_returned += 1
+        returned = (
+            self._last_returned if self._n_returned >= self._hits else self._returned
+        )
+        return returned
+
+
+def _make_transport_error(error_code: int) -> TransportError:
+    return TransportError(error_code, "", "")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "fail_at,max_retries,failure,raised",
+    [
+        # No failure
+        (None, 10, None, None),
+        # 0 retries
+        ([0], 0, _make_transport_error(429), TransportError),
+        # Failure at the first call (which is different when polling/scrolling),
+        # recovery
+        ([0], 2, _make_transport_error(429), None),
+        # Failure after the first call, recovery
+        ([1], 2, _make_transport_error(429), None),
+        # Recurring failure after the first call, exceeds retries
+        (list(range(1, 100)), 2, _make_transport_error(429), TransportError),
+        # Recurring failure after the first call, recovery
+        ([1, 2], 10, _make_transport_error(429), None),
+        # A non recoverable transport error
+        ([1, 2], 10, _make_transport_error(400), TransportError),
+    ],
+)
+async def test_poll_search_pages_should_retry(
+    fail_at: Optional[int],
+    max_retries: int,
+    failure: Optional[Exception],
+    raised: Type[Exception],
+):
+    # Given
+    n_hits = 3
+    client = _MockFailingESClient(
+        max_retries=max_retries,
+        max_retry_wait_s=int(1e-6),
+        hits=n_hits,
+        fail_at=fail_at,
+        failure=failure,
+    )
+
+    # When/Then
+    pages = client.poll_search_pages(index="", body={})
+
+    if raised is not None:
+        with pytest.raises(raised):
+            _ = [h async for h in pages]
+    else:
+        with fail_if_exception(msg="Failed to retrieve search hits"):
+            hits = [h async for h in pages]
+        assert len(hits) == n_hits
+
+
+@pytest.mark.parametrize(
+    "error_codes,raised,expected_should_retry",
+    [
+        ([], TransportError(429), False),
+        ([], ValueError(), False),
+        ([429], TransportError(429), True),
+        ([400, 429], TransportError(400), True),
+        ([400, 429], TransportError(401), False),
+    ],
+)
+def test_retry_if_error_code(
+    error_codes: Collection[int],
+    raised: Optional[Exception],
+    expected_should_retry: bool,
+):
+    # Given
+    retry = _retry_if_error_code(error_codes)
+    retry_state = RetryCallState(Retrying(), None, None, None)
+    if raised:
+        try:
+            raise raised
+        except:  # pylint: disable=bare-except
+            retry_state.set_exception(sys.exc_info())
+
+    # When
+    should_retry = retry(retry_state)
+
+    # Then
+    assert should_retry == expected_should_retry

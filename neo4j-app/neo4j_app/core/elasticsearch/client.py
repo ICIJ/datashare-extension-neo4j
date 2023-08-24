@@ -9,16 +9,27 @@ from typing import (
     Any,
     AsyncGenerator,
     Callable,
+    Collection,
     Dict,
     List,
     Mapping,
     Optional,
+    Set,
     TextIO,
     Tuple,
+    Union,
 )
 
 import neo4j
-from elasticsearch import AsyncElasticsearch
+from elasticsearch import AsyncElasticsearch, TransportError
+from tenacity import (
+    AsyncRetrying,
+    RetryCallState,
+    before_sleep_log,
+    retry_base,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 from neo4j_app.core.elasticsearch.utils import (
     ASC,
@@ -52,6 +63,7 @@ _OS_PIT_VERSION = StrictVersion("1.3")
 
 class ESClientABC(metaclass=abc.ABCMeta):
     min_pit_version: StrictVersion
+    _recoverable_error_codes: Set[int] = {429}
 
     def __init__(
         self,
@@ -59,6 +71,8 @@ class ESClientABC(metaclass=abc.ABCMeta):
         pagination: int,
         keep_alive: str = "1m",
         max_concurrency: int = 5,
+        max_retries: int = 0,
+        max_retry_wait_s: Union[int, float] = 60,
     ):
         # pylint: disable=super-init-not-called
         if pagination > 10000:
@@ -66,6 +80,8 @@ class ESClientABC(metaclass=abc.ABCMeta):
         self._pagination_size = pagination
         self._keep_alive = keep_alive
         self._max_concurrency = max_concurrency
+        self._max_retries = max_retries
+        self._max_retry_wait_s = max_retry_wait_s
         self._version: Optional[StrictVersion] = None
 
     @cached_property
@@ -95,6 +111,15 @@ class ESClientABC(metaclass=abc.ABCMeta):
     def default_sort(self, pit_search: bool) -> str:
         pass
 
+    def _async_retrying(self) -> AsyncRetrying:
+        return AsyncRetrying(
+            wait=wait_random_exponential(max=self._max_retry_wait_s),
+            stop=stop_after_attempt(self._max_retries),
+            retry=_retry_if_error_code(self._recoverable_error_codes),
+            before_sleep=before_sleep_log(logger, logging.ERROR),
+            reraise=True,
+        )
+
     async def search(self, **kwargs) -> Dict[str, Any]:
         # pylint: disable=arguments-differ
         if PIT not in kwargs and PIT not in kwargs.get("body", {}):
@@ -120,13 +145,14 @@ class ESClientABC(metaclass=abc.ABCMeta):
         size: Optional[int] = None,
         **kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        retrying = self._async_retrying()
         if sort is None:
             sort = self.default_sort(pit_search=True)
         if size is None:
             size = self.pagination_size
         if not size:
             raise ValueError("size is expected to be > 0")
-        res = await self.search(size=size, sort=sort, **kwargs)
+        res = await retrying(self.search, size=size, sort=sort, **kwargs)
         kwargs = deepcopy(kwargs)
         yield res
         page_hits = res[HITS][HITS]
@@ -139,7 +165,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 kwargs["body"][SEARCH_AFTER] = search_after
             else:
                 kwargs[SEARCH_AFTER] = search_after
-            res = await self.search(size=size, sort=sort, **kwargs)
+            res = await retrying(self.search, size=size, sort=sort, **kwargs)
             yield res
             page_hits = res[HITS][HITS]
 
@@ -152,16 +178,25 @@ class ESClientABC(metaclass=abc.ABCMeta):
         size: Optional[int] = None,
         **kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        retrying = self._async_retrying()
         if sort is None:
             sort = self.default_sort(pit_search=False)
-        res = await self.search(
-            index=index, body=query, scroll=scroll, size=size, sort=sort, **kwargs
+        res = await retrying(
+            self.search,
+            index=index,
+            body=query,
+            scroll=scroll,
+            size=size,
+            sort=sort,
+            **kwargs,
         )
         scroll_id = res.get(SCROLL_ID_)
         try:
             while scroll_id and res[HITS][HITS]:
                 yield res
-                res = await self.scroll(body={SCROLL_ID: scroll_id, SCROLL: scroll})
+                res = await retrying(
+                    self.scroll, body={SCROLL_ID: scroll_id, SCROLL: scroll}
+                )
                 scroll_id = res.get(SCROLL_ID_)
         finally:
             await self.clear_scroll(
@@ -439,15 +474,6 @@ class ESClientABC(metaclass=abc.ABCMeta):
         return total_nodes, total_rels
 
 
-async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]):
-    # Let's monitor the time it takes to enqueue the batch, if it's long it
-    # means that more neo4j workers are needed
-    with log_elapsed_time_cm(
-        logger, logging.DEBUG, "Waited {elapsed_time} to enqueue batch"
-    ):
-        await queue.put(copy(import_batch))
-
-
 class ESClient(ESClientABC, AsyncElasticsearch):
     min_pit_version = _ES_PIT_VERSION
 
@@ -457,6 +483,8 @@ class ESClient(ESClientABC, AsyncElasticsearch):
         pagination: int,
         keep_alive: str = "1m",
         max_concurrency: int = 5,
+        max_retries: int = 0,
+        max_retry_wait_s: Union[int, float] = 60,
         **kwargs,
     ):
         ESClientABC.__init__(
@@ -464,6 +492,8 @@ class ESClient(ESClientABC, AsyncElasticsearch):
             pagination=pagination,
             keep_alive=keep_alive,
             max_concurrency=max_concurrency,
+            max_retries=max_retries,
+            max_retry_wait_s=max_retry_wait_s,
         )
         AsyncElasticsearch.__init__(self, **kwargs)
 
@@ -493,6 +523,8 @@ try:
             pagination: int,
             keep_alive: str = "1m",
             max_concurrency: int = 5,
+            max_retries: int = 0,
+            max_retry_wait_s: Union[int, float] = 60,
             **kwargs,
         ):
             ESClientABC.__init__(
@@ -500,6 +532,8 @@ try:
                 pagination=pagination,
                 keep_alive=keep_alive,
                 max_concurrency=max_concurrency,
+                max_retries=max_retries,
+                max_retry_wait_s=max_retry_wait_s,
             )
             AsyncOpenSearch.__init__(self, **kwargs)
 
@@ -531,6 +565,15 @@ except ImportError:
     pass
 
 
+async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]):
+    # Let's monitor the time it takes to enqueue the batch, if it's long it
+    # means that more neo4j workers are needed
+    with log_elapsed_time_cm(
+        logger, logging.DEBUG, "Waited {elapsed_time} to enqueue batch"
+    ):
+        await queue.put(copy(import_batch))
+
+
 def sliced_search(
     query: Optional[Dict[str, Any]],
     *,
@@ -550,3 +593,16 @@ def sliced_search(
             update[PIT][KEEP_ALIVE] = keep_alive
     query.update(update)
     return query
+
+
+class _retry_if_error_code(retry_base):  # pylint: disable=invalid-name
+    def __init__(self, codes: Collection[int]):
+        self._recoverable = set(codes)
+
+    def __call__(self, retry_state: RetryCallState) -> bool:
+        if retry_state.outcome.failed:
+            exc = retry_state.outcome.exception()
+            return (
+                isinstance(exc, TransportError) and exc.status_code in self._recoverable
+            )
+        return False
