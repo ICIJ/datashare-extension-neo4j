@@ -491,7 +491,9 @@ async def _mocked_project_db_session(
         yield sess
 
 
-async def _mocked_project_registry_db(neo4j_driver: neo4j.AsyncDriver) -> str:
+async def _mocked_project_registry_db(
+        neo4j_driver: neo4j.AsyncDriver # pylint: disable=unused-argument
+) -> str:
     return NEO4J_COMMUNITY_DB
 
 
