@@ -18,6 +18,7 @@ from neo4j_app.tests.conftest import fail_if_exception, mock_enterprise_
 async def test_should_create_project_registry_db_with_enterprise_distribution(
     mock_enterprise,
 ):
+    # pylint: disable=unused-argument
     # Given
     mocked_driver = AsyncMock()
 

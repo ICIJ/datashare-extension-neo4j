@@ -20,7 +20,6 @@ from neo4j_app.constants import (
     MIGRATION_STARTED,
     MIGRATION_STATUS,
     MIGRATION_VERSION,
-    PROJECT_REGISTRY_DB,
 )
 from neo4j_app.core.neo4j.projects import (
     Project,
