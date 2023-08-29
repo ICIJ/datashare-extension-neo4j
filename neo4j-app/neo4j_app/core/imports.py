@@ -91,7 +91,7 @@ from neo4j_app.core.neo4j.named_entities import (
     import_named_entity_rows,
     ne_creation_stats_tx,
 )
-from neo4j_app.core.neo4j.projects import project_db
+from neo4j_app.core.neo4j.projects import project_db, project_index
 from neo4j_app.core.objects import (
     IncrementalImportResponse,
     Neo4jCSVResponse,
@@ -128,7 +128,6 @@ async def import_documents(
     *,
     project: str,
     es_client: ESClientABC,
-    es_index: str,
     es_query: Optional[Dict],
     es_concurrency: Optional[int] = None,
     es_keep_alive: Optional[str] = None,
@@ -139,6 +138,7 @@ async def import_documents(
     max_records_in_memory: int,
 ) -> IncrementalImportResponse:
     neo4j_db = await project_db(neo4j_driver, project)
+    es_index = project_index(project)
     es_query = _make_document_query(es_query, es_doc_type_field)
     if es_concurrency is None:
         es_concurrency = es_client.max_concurrency
@@ -183,7 +183,6 @@ async def import_named_entities(
     *,
     project: str,
     es_client: ESClientABC,
-    es_index: str,
     es_query: Optional[Dict],
     es_concurrency: Optional[int] = None,
     es_keep_alive: Optional[str] = None,
@@ -194,6 +193,7 @@ async def import_named_entities(
     max_records_in_memory: int,
 ) -> IncrementalImportResponse:
     neo4j_db = await project_db(neo4j_driver, project)
+    es_index = project_index(project)
     async with neo4j_driver.session(database=neo4j_db) as neo4j_session:
         document_ids = await neo4j_session.execute_read(documents_ids_tx)
         # Because of this neo4j limitation (https://github.com/neo4j/neo4j/issues/13139)
@@ -295,13 +295,13 @@ async def to_neo4j_csvs(
     export_dir: Path,
     es_query: Optional[Dict],
     es_client: ESClientABC,
-    es_index: str,
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
     es_doc_type_field: str,
     neo4j_driver: neo4j.AsyncDriver,
 ) -> Neo4jCSVResponse:
     neo4j_db = await project_db(neo4j_driver, project)
+    es_index = project_index(project)
     nodes = []
     relationships = []
     async with es_client.try_open_pit(index=es_index, keep_alive=es_keep_alive) as pit:
@@ -582,7 +582,6 @@ async def _aggregate_and_write_ne_nodes_and_relationships(
             row for hit in res[HITS][HITS] for row in es_to_neo4j_relationships(hit)
         ]
         for rel in ne_rels:
-            buffer = _fill_ne_aggregation_buffer(buffer, rel)
             doc_id = rel[_DOC_REL_END_CSV_COL]
             # Let's empty the buffer when we find a new document to avoid filling
             # memory
@@ -599,7 +598,8 @@ async def _aggregate_and_write_ne_nodes_and_relationships(
                         )
                         relationships_f.flush()
                         buffer = defaultdict(dict)
-                        seen_docs = set()
+                        seen_docs = {current_doc_id}
+            buffer = _fill_ne_aggregation_buffer(buffer, rel)
         async with lock:
             ne_with_keys = ((_ne_trie_key(ne), ne) for ne in ne_rows)
             new_rows = []

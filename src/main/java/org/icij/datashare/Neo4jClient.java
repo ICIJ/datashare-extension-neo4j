@@ -41,9 +41,9 @@ public class Neo4jClient {
     }
 
     public Objects.IncrementalImportResponse importDocuments(
-        String database, String index, Objects.IncrementalImportRequest body
+        String project, Objects.IncrementalImportRequest body
     ) {
-        String url = buildNeo4jUrl("/documents?database=" + database + "&index=" + index);
+        String url = buildNeo4jUrl("/documents?project=" + project);
         logger.debug("Importing documents to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
@@ -54,9 +54,9 @@ public class Neo4jClient {
     }
 
     public Objects.IncrementalImportResponse importNamedEntities(
-        String database, String index, Objects.IncrementalImportRequest body
+        String project, Objects.IncrementalImportRequest body
     ) {
-        String url = buildNeo4jUrl("/named-entities?database=" + database + "&index=" + index);
+        String url = buildNeo4jUrl("/named-entities?project=" + project);
         logger.debug("Importing named entities to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
@@ -66,7 +66,7 @@ public class Neo4jClient {
         );
     }
 
-    public InputStream dumpGraph(String database, Objects.Neo4jAppDumpRequest body)
+    public InputStream dumpGraph(String project, Objects.Neo4jAppDumpRequest body)
         throws URISyntaxException, IOException, InterruptedException {
         // Let's use the native HTTP client here as unirest doesn't offer an easy way to deal with
         // stream responses...
@@ -76,7 +76,7 @@ public class Neo4jClient {
         java.net.http.HttpRequest request =
             java.net.http.HttpRequest.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
-                .uri(new URI(buildNeo4jUrl("/graphs/dump?database=" + database)))
+                .uri(new URI(buildNeo4jUrl("/graphs/dump?project=" + project)))
                 .POST(serializedBody)
                 .header("Content-Type", "application/json")
                 .build();
@@ -109,9 +109,9 @@ public class Neo4jClient {
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     public Objects.Neo4jCSVResponse exportNeo4jCSVs(
-        String database, String index, Objects.Neo4jAppNeo4jCSVRequest body
+        String projectId, Objects.Neo4jAppNeo4jCSVRequest body
     ) {
-        String url = buildNeo4jUrl("/admin/neo4j-csvs?database=" + database + "&index=" + index);
+        String url = buildNeo4jUrl("/admin/neo4j-csvs?project=" + projectId);
         logger.debug("Exporting data to neo4j csv with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return doHttpRequest(
