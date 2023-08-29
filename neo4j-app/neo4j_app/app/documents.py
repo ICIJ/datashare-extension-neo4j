@@ -28,7 +28,6 @@ def documents_router() -> APIRouter:
     )
     async def _import_documents(
         project: str,
-        index: str,
         payload: IncrementalImportRequest,
         request: Request,
         neo4j_driver: neo4j.AsyncDriver = Depends(neo4j_driver_dep),
@@ -41,7 +40,6 @@ def documents_router() -> APIRouter:
             res = await import_documents(
                 project=project,
                 es_client=es_client,
-                es_index=index,
                 es_query=payload.query,
                 es_concurrency=es_client.max_concurrency,
                 es_keep_alive=config.es_keep_alive,

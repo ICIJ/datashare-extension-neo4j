@@ -32,7 +32,6 @@ from neo4j_app.core.objects import (
     RelationshipCSVs,
 )
 from neo4j_app.tests.conftest import (
-    TEST_INDEX,
     TEST_PROJECT,
     assert_content,
     index_docs,
@@ -71,16 +70,15 @@ async def _populate_es(
     es_test_client_module: ESClient,
 ) -> AsyncGenerator[ESClient, None]:
     es_client = es_test_client_module
-    index_name = TEST_INDEX
     n = 20
     # Index some Documents
-    async for _ in index_docs(es_client, index_name=index_name, n=n):
+    async for _ in index_docs(es_client, n=n):
         pass
     # Index entities
-    async for _ in index_named_entities(es_client, index_name=index_name, n=n):
+    async for _ in index_named_entities(es_client, n=n):
         pass
     # Index other noise
-    async for _ in index_noise(es_client, index_name=index_name, n=n):
+    async for _ in index_noise(es_client, n=n):
         pass
     yield es_client
 
@@ -146,7 +144,6 @@ async def test_import_documents(
     # When
     response = await import_documents(
         project=TEST_PROJECT,
-        es_index=TEST_INDEX,
         es_client=es_client,
         es_query=query,
         es_keep_alive="10s",
@@ -174,7 +171,6 @@ async def test_import_documents_should_forward_project_db(
     # When/Then
     res = await import_documents(
         project=TEST_PROJECT,
-        es_index=TEST_INDEX,
         es_client=es_client,
         es_query=dict(),
         es_keep_alive="10s",
@@ -261,7 +257,6 @@ async def test_import_named_entities(
     response = await import_named_entities(
         project=TEST_PROJECT,
         es_client=es_client,
-        es_index=TEST_INDEX,
         es_query=query,
         es_keep_alive="10s",
         es_doc_type_field=doc_type_field,
@@ -298,7 +293,6 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
         project=TEST_PROJECT,
         es_client=es_client,
         es_query=query,
-        es_index=TEST_INDEX,
         es_keep_alive="10s",
         es_doc_type_field="type",
         neo4j_driver=neo4j_driver,
@@ -351,7 +345,6 @@ async def test_import_named_entities_should_forward_db(
         project=TEST_PROJECT,
         es_client=es_client,
         es_query=dict(),
-        es_index=TEST_INDEX,
         es_keep_alive="10s",
         es_doc_type_field="type",
         neo4j_driver=neo4j_driver,
@@ -455,17 +448,16 @@ async def test_to_neo4j_csvs(
     export_dir = Path(tmpdir)
     es_doc_type_field = "type"
     es_client = _populate_es
-    ids = [f"doc-{i}" for i in range(0, 3 * 3, 3)]
+    doc_ids = [f"doc-{i}" for i in range(0, 3 * 3, 3)]
     # Let's add doc-1 to have at least 1 doc-root
-    ids.append("doc-1")
-    es_query = {"ids": {"values": ids}}
+    doc_ids.append("doc-1")
+    es_query = {"ids": {"values": doc_ids}}
 
     # When
     res = await to_neo4j_csvs(
         project=TEST_PROJECT,
         neo4j_driver=neo4j_driver,
         es_query=es_query,
-        es_index=TEST_INDEX,
         export_dir=export_dir,
         es_client=es_client,
         es_concurrency=None,
@@ -505,7 +497,7 @@ doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
     assert_content(doc_root_rels_path, expected_doc_nodes, sort_lines=True)
 
     ne_nodes_export = metadata.nodes[1]
-    assert ne_nodes_export.n_nodes == 3 * 2
+    assert ne_nodes_export.n_nodes == 3 * 2  # (Person + Location) for n in [0, 2]
     assert ne_nodes_export.labels == [NE_NODE]
 
     ne_nodes_header_path = archive_dir / ne_nodes_export.header_path
@@ -536,6 +528,7 @@ doc-6,doc-5
     assert_content(doc_root_rels_path, expected_doc_root_rels, sort_lines=True)
 
     ne_doc_rels_export = metadata.relationships[1]
+    # (Person + Location) for n in [0, 2]
     assert ne_doc_rels_export.n_relationships == 3 * 2
     assert ne_doc_rels_export.types == [NE_APPEARS_IN_DOC]
 
@@ -650,7 +643,6 @@ async def test_to_neo4j_csvs_should_forward_project_db(
         project=TEST_PROJECT,
         neo4j_driver=neo4j_driver,
         es_query=None,
-        es_index=TEST_INDEX,
         export_dir=export_dir,
         es_client=es_client,
         es_concurrency=None,

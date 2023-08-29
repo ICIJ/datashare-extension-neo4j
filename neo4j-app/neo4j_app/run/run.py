@@ -42,7 +42,7 @@ def _start_app(config_path: Optional[str] = None, force_migrations: bool = False
             )
     else:
         config = AppConfig(
-            neo4j_project="test-datashare-project",
+            neo4j_project="test_project",
         )
     app = create_app(config)
     uvicorn_config = config.to_uvicorn()

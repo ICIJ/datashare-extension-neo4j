@@ -59,10 +59,14 @@ async def project_registry_db(neo4j_driver: neo4j.AsyncDriver) -> str:
     return NEO4J_COMMUNITY_DB
 
 
-async def project_db(neo4j_driver: neo4j.AsyncDriver, project: str):
+async def project_db(neo4j_driver: neo4j.AsyncDriver, project: str) -> str:
     if await is_enterprise(neo4j_driver):
         return project
     return NEO4J_COMMUNITY_DB
+
+
+def project_index(project: str) -> str:
+    return project
 
 
 @asynccontextmanager

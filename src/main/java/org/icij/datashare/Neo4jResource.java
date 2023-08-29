@@ -434,8 +434,7 @@ public class Neo4jResource {
     ) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        String db = neo4jProjectDatabase(projectId);
-        return client.importDocuments(db, projectId, request);
+        return client.importDocuments(projectId, request);
     }
 
     protected org.icij.datashare.Objects.IncrementalImportResponse importNamedEntities(
@@ -443,8 +442,7 @@ public class Neo4jResource {
     ) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        String db = neo4jProjectDatabase(projectId);
-        return client.importNamedEntities(db, projectId, request);
+        return client.importNamedEntities(projectId, request);
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
@@ -455,12 +453,11 @@ public class Neo4jResource {
         //  the project
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        String database = neo4jProjectDatabase(projectId);
         // Define a temp dir
         Path exportDir = null;
         try {
             org.icij.datashare.Objects.Neo4jCSVResponse res =
-                client.exportNeo4jCSVs(database, projectId, request);
+                client.exportNeo4jCSVs(projectId, request);
             logger.info("Exported data from ES to neo4j, statistics: {}",
                 lazy(() -> MAPPER.writeValueAsString(res.metadata)));
             exportDir = Paths.get(res.path);
@@ -490,8 +487,7 @@ public class Neo4jResource {
             request);
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        String database = neo4jProjectDatabase(projectId);
-        return client.dumpGraph(database, neo4jAppRequest);
+        return client.dumpGraph(projectId, neo4jAppRequest);
     }
 
     protected InputStream sortedDumpGraph(
@@ -499,13 +495,12 @@ public class Neo4jResource {
     ) throws URISyntaxException, IOException, InterruptedException {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
-        String database = neo4jProjectDatabase(projectId);
         Statement statement = request.query.defaultQueryStatement(getDocumentNodesLimit());
         org.icij.datashare.Objects.Neo4jAppDumpRequest neo4jAppRequest =
             new org.icij.datashare.Objects.Neo4jAppDumpRequest(
                 request.format, statement.getCypher()
             );
-        return client.dumpGraph(database, neo4jAppRequest);
+        return client.dumpGraph(projectId, neo4jAppRequest);
     }
 
     private <T> Payload wrapNeo4jAppCall(Callable<T> responseProvider) {
@@ -548,15 +543,6 @@ public class Neo4jResource {
         if (!isLocal()) {
             throw new ForbiddenException();
         }
-    }
-
-    protected String neo4jProjectDatabase(String projectId) {
-        // For the neo4j community edition a single neo4j DB is available and its called neo4j,
-        // in this case the neo4jSingleProject is provided in the properties
-        if (this.neo4jSingleProjectId != null) {
-            return NEO4J_DEFAULT_DB;
-        }
-        return projectId;
     }
 
     protected void checkExtensionProject(String candidateProject) {

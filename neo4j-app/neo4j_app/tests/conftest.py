@@ -48,7 +48,6 @@ _INDEX_BODY = {
         }
     }
 }
-TEST_INDEX = "test-datashare-project"
 
 
 class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
@@ -108,7 +107,6 @@ def test_client_session(
     config = AppConfig(
         elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
         es_default_page_size=5,
-        neo4j_project="test-datashare-project",
         neo4j_app_host="127.0.0.1",
         neo4j_port=NEO4J_TEST_PORT,
         neo4j_user=NEO4J_TEST_USER,
@@ -181,7 +179,7 @@ def _make_test_client() -> ESClient:
 async def es_test_client_session() -> AsyncGenerator[ESClient, None]:
     es = _make_test_client()
     await es.indices.delete(index="_all")
-    await es.indices.create(index="test-datashare-project", body=_INDEX_BODY)
+    await es.indices.create(index=TEST_PROJECT, body=_INDEX_BODY)
     yield es
     await es.close()
 
@@ -190,7 +188,7 @@ async def es_test_client_session() -> AsyncGenerator[ESClient, None]:
 async def es_test_client_module() -> AsyncGenerator[ESClient, None]:
     es = _make_test_client()
     await es.indices.delete(index="_all")
-    await es.indices.create(index="test-datashare-project", body=_INDEX_BODY)
+    await es.indices.create(index=TEST_PROJECT, body=_INDEX_BODY)
     yield es
     await es.close()
 
@@ -199,7 +197,7 @@ async def es_test_client_module() -> AsyncGenerator[ESClient, None]:
 async def es_test_client() -> AsyncGenerator[ESClient, None]:
     es = _make_test_client()
     await es.indices.delete(index="_all")
-    await es.indices.create(index="test-datashare-project", body=_INDEX_BODY)
+    await es.indices.create(index=TEST_PROJECT, body=_INDEX_BODY)
     yield es
     await es.close()
 
@@ -339,7 +337,7 @@ def index_named_entities_ops(*, index_name: str, n: int) -> Generator[Dict, None
 
 
 async def index_docs(
-    client: ESClient, *, index_name: str, n: int
+    client: ESClient, *, n: int, index_name: str = TEST_PROJECT
 ) -> AsyncGenerator[Dict, None]:
     ops = index_docs_ops(index_name=index_name, n=n)
     # Let's wait to make this operation visible to the search
@@ -349,7 +347,10 @@ async def index_docs(
 
 
 async def index_noise(
-    client: ESClient, *, index_name: str, n: int
+    client: ESClient,
+    *,
+    n: int,
+    index_name: str = TEST_PROJECT,
 ) -> AsyncGenerator[Dict, None]:
     ops = index_noise_ops(index_name=index_name, n=n)
     # Let's wait to make this operation visible to the search
@@ -359,7 +360,7 @@ async def index_noise(
 
 
 async def index_named_entities(
-    client: ESClient, *, index_name: str, n: int
+    client: ESClient, *, n: int, index_name: str = TEST_PROJECT
 ) -> AsyncGenerator[Dict, None]:
     ops = index_named_entities_ops(index_name=index_name, n=n)
     # Let's wait to make this operation visible to the search
@@ -426,7 +427,7 @@ async def populate_es_with_doc_and_named_entities(
     es_test_client_module: ESClient, n: int
 ):
     es_client = es_test_client_module
-    index_name = TEST_INDEX
+    index_name = TEST_PROJECT
     # Index some Documents
     async for _ in index_docs(es_client, index_name=index_name, n=n):
         pass
@@ -492,7 +493,7 @@ async def _mocked_project_db_session(
 
 
 async def _mocked_project_registry_db(
-        neo4j_driver: neo4j.AsyncDriver # pylint: disable=unused-argument
+    neo4j_driver: neo4j.AsyncDriver,  # pylint: disable=unused-argument
 ) -> str:
     return NEO4J_COMMUNITY_DB
 
