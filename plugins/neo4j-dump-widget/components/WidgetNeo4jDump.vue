@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="widget__header align-items-center card-header d-md-flex">
-      <h4 class="m-0 mr-2">Entity graph</h4>
+      <h4 class="m-0 mr-2">Graph export</h4>
       <neo4j-status-badge :status="neo4jAppStatus"></neo4j-status-badge>
     </div>
     <div class="project-view-insights card-body">
@@ -9,13 +9,13 @@
         <div class="row">
           <div class="col-12 col-md-6 flex-column">
             <b-form-group>
-              <label for="dump-format" class="col-md-4 col-form-label">Dump format</label>
+              <label for="dump-format" class="col-md-4 col-form-label">Export format</label>
               <b-form-select
                 class="col-md-8"
                 v-model="dumpFormat"
                 :options="availableFormats"
                 id="dump-format"
-                required>Dump format
+                required>Export format
               </b-form-select>
             </b-form-group>
             <b-form-group>
@@ -63,7 +63,7 @@
             <div>
               <b-button type="reset" variant="danger" class="mr-2">Reset</b-button>
               <span id="disabled-wrapper">
-                <b-button type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Dump graph</b-button>
+                <b-button type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Export graph</b-button>
               </span>
               <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">{{ dumpButtonToolTip }}</b-tooltip>
             </div>
