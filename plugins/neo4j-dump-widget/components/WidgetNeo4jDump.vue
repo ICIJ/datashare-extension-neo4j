@@ -79,18 +79,10 @@
 import bodybuilder from 'bodybuilder'
 import { concat, get, map, random } from 'lodash'
 import { mapState } from 'vuex'
-import { default as Condition } from '../core/Neo4jWhereCondition.js'
 import { AppStatus } from '../store/Neo4jModule'
 import { default as Neo4jStatusBadge } from '../components/Neo4jStatusBadge.vue'
 import { default as polling } from '../core/mixin/polling'
 
-
-const DOC_CONTENT_TYPE = "contentType"
-const DOC_PATH = "path"
-const DOC_PROPERTIES = Object.fromEntries([
-  [DOC_PATH, { type: "localPath" }],
-  [DOC_CONTENT_TYPE, { type: "string" }]
-])
 const SHOULD_START_APP_STATUSES = new Set([AppStatus.Error, AppStatus.Stopped].map(x => AppStatus[x]))
 const GRAPHML = 'graphml'
 
@@ -160,9 +152,6 @@ export default {
     ...mapState('neo4j', ['neo4jAppStatus'])
   },
   methods: {
-    addCondition() {
-      this.conditions.push(new Condition({ properties: DOC_PROPERTIES, variableName: 'doc' }))
-    },
     async aggregate(field, name) {
       let body, options, responses, searchResult
       let after = null
