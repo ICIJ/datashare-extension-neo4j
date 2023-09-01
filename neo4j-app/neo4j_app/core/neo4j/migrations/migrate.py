@@ -121,7 +121,7 @@ async def _migrate_with_lock(
     await project_session.execute_write(migration.migration_fn)
     # Finally free the lock
     await registry_session.execute_write(
-        complete_migration_run_tx,
+        complete_migration_tx,
         project=project,
         migration_version=str(migration.version),
     )
@@ -158,7 +158,7 @@ RETURN m as migration"""
     return migration
 
 
-async def complete_migration_run_tx(
+async def complete_migration_tx(
     tx: neo4j.AsyncTransaction, *, project: str, migration_version: str
 ) -> Neo4jMigration:
     query = f"""MATCH (m:{MIGRATION_NODE} {{
