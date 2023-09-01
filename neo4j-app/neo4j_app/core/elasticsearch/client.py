@@ -275,6 +275,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
         # return the result summaries
         for task in neo4j_tasks:
             task.cancel()
+        # If there's nothing to import workers are cancelled right await, no need to
+        # wait for tasks to end
+        if not n_imported:
+            return n_imported, []
         # Wait for all results to be there
         summaries = await asyncio.gather(*neo4j_tasks)
         summaries = sum(summaries, [])

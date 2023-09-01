@@ -75,6 +75,12 @@ async def _populate_es(
                 imported=20, nodes_created=20, relationships_created=19
             ),
         ),
+        # No query, let's check that only documents are inserted and not noise
+        (
+            {"ids": {"values": ["i-dont-exist"]}},
+            "type",
+            IncrementalImportResponse(),
+        ),
         # Match all query, let's check that only documents are inserted and not noise
         (
             {"match_all": {}},
@@ -188,6 +194,12 @@ async def test_import_documents_should_forward_db(
                 nodes_created=int(12 / 3 * 2),
                 relationships_created=int(12 / 3 * 2),
             ),
+        ),
+        # Match no ne
+        (
+            {"ids": {"values": ["i-dont-exist"]}},
+            "type",
+            IncrementalImportResponse(),
         ),
         # Match all query, let's check that only ents with doc are inserted
         (
