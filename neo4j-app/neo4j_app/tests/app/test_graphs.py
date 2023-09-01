@@ -173,7 +173,7 @@ async def test_post_graph_dump_should_return_400_for_missing_database(
     assert res.status_code == 400, res.json()
     error = res.json()
     assert error["title"] == "Request Validation Error"
-    assert "field required" in error["detail"][0]["msg"]
+    assert "field required" in error["detail"]
 
 
 @pytest.mark.asyncio
@@ -191,4 +191,4 @@ async def test_post_graph_dump_should_return_400_for_invalid_dump_format(
     assert res.status_code == 400, res.json()
     error = res.json()
     assert error["title"] == "Request Validation Error"
-    assert "value is not a valid enumeration member" in error["detail"][0]["msg"]
+    assert "value is not a valid enumeration member" in error["detail"]

@@ -13,13 +13,8 @@ def test_request_validation_error_handler(error_test_client_session: TestClient)
     assert res.status_code == 400
     error = res.json()
     assert error["title"] == "Request Validation Error"
-    expected_detail = [
-        {
-            "loc": ["body", "mandatory_field"],
-            "msg": "field required",
-            "type": "value_error.missing",
-        }
-    ]
+    expected_detail = """body -> mandatory_field
+  field required (type=value_error.missing)"""
     assert error["detail"] == expected_detail
 
 
