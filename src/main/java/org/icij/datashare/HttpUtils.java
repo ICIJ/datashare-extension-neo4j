@@ -68,7 +68,7 @@ public class HttpUtils {
     protected static <T> T parseContext(Context context, Class<T> clazz) throws BadRequest {
         try {
             return context.extract(clazz);
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             throw new BadRequest("Failed to parse request", e);
         }
     }
