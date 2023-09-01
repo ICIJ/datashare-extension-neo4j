@@ -15,9 +15,7 @@ from neo4j_app.core.utils.logging import DATE_FMT, STREAM_HANDLER_FMT
 
 
 def debug_app():
-    config = AppConfig(
-        neo4j_project="Debug project",
-    )
+    config = AppConfig()
     app = create_app(config)
     return app
 
@@ -41,9 +39,7 @@ def _start_app(config_path: Optional[str] = None, force_migrations: bool = False
                 f, force_migrations=force_migrations
             )
     else:
-        config = AppConfig(
-            neo4j_project="test_project",
-        )
+        config = AppConfig()
     app = create_app(config)
     uvicorn_config = config.to_uvicorn()
     uvicorn.run(app, **uvicorn_config.dict())
