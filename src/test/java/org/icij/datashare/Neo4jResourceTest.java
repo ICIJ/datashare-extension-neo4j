@@ -21,6 +21,7 @@ import org.icij.datashare.text.Project;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,7 +56,14 @@ public class Neo4jResourceTest {
     private static PropertiesProvider propertyProvider;
     private static Repository parentRepository;
 
-    public static class MockAppProperties implements BeforeAllCallback {
+    public static class MockProperties implements AfterEachCallback {
+        @Override
+        public void afterEach(ExtensionContext extensionContext) {
+            Neo4jResource.stopServerProcess();
+        }
+    }
+
+    public static class MockAppProperties extends MockProperties implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
@@ -70,7 +78,8 @@ public class Neo4jResourceTest {
         }
     }
 
-    public static class MockLocalModeProperties implements BeforeAllCallback {
+    public static class MockLocalModeProperties extends MockProperties
+        implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
@@ -84,7 +93,8 @@ public class Neo4jResourceTest {
         }
     }
 
-    public static class MockEmbeddedModeProperties implements BeforeAllCallback {
+    public static class MockEmbeddedModeProperties extends MockProperties
+        implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
@@ -98,7 +108,7 @@ public class Neo4jResourceTest {
         }
     }
 
-    public static class PythonAppProperties implements BeforeAllCallback {
+    public static class PythonAppProperties extends MockProperties implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
@@ -143,7 +153,6 @@ public class Neo4jResourceTest {
 
         @Override
         public void afterEach(ExtensionContext extensionContext) {
-            Neo4jResource.stopServerProcess();
             reset(parentRepository);
         }
     }
@@ -165,7 +174,7 @@ public class Neo4jResourceTest {
         }
     }
 
-    public static class MockNotReadyNeo4jApp  extends ProdWebServerRuleExtension
+    public static class MockNotReadyNeo4jApp extends ProdWebServerRuleExtension
         implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
@@ -174,16 +183,13 @@ public class Neo4jResourceTest {
             neo4jApp.configure(
                 routes -> routes.get(
                     "/ping",
-                    context -> {
-                        throw new RuntimeException("the ping fails here");
-                    }
+                    context -> new Payload(500)
                 )
             );
         }
     }
 
-    public static class MockNeo4jAppWithPythonServer
-        implements BeforeAllCallback, AfterEachCallback {
+    public static class MockNeo4jAppWithPythonServer implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             neo4jAppPort = 8080;
@@ -191,22 +197,12 @@ public class Neo4jResourceTest {
                 throw new RuntimeException("neo4j port matches test server port by mischance...");
             }
         }
-
-        @Override
-        public void afterEach(ExtensionContext extensionContext) {
-            Neo4jResource.stopServerProcess();
-        }
     }
 
-    public static class SetNeo4jAppPort implements BeforeAllCallback, AfterEachCallback {
+    public static class MockOpenPort implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
-            neo4jAppPort = 8080;
-        }
-
-        @Override
-        public void afterEach(ExtensionContext extensionContext) {
-            Neo4jResource.stopServerProcess();
+            neo4jAppPort = port;
         }
     }
 
@@ -361,8 +357,9 @@ public class Neo4jResourceTest {
         }
     }
 
-    @ExtendWith(SetNeo4jAppPort.class)
+    @ExtendWith(MockNeo4jApp.class)
     @ExtendWith(MockAppProperties.class)
+    @ExtendWith(MockOpenPort.class)
     @ExtendWith(BindNeo4jResource.class)
     @DisplayName("Neo4jResource test without mock")
     @Nested
@@ -374,49 +371,21 @@ public class Neo4jResourceTest {
 
         @Test
         public void test_post_start_should_return_500_for_phantom_process() {
-            // Given
-            try (PhantomPythonServerMock ignored = new PhantomPythonServerMock()) {
-                // When
-                Response response = post("/api/neo4j/start").withPreemptiveAuthentication(
-                    "foo", "null").response();
-                // Then
-                assertThat(response.code()).isEqualTo(500);
-                String expected = "neo4j Python app is already running, likely in another phantom"
-                    + " process";
-                assertJson(
-                    response.content(),
-                    HttpUtils.HttpError.class,
-                    status -> assertThat(status.detail)
-                        .isEqualTo(expected)
-                );
-            }
-        }
-
-        class PhantomPythonServerMock implements AutoCloseable {
-            private final Process process;
-
-            public PhantomPythonServerMock() {
-                try {
-                    this.process = new ProcessBuilder(
-                        "python3",
-                        "-m",
-                        "http.server",
-                        "-d",
-                        "src/test/resources/python_mock",
-                        "8080"
-                    ).start();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-                neo4jAppResource.waitForServerToBeUp();
-            }
-
-            @Override
-            public void close() {
-                process.destroyForcibly();
-            }
+            // When
+            Response response = post("/api/neo4j/start").withPreemptiveAuthentication(
+                "foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(500);
+            String expected = "neo4j Python app is already running, likely in another phantom"
+                + " process";
+            assertJson(
+                response.content(),
+                HttpUtils.HttpError.class,
+                status -> assertThat(status.detail).isEqualTo(expected)
+            );
         }
     }
+
 
     @DisplayName("test with mocked app")
     @ExtendWith(MockNeo4jApp.class)
