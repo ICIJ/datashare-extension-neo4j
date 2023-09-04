@@ -67,6 +67,7 @@ public class Neo4jResource {
     private static final HashMap<String, String> DEFAULT_NEO4J_PROPERTIES = new HashMap<>() {
         {
             put("neo4jAppPort", "8008");
+            put("neo4jAppStartTimeout", "30");
             put("neo4jAppSyslogFacility", "LOCAL7");
             put("neo4jHost", "neo4j");
             put("neo4jPassword", "");
@@ -84,7 +85,7 @@ public class Neo4jResource {
     protected final Neo4jClient client;
     private final PropertiesProvider propertiesProvider;
     private final int port;
-    private final String host = "127.0.0.1";
+    protected final String host = "127.0.0.1";
     private String neo4jSingleProjectId;
     private final Neo4jAppLoader appLoader;
     protected Path appBinaryPath;
@@ -114,7 +115,7 @@ public class Neo4jResource {
         Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
     }
 
-    private static boolean isOpen(String host, int port) {
+    protected static boolean isOpen(String host, int port) {
         try (Socket ignored = new Socket(host, port)) {
             return true;
         } catch (IOException ignored) {
@@ -123,8 +124,11 @@ public class Neo4jResource {
     }
 
     protected void waitForServerToBeUp() {
-        for (int nbTries = 0; nbTries < 60; nbTries++) {
-            if (isOpen(this.host, this.port)) {
+        long start = System.currentTimeMillis();
+        long timeout = Long.parseLong(
+            this.propertiesProvider.get("neo4jAppStartTimeout").orElse("30"));
+        while (true) {
+            if (isOpen(this.host, this.port) && pingSuccessful()) {
                 return;
             } else {
                 try {
@@ -133,8 +137,16 @@ public class Neo4jResource {
                     throw new RuntimeException("Thread killed while slipping", e);
                 }
             }
+            long elapsed = 1000 * (System.currentTimeMillis() - start);
+            if (elapsed > timeout) {
+                break;
+            }
         }
-        throw new RuntimeException("Couldn't start Python 30s after starting it !");
+        throw new RuntimeException("Couldn't start Python " + timeout + "s after starting it !");
+    }
+
+    protected boolean pingSuccessful() {
+        return client.pingSuccessful();
     }
 
     @Post("/start")
@@ -221,7 +233,7 @@ public class Neo4jResource {
     }
 
 
-    private void checkNeo4jAppStarted() {
+    protected void checkNeo4jAppStarted() {
         if (neo4jAppPid() == null) {
             throw new Neo4jNotRunningError();
         }
@@ -322,7 +334,7 @@ public class Neo4jResource {
         try {
             serverProcess = new ProcessBuilder(startServerCmd).start();
         } catch (IOException e) {
-            throw new RuntimeException("Failed to start sever process", e);
+            throw new RuntimeException("Failed to start server process", e);
         }
         try {
             ProcessUtils.dumpPid(
