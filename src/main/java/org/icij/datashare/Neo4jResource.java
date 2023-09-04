@@ -125,8 +125,9 @@ public class Neo4jResource {
 
     protected void waitForServerToBeUp() {
         long start = System.currentTimeMillis();
-        long timeout = Long.parseLong(
-            this.propertiesProvider.get("neo4jAppStartTimeout").orElse("30"));
+        long timeout = 1000 * Long.parseLong(
+            this.propertiesProvider.get("neo4jAppStartTimeout").orElse("30")
+        );
         while (true) {
             if (isOpen(this.host, this.port) && pingSuccessful()) {
                 return;
@@ -137,7 +138,7 @@ public class Neo4jResource {
                     throw new RuntimeException("Thread killed while slipping", e);
                 }
             }
-            long elapsed = 1000 * (System.currentTimeMillis() - start);
+            long elapsed = System.currentTimeMillis() - start;
             if (elapsed > timeout) {
                 break;
             }
