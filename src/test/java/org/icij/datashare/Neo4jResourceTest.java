@@ -2,14 +2,17 @@ package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.TestUtils.assertJson;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import net.codestory.http.annotations.Prefix;
 import net.codestory.http.filters.basic.BasicAuthFilter;
 import net.codestory.http.payload.Payload;
 import net.codestory.rest.FluentRestTest;
@@ -23,8 +26,26 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Neo4jResourceTest {
+
+    private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
+
+    @Prefix("/api/neo4j")
+    static class Neo4jResourceWithApp extends Neo4jResource {
+
+        public Neo4jResourceWithApp(Repository repository, PropertiesProvider propertiesProvider) {
+            super(repository, propertiesProvider);
+        }
+
+        @Override
+        protected void checkNeo4jAppStarted() {
+            logger.info(Neo4jResourceWithApp.class.getName() + " is always running");
+        }
+
+    }
 
     static Neo4jClient client;
     private static Neo4jResource neo4jAppResource;
@@ -43,6 +64,7 @@ public class Neo4jResourceTest {
                     put("neo4jSingleProject", "foo-datashare");
                     // TODO: fix this path ?
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
+                    put("neo4jAppStartTimeout", "2");
                 }
             });
         }
@@ -97,11 +119,20 @@ public class Neo4jResourceTest {
         @Mock
         private static Repository mockedRepository;
 
+        protected <T extends Neo4jResource> Class<T> getResourceClass() {
+            return (Class<T>) Neo4jResource.class;
+        }
+
         @Override
-        public void beforeAll(ExtensionContext extensionContext) {
+        public void beforeAll(ExtensionContext extensionContext)
+            throws NoSuchMethodException, InvocationTargetException, InstantiationException,
+            IllegalAccessException {
             initMocks(this);
             parentRepository = mockedRepository;
-            neo4jAppResource = new Neo4jResource(mockedRepository, propertyProvider);
+
+            neo4jAppResource = getResourceClass()
+                .getConstructor(Repository.class, PropertiesProvider.class)
+                .newInstance(mockedRepository, propertyProvider);
             this.configure(
                 routes -> routes
                     .add(neo4jAppResource)
@@ -117,12 +148,37 @@ public class Neo4jResourceTest {
         }
     }
 
+    public static class BindNeo4jResourceWithPid extends BindNeo4jResource {
+        protected <T extends Neo4jResource> Class<T> getResourceClass() {
+            return (Class<T>) Neo4jResourceWithApp.class;
+        }
+    }
+
+
     public static class MockNeo4jApp extends ProdWebServerRuleExtension
         implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             neo4jAppPort = this.port();
             neo4jApp = this;
+            this.configure(routes -> routes.get("/ping", "pong"));
+        }
+    }
+
+    public static class MockNotReadyNeo4jApp  extends ProdWebServerRuleExtension
+        implements BeforeAllCallback {
+        @Override
+        public void beforeAll(ExtensionContext extensionContext) {
+            neo4jAppPort = this.port();
+            neo4jApp = this;
+            neo4jApp.configure(
+                routes -> routes.get(
+                    "/ping",
+                    context -> {
+                        throw new RuntimeException("the ping fails here");
+                    }
+                )
+            );
         }
     }
 
@@ -176,8 +232,6 @@ public class Neo4jResourceTest {
             assertThat(status.isRunning).isFalse();
         }
 
-
-        // TODO: test auth
 
         @Test
         public void test_get_status_should_return_200() {
@@ -367,7 +421,7 @@ public class Neo4jResourceTest {
     @DisplayName("test with mocked app")
     @ExtendWith(MockNeo4jApp.class)
     @ExtendWith(MockAppProperties.class)
-    @ExtendWith(BindNeo4jResource.class)
+    @ExtendWith(BindNeo4jResourceWithPid.class)
     @Nested
     class Neo4jResourceImportTest implements FluentRestTest {
         @Override
@@ -378,7 +432,6 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_documents_import_should_return_200() {
             // Given
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post(
                     "/documents",
@@ -426,7 +479,6 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_named_entities_import_should_return_200() {
             // Given
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post(
                     "/named-entities",
@@ -484,7 +536,6 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_graph_dump_should_return_200() {
             // Given
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump",
                     context -> new Payload("binary/octet-stream", "somedump".getBytes())
@@ -503,7 +554,6 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_graph_dump_should_return_401_for_unauthorized_user() {
             // Given
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump",
                     context -> new Payload("binary/octet-stream", "somedump".getBytes())
@@ -520,7 +570,6 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_graph_dump_should_return_403_for_forbidden_mask() {
             // Given
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump",
                     context -> new Payload("binary/octet-stream", "somedump".getBytes())
@@ -539,7 +588,6 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_sorted_graph_dump_should_return_200() {
             // Given
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump",
                     context -> new Payload("binary/octet-stream", "somedump".getBytes())
@@ -562,7 +610,6 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_sorted_graph_dump_should_return_401_for_unauthorized_user() {
             // Given
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump",
                     context -> new Payload("binary/octet-stream", "somedump".getBytes())
@@ -582,7 +629,6 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_sorted_graph_dump_should_return_403_for_forbidden_mask() {
             // Given
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump",
                     context -> new Payload("binary/octet-stream", "somedump".getBytes())
@@ -600,10 +646,10 @@ public class Neo4jResourceTest {
 
     }
 
-    @DisplayName("test admin import")
+    @DisplayName("test admin import local")
     @ExtendWith(MockNeo4jApp.class)
     @ExtendWith(MockLocalModeProperties.class)
-    @ExtendWith(BindNeo4jResource.class)
+    @ExtendWith(BindNeo4jResourceWithPid.class)
     @Nested
     class Neo4jResourceAdminImportTest implements FluentRestTest {
         @Override
@@ -621,7 +667,6 @@ public class Neo4jResourceTest {
                 Files.write(exportPath, exportContent);
                 String exportPathAsString = exportPath.toString();
 
-                neo4jAppResource.startServerProcess(false);
                 neo4jApp.configure(
                     routes -> routes.post(
                         "/admin/neo4j-csvs",
@@ -630,7 +675,7 @@ public class Neo4jResourceTest {
                             "{"
                                 + "\"path\": \"" + exportPathAsString + "\","
                                 + "\"metadata\": {\"nodes\": [], \"relationships\": []}"
-                            + "}"
+                                + "}"
                         )
                     )
                 );
@@ -662,10 +707,10 @@ public class Neo4jResourceTest {
         }
     }
 
-    @DisplayName("test admin import")
+    @DisplayName("test admin import embedded")
     @ExtendWith(MockNeo4jApp.class)
     @ExtendWith(MockEmbeddedModeProperties.class)
-    @ExtendWith(BindNeo4jResource.class)
+    @ExtendWith(BindNeo4jResourceWithPid.class)
     @Nested
     class Neo4jResourceAdminImportEmbeddedTest implements FluentRestTest {
         @Override
@@ -683,7 +728,6 @@ public class Neo4jResourceTest {
                 Files.write(exportPath, exportContent);
                 String exportPathAsString = exportPath.toString();
 
-                neo4jAppResource.startServerProcess(false);
                 neo4jApp.configure(
                     routes -> routes.post(
                         "/admin/neo4j-csvs",
@@ -714,4 +758,29 @@ public class Neo4jResourceTest {
         }
 
     }
+
+    @ExtendWith(MockNotReadyNeo4jApp.class)
+    @ExtendWith(MockAppProperties.class)
+    @ExtendWith(BindNeo4jResource.class)
+    @DisplayName("Neo4jResource test with not ready app mock")
+    @Nested
+    class Neo4jResourceNotReadyAppTest implements FluentRestTest {
+        @Override
+        public int port() {
+            return port;
+        }
+
+        @Test
+        public void test_wait_for_server_to_be_up_when_ping_fail() {
+            // When/Then
+            assertThat(Neo4jResource.isOpen(neo4jAppResource.host, neo4jAppPort));
+            assertThat(
+                assertThrows(
+                    RuntimeException.class,
+                    () -> neo4jAppResource.waitForServerToBeUp()
+                ).getMessage()
+            ).startsWith("Couldn't start Python");
+        }
+    }
+
 }

@@ -23,6 +23,17 @@ public class Neo4jClient {
 
     private final java.net.http.HttpClient httpClient;
 
+    protected static class AppNotReady extends Exception {
+        protected AppNotReady(String message) {
+            super(message);
+        }
+
+        protected AppNotReady(Throwable cause) {
+            super(cause);
+        }
+
+    }
+
     public Neo4jClient(int port) {
         this.port = port;
         this.httpClient = java.net.http.HttpClient.newHttpClient();
@@ -67,6 +78,29 @@ public class Neo4jClient {
             .build();
         return handleErrors(
             this.httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofInputStream()));
+    }
+
+    protected void ping() throws AppNotReady {
+        logger.debug("Ping...");
+        String url = buildNeo4jUrl("/ping");
+        try {
+            int status = Unirest.get(url).asObject(String.class).getStatus();
+            if (status != 200) {
+                throw new AppNotReady("app is not ready");
+            }
+        } catch (Exception e) {
+            throw new AppNotReady(e);
+        }
+    }
+
+    protected boolean pingSuccessful() {
+        try {
+            this.ping();
+            return true;
+        } catch (AppNotReady e) {
+            logger.info("Ping failing: {}", e.getMessage());
+        }
+        return false;
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
