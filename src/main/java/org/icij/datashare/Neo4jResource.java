@@ -519,8 +519,10 @@ public class Neo4jResource {
             return new Payload("application/problem+json", returned).withCode(500);
         } catch (ForbiddenException e) {
             return new Payload("application/problem+json", fromException(e)).withCode(403);
-        } catch (HttpUtils.BadRequest e) {
-            return new Payload("application/problem+json", fromException(e)).withCode(400);
+        } catch (HttpUtils.JacksonParseError e) {
+            HttpUtils.HttpError returned = fromException(e);
+            logger.error(returned.getMessageWithTrace());
+            return new Payload("application/problem+json", returned).withCode(400);
         } catch (Exception e) {
             HttpUtils.HttpError returned = fromException(e);
             logger.error("internal error on the java extension side {}",

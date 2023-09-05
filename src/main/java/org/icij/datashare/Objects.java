@@ -25,7 +25,7 @@ public class Objects {
 
         @JsonCreator
         DocumentSortItem(@JsonProperty("property") String property,
-                         @JsonProperty("query") SortDirection direction) {
+                         @JsonProperty("direction") SortDirection direction) {
             this.property = property;
             this.direction = direction;
         }

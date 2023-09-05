@@ -1,15 +1,26 @@
 package org.icij.datashare;
 
+import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIncludeProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import net.codestory.http.Context;
 
 public class HttpUtils {
+
+    private static final ObjectMapper EXT_MAPPER;
+
+    static {
+        EXT_MAPPER = new ObjectMapper().setTypeFactory(
+            MAPPER.getTypeFactory().withClassLoader(Neo4jResource.class.getClassLoader())
+        );
+    }
 
     // Follow the JSON error + detail spec https://datatracker.ietf.org/doc/html/draft-ietf-appsawg-http-problem-00#page-4
     @JsonIncludeProperties({"title", "detail", "trace"})
@@ -59,17 +70,17 @@ public class HttpUtils {
         return new HttpError(e.getClass().getTypeName(), e.getMessage(), sw.toString());
     }
 
-    protected static class BadRequest extends Exception {
-        protected BadRequest(String message, Throwable cause) {
+    protected static class JacksonParseError extends RuntimeException {
+        protected JacksonParseError(String message, Throwable cause) {
             super(message, cause);
         }
     }
 
-    protected static <T> T parseContext(Context context, Class<T> clazz) throws BadRequest {
+    protected static <T> T parseContext(Context context, Class<T> clazz) throws JacksonParseError {
         try {
-            return context.extract(clazz);
+            return EXT_MAPPER.readValue(context.request().content(), clazz);
         } catch (IOException | IllegalArgumentException e) {
-            throw new BadRequest("Failed to parse request", e);
+            throw new JacksonParseError("Failed to parse request", e);
         }
     }
 }
