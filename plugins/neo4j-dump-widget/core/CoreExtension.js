@@ -42,8 +42,8 @@ Detail: ${detail}
   }
 
   async request(url, config = {}) {
-    const ApiClass = this.#core.api.constructor
-    const fullUrl = ApiClass.getFullUrl(url)
+    const Api = this.#core.api.constructor
+    const fullUrl = Api.getFullUrl(url)
     try {
       const r = await fetch(fullUrl, {
         body: JSON.stringify(config.data),
