@@ -4,8 +4,8 @@
       <h4 class="m-0 mr-2">Graph export</h4>
       <neo4j-status-badge :status="neo4jAppStatus"></neo4j-status-badge>
     </div>
-    <div class="project-view-insights card-body">
-      <b-form flex-column @submit.prevent="dumpGraph" @reset="clear">
+    <b-form flex-column @submit.prevent="dumpGraph" @reset="clear">
+      <div class="project-view-insights card-body">
         <div class="row">
           <div class="col-12 col-md-6 flex-column">
             <b-form-group>
@@ -59,18 +59,20 @@
               </div>
             </b-form-group>
           </div>
-          <div class="col-12 col-md-6 flex-column d-flex justify-content-end align-items-end">
-            <div>
-              <b-button type="reset" variant="danger" class="mr-2">Reset</b-button>
-              <span id="disabled-wrapper">
-                <b-button type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Export graph</b-button>
-              </span>
-              <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">{{ dumpButtonToolTip }}</b-tooltip>
-            </div>
+        </div>
+      </div>
+      <div class="project-view-insights card-footer">
+        <div class="row">
+          <div class="col-12 d-flex justify-content-end align-items-end">
+            <b-button type="reset" variant="danger" class="mr-2">Reset</b-button>
+            <span id="disabled-wrapper">
+              <b-button type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Export graph</b-button>
+            </span>
+            <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">{{ dumpButtonToolTip }}</b-tooltip>
           </div>
         </div>
-      </b-form>
-    </div>
+      </div>
+    </b-form>
   </div>
 </template>
 
@@ -84,6 +86,7 @@ import { default as Neo4jStatusBadge } from '../components/Neo4jStatusBadge.vue'
 import { default as polling } from '../core/mixin/polling'
 
 const SHOULD_START_APP_STATUSES = new Set([AppStatus.Error, AppStatus.Stopped].map(x => AppStatus[x]))
+const CYPHER_SHELL = 'cypher-shell'
 const GRAPHML = 'graphml'
 
 export default {
@@ -101,7 +104,7 @@ export default {
     return {
       availableFormats: [
         { value: null, text: 'Select a format' },
-        { value: 'cypher-shell', text: 'Cypher shell' },
+        { value: CYPHER_SHELL, text: 'Cypher shell' },
         { value: GRAPHML, text: 'GraphML' },
       ],
       dumpFormat: null,
@@ -245,20 +248,14 @@ export default {
       }
     },
     getDumpQuery() {
-      let where = []
-      if (this.selectedFileTypes) {
-        where = this.selectedFileTypes.map(t => this.fileTypeToWhere(t))
-      }
+      let where = this.selectedFileTypes ? this.selectedFileTypes.map(this.fileTypeToWhere) : []
       if (this.selectedPath) {
         where.push(this.filePathToWhere(this.selectedPath))
       }
-      if (where) {
-        if (where.length > 1) {
-          where = { and: where }
-        } else {
-          where = where[0]
-        }
-        return { where: null }
+      if (where.length === 1) {
+        return { where: where[0] }
+      } else if (where.length) {
+        return { and: where }
       }
       return {}
     },
