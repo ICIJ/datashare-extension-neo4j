@@ -72,7 +72,7 @@ public class Neo4jResourceTest {
                     put("neo4jSingleProject", "foo-datashare");
                     // TODO: fix this path ?
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
-                    put("neo4jAppStartTimeout", "2");
+                    put("neo4jAppStartTimeoutS", "2");
                 }
             });
         }

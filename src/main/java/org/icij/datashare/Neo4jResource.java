@@ -67,7 +67,7 @@ public class Neo4jResource {
     private static final HashMap<String, String> DEFAULT_NEO4J_PROPERTIES = new HashMap<>() {
         {
             put("neo4jAppPort", "8008");
-            put("neo4jAppStartTimeout", "30");
+            put("neo4jAppStartTimeoutS", "30");
             put("neo4jAppSyslogFacility", "LOCAL7");
             put("neo4jHost", "neo4j");
             put("neo4jPassword", "");
@@ -125,10 +125,11 @@ public class Neo4jResource {
 
     protected void waitForServerToBeUp() {
         long start = System.currentTimeMillis();
-        long timeout = 1000 * Long.parseLong(
-            this.propertiesProvider.get("neo4jAppStartTimeout").orElse("30")
-        );
-        while (true) {
+        long timeout = Long.parseLong(
+            this.propertiesProvider.get("neo4jAppStartTimeoutS").orElse("30")
+        ) * 1000;
+        long elapsed = 0;
+        while (elapsed < timeout) {
             if (isOpen(this.host, this.port) && pingSuccessful()) {
                 return;
             } else {
@@ -138,10 +139,7 @@ public class Neo4jResource {
                     throw new RuntimeException("Thread killed while slipping", e);
                 }
             }
-            long elapsed = System.currentTimeMillis() - start;
-            if (elapsed > timeout) {
-                break;
-            }
+            elapsed = System.currentTimeMillis() - start;
         }
         throw new RuntimeException("Couldn't start Python " + timeout + "s after starting it !");
     }
