@@ -255,7 +255,7 @@ export default {
       if (where.length === 1) {
         return { where: where[0] }
       } else if (where.length) {
-        return { and: where }
+        return { where: { and: where } }
       }
       return {}
     },
