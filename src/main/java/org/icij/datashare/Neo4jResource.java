@@ -141,7 +141,8 @@ public class Neo4jResource {
             }
             elapsed = System.currentTimeMillis() - start;
         }
-        throw new RuntimeException("Couldn't start Python " + timeout + "s after starting it !");
+        long timeouts = timeout / 1000;
+        throw new RuntimeException("Couldn't start Python " + timeouts + "s after starting it !");
     }
 
     protected boolean pingSuccessful() {
@@ -336,6 +337,7 @@ public class Neo4jResource {
         } catch (IOException e) {
             throw new RuntimeException("Failed to start server process", e);
         }
+        this.waitForServerToBeUp();
         try {
             ProcessUtils.dumpPid(
                 Files.createTempFile(TMP_ROOT, NEO4J_APP_BIN + "_", ".pid").toFile(),
@@ -344,7 +346,6 @@ public class Neo4jResource {
         } catch (IOException e) {
             throw new RuntimeException("Failed to dump app PID in " + TMP_ROOT, e);
         }
-        this.waitForServerToBeUp();
     }
 
     protected void checkServerCommand(List<String> startServerCmd) {
