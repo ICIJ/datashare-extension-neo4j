@@ -290,7 +290,7 @@ export default {
       }
       this.$store.commit('neo4j/status', AppStatus.Starting)
       await this.$neo4jCore.request('/api/neo4j/start', config)
-      this.$store.commit('neo4j/status', AppStatus.Started)
+      this.$store.commit('neo4j/status', AppStatus.Running)
     },
     async resfreshNeo4jAppStatus() {
       await this.$store.dispatch('neo4j/refreshStatus')
