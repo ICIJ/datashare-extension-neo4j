@@ -1,12 +1,11 @@
 package org.icij.datashare;
 
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIncludeProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.TypeFactory;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -18,7 +17,7 @@ public class HttpUtils {
 
     static {
         EXT_MAPPER = new ObjectMapper().setTypeFactory(
-            MAPPER.getTypeFactory().withClassLoader(Neo4jResource.class.getClassLoader())
+            TypeFactory.defaultInstance().withClassLoader(Neo4jResource.class.getClassLoader())
         );
     }
 
