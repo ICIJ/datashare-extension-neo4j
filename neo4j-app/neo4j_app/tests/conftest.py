@@ -1,4 +1,5 @@
 # pylint: disable=redefined-outer-name
+import abc
 import asyncio
 import contextlib
 import os
@@ -17,7 +18,8 @@ from starlette.testclient import TestClient
 
 from neo4j_app.app.utils import create_app
 from neo4j_app.core import AppConfig
-from neo4j_app.core.elasticsearch import ESClient
+from neo4j_app.core.elasticsearch import ESClient, ESClientABC
+from neo4j_app.core.elasticsearch.client import PointInTime
 from neo4j_app.core.utils.pydantic import BaseICIJModel
 
 
@@ -44,6 +46,30 @@ _INDEX_BODY = {
     }
 }
 TEST_INDEX = "test-datashare-project"
+
+
+class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
+    async def search(self, **kwargs) -> Dict[str, Any]:
+        # pylint: disable=arguments-differ
+        return await self._mocked_search(**kwargs)
+
+    async def scroll(self, **kwargs) -> Any:
+        # pylint: disable=arguments-differ
+        return await self._mocked_search(**kwargs)
+
+    async def clear_scroll(self, **kwargs) -> Any:
+        # pylint: disable=arguments-differ
+        pass
+
+    @contextlib.asynccontextmanager
+    async def try_open_pit(
+        self, *, index: str, keep_alive: str, **kwargs
+    ) -> AsyncGenerator[Optional[PointInTime], None]:
+        yield dict()
+
+    @abc.abstractmethod
+    async def _mocked_search(self, **kwargs):
+        pass
 
 
 # Define a session level even_loop fixture to overcome limitation explained here:
