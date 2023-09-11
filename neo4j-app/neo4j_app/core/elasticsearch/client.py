@@ -45,6 +45,7 @@ from neo4j_app.core.elasticsearch.utils import (
     SCROLL_ID_,
     SEARCH_AFTER,
     SHARD_DOC_,
+    SIZE,
     SLICE,
     SORT,
     match_all,
@@ -111,6 +112,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
     def default_sort(self, pit_search: bool) -> str:
         pass
 
+    @abc.abstractmethod
+    async def search(self, body: Optional[Dict], index: Optional[str], **kwargs):
+        pass
+
     def _async_retrying(self) -> AsyncRetrying:
         return AsyncRetrying(
             wait=wait_random_exponential(max=self._max_retry_wait_s),
@@ -119,12 +124,6 @@ class ESClientABC(metaclass=abc.ABCMeta):
             before_sleep=before_sleep_log(logger, logging.ERROR),
             reraise=True,
         )
-
-    async def search(self, **kwargs) -> Dict[str, Any]:
-        # pylint: disable=arguments-differ
-        if PIT not in kwargs and PIT not in kwargs.get("body", {}):
-            kwargs = deepcopy(kwargs)
-        return await super().search(**kwargs)
 
     async def poll_search_pages(
         self, index: str, body: Dict, **kwargs
@@ -142,17 +141,12 @@ class ESClientABC(metaclass=abc.ABCMeta):
     async def _poll_pit_search_pages(
         self,
         sort: Optional[List[Dict]] = None,
-        size: Optional[int] = None,
         **kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         retrying = self._async_retrying()
         if sort is None:
             sort = self.default_sort(pit_search=True)
-        if size is None:
-            size = self.pagination_size
-        if not size:
-            raise ValueError("size is expected to be > 0")
-        res = await retrying(self.search, size=size, sort=sort, **kwargs)
+        res = await retrying(self.search, index=None, sort=sort, **kwargs)
         kwargs = deepcopy(kwargs)
         yield res
         page_hits = res[HITS][HITS]
@@ -165,9 +159,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 kwargs["body"][SEARCH_AFTER] = search_after
             else:
                 kwargs[SEARCH_AFTER] = search_after
-            res = await retrying(self.search, size=size, sort=sort, **kwargs)
-            yield res
+            res = await retrying(self.search, index=None, sort=sort, **kwargs)
             page_hits = res[HITS][HITS]
+            if page_hits:
+                yield res
 
     async def _poll_scroll_search_pages(
         self,
@@ -497,6 +492,14 @@ class ESClient(ESClientABC, AsyncElasticsearch):
         )
         AsyncElasticsearch.__init__(self, **kwargs)
 
+    async def search(self, body: Optional[Dict], index: Optional[str], **kwargs):
+        if SIZE in kwargs:
+            msg = f"{ESClient.__name__} run searches using the pagination_size"
+            raise ValueError(msg)
+        return await super(ESClientABC, self).search(
+            body=body, index=index, size=self.pagination_size, **kwargs
+        )
+
     # TODO: this should be class attr
     @cached_property
     def _pit_id(self) -> str:
@@ -536,6 +539,14 @@ try:
                 max_retry_wait_s=max_retry_wait_s,
             )
             AsyncOpenSearch.__init__(self, **kwargs)
+
+        async def search(self, body: Optional[Dict], index: Optional[str], **kwargs):
+            if SIZE in kwargs:
+                msg = f"{OSClient.__name__} run searches using the pagination_size"
+                raise ValueError(msg)
+            return await super(ESClientABC, self).search(
+                body=body, index=index, size=self.pagination_size, **kwargs
+            )
 
         # TODO: this should be class attr
         @cached_property

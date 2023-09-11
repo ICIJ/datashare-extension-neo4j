@@ -1,19 +1,21 @@
+import abc
 import sys
-from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator, Collection, Dict, List, Mapping, Optional, Type
+from typing import Any, Collection, Dict, List, Mapping, Optional, Type
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
-from elasticsearch import TransportError
+from elasticsearch import AsyncElasticsearch, TransportError
+from opensearchpy import AsyncOpenSearch
 from tenacity import RetryCallState, Retrying
 
 from neo4j_app.core.elasticsearch import ESClient
-from neo4j_app.core.elasticsearch.client import PointInTime, _retry_if_error_code
+from neo4j_app.core.elasticsearch.client import OSClient, _retry_if_error_code
 from neo4j_app.core.elasticsearch.utils import HITS, SCROLL_ID_, SORT
 from neo4j_app.core.neo4j import get_neo4j_csv_writer
 from neo4j_app.tests.conftest import (
-    ELASTICSEARCH_TEST_PORT,
+    MockedESClient,
     TEST_INDEX,
     fail_if_exception,
     index_noise,
@@ -34,6 +36,57 @@ def _noise_to_neo4j(noise_hit: Dict) -> List[Dict[str, str]]:
     hit_source = noise_hit["_source"]
     noise["someAttribute"] = hit_source["someAttribute"]
     return [noise]
+
+
+async def _mocked_search(*, body: Optional[Dict], index: Optional[str], size: int):
+    # pylint: disable=unused-argument
+    return {}
+
+
+@pytest.mark.asyncio
+async def test_es_client_should_search_with_pagination_size():
+    # Given
+    pagination = 666
+    es_client = ESClient(pagination=pagination)
+
+    # When
+    with patch.object(AsyncElasticsearch, "search") as mocked_search:
+        mocked_search.side_effect = _mocked_search
+        await es_client.search(body=None, index=TEST_INDEX)
+        # Then
+        mocked_search.assert_called_once_with(
+            body=None, index=TEST_INDEX, size=pagination
+        )
+
+
+@pytest.mark.asyncio
+async def test_os_client_should_search_with_pagination_size():
+    # Given
+    pagination = 666
+    es_client = OSClient(pagination=pagination)
+
+    # When
+    with patch.object(AsyncOpenSearch, "search") as mocked_search:
+        mocked_search.side_effect = _mocked_search
+        await es_client.search(body=None, index=TEST_INDEX)
+        # Then
+        mocked_search.assert_called_once_with(
+            body=None, index=TEST_INDEX, size=pagination
+        )
+
+
+@pytest.mark.asyncio
+async def test_es_client_should_raise_when_size_is_provided():
+    # Given
+    pagination = 666
+    es_client = ESClient(pagination=pagination)
+    size = 100
+    body = None
+
+    # When
+    expected_msg = "SClient run searches using the pagination_size"
+    with pytest.raises(ValueError, match=expected_msg):
+        await es_client.search(body=body, index=TEST_INDEX, size=size)
 
 
 @pytest.mark.asyncio
@@ -93,56 +146,58 @@ async def test_write_concurrently_neo4j_csv(
     assert num_lines == expected_num_lines
 
 
-class _MockFailingESClient(ESClient):
-    _returned = {SCROLL_ID_: "scroll-0", HITS: {HITS: [{SORT: None}]}}
-    _last_returned = {SCROLL_ID_: "scroll-0", HITS: {HITS: []}}
-
+class _MockFailingClient(MockedESClient, metaclass=abc.ABCMeta):
     def __init__(
         self,
-        hits: int,
+        n_hits: int,
         failure: Optional[Exception],
         fail_at: List[int] = None,
         **kwargs,
     ):
-        hosts = [{"host": "localhost", "port": ELASTICSEARCH_TEST_PORT}]
-        super().__init__(pagination=1, hosts=hosts, **kwargs)
+        super().__init__(pagination=1, **kwargs)
         self._n_calls: int = 0
         self._n_returned: int = 0
         if fail_at is None:
             fail_at = []
         self._fail_at = set(fail_at)
         self._failure = failure
-        self._hits = hits
+        self._n_hits = n_hits
 
-    async def search(self, **kwargs) -> Dict[str, Any]:
-        # pylint: disable=arguments-differ
-        return await self._call(**kwargs)
-
-    async def scroll(self, **kwargs) -> Any:
-        # pylint: disable=arguments-differ
-        return await self._call(**kwargs)
-
-    async def clear_scroll(self, **kwargs) -> Any:
-        # pylint: disable=arguments-differ
-        pass
-
-    @asynccontextmanager
-    async def try_open_pit(
-        self, *, index: str, keep_alive: str, **kwargs
-    ) -> AsyncGenerator[Optional[PointInTime], None]:
-        yield dict()
-
-    async def _call(self, **kwargs) -> Dict[str, Any]:
+    def _make_hits(self) -> List[Dict[str, Any]]:
         # pylint: disable=unused-argument
         if isinstance(self._failure, Exception) and self._n_calls in self._fail_at:
             self._n_calls += 1
             raise self._failure
+        hits = [{SORT: None}] if self._n_returned < self._n_hits else []
         self._n_calls += 1
         self._n_returned += 1
-        returned = (
-            self._last_returned if self._n_returned >= self._hits else self._returned
-        )
-        return returned
+        return hits
+
+
+class _MockFailingESClient(_MockFailingClient):
+    default_sort = ESClient.default_sort
+
+    @property
+    async def supports_pit(self) -> bool:
+        return True
+
+    async def _mocked_search(self, **kwargs) -> Dict[str, Any]:
+        # pylint: disable=unused-argument
+        hits = self._make_hits()
+        return {HITS: {HITS: hits}}
+
+
+class _MockFailingOSClient(_MockFailingClient):
+    default_sort = OSClient.default_sort
+
+    @property
+    async def supports_pit(self) -> bool:
+        return False
+
+    async def _mocked_search(self, **kwargs) -> Dict[str, Any]:
+        # pylint: disable=unused-argument
+        hits = self._make_hits()
+        return {SCROLL_ID_: "scroll-0", HITS: {HITS: hits}}
 
 
 def _make_transport_error(error_code: int) -> TransportError:
@@ -170,18 +225,20 @@ def _make_transport_error(error_code: int) -> TransportError:
         ([1, 2], 10, _make_transport_error(400), TransportError),
     ],
 )
+@pytest.mark.parametrize("client_cls", [_MockFailingESClient, _MockFailingOSClient])
 async def test_poll_search_pages_should_retry(
+    client_cls: Type[_MockFailingClient],
     fail_at: Optional[int],
     max_retries: int,
     failure: Optional[Exception],
-    raised: Type[Exception],
+    raised: Optional[Type[Exception]],
 ):
     # Given
     n_hits = 3
-    client = _MockFailingESClient(
+    client = client_cls(
         max_retries=max_retries,
         max_retry_wait_s=int(1e-6),
-        hits=n_hits,
+        n_hits=n_hits,
         fail_at=fail_at,
         failure=failure,
     )
