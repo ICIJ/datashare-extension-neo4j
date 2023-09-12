@@ -55,7 +55,7 @@ commands:
       - restore_cache:
           name: Restore yarn package cache
           keys:
-            - v4-deps-dump-plugin-{{ checksum "plugins/neo4j-dump-widget/yarn.lock" }}
+            - v4-deps-dump-plugin-{{ checksum "datashare-extension-neo4j/plugins/neo4j-dump-widget/yarn.lock" }}
             - v4-deps-dump-plugin # used if checksum fails
       - run:
           name: Build binary
@@ -71,7 +71,7 @@ commands:
           when: always
           paths:
             - ~/.cache/yarn
-          key: v4-deps-dump-plugin-{{ checksum "plugins/neo4j-dump-widget/yarn.lock" }}
+          key: v4-deps-dump-plugin-{{ checksum "datashare-extension-neo4j/plugins/neo4j-dump-widget/yarn.lock" }}
 
   build-python-binary:
     description: Build neo4j_app Python binary
@@ -279,6 +279,7 @@ jobs:
           # We rebuild everything here since it's really quick, we could have copied the tar
           command: |
             cd datashare-extension-neo4j
+            tag=$(./neo4j --version)
             cp /tmp/workspace/datashare-plugin-neo4j-dump-widget-"$tag".tgz bins
             ./neo4j publish -p neo4j_dump_widget_plugin --create-release
 
