@@ -493,6 +493,7 @@ class ESClient(ESClientABC, AsyncElasticsearch):
         AsyncElasticsearch.__init__(self, **kwargs)
 
     async def search(self, body: Optional[Dict], index: Optional[str], **kwargs):
+        # pylint: disable=unexpected-keyword-arg
         if SIZE in kwargs:
             msg = f"{ESClient.__name__} run searches using the pagination_size"
             raise ValueError(msg)
@@ -541,6 +542,7 @@ try:
             AsyncOpenSearch.__init__(self, **kwargs)
 
         async def search(self, body: Optional[Dict], index: Optional[str], **kwargs):
+            # pylint: disable=unexpected-keyword-arg
             if SIZE in kwargs:
                 msg = f"{OSClient.__name__} run searches using the pagination_size"
                 raise ValueError(msg)
