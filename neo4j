@@ -152,7 +152,7 @@ function _helpers() {
             --network="host" "${@}"
     }
 
-    function _frontend_setup() {
+    function _frontend_checks() {
         command -v npm 1>/dev/null 2>&1 || _exit_with_message "NPM is not installed"
         command -v yarn 1>/dev/null 2>&1 || _exit_with_message "yarn is not installed"
     }
@@ -596,7 +596,9 @@ Please run ./neo4j format"
             echo "Python setup succeeded !"
         elif _should_run_project "neo4j_dump_widget_plugin"; then
             _print_step "Setting up neo4j_dump_widget_plugin"
-            _frontend_setup
+            _frontend_checks
+            cd "$ROOT_DIR/plugins/neo4j-dump-widget"
+            yarn install --immutable
         else
             _exit_with_message "Can't setup project $PROJECT"
         fi
