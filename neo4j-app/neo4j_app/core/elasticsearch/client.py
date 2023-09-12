@@ -170,7 +170,6 @@ class ESClientABC(metaclass=abc.ABCMeta):
         query: Dict,
         scroll: str,
         sort: Optional[List[Dict]] = None,
-        size: Optional[int] = None,
         **kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         retrying = self._async_retrying()
@@ -181,7 +180,6 @@ class ESClientABC(metaclass=abc.ABCMeta):
             index=index,
             body=query,
             scroll=scroll,
-            size=size,
             sort=sort,
             **kwargs,
         )
