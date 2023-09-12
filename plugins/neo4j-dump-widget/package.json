@@ -23,13 +23,11 @@
   "datashare": {},
   "scripts": {
     "test:e2e": "nightwatch",
-    "test:pack": "cat \"$(npm pack)\" | tar zxvf - -C $(pwd)/../../bins",
-    "test:datashare": "datashare --tcpListenPort 8008 --pluginsDir=$(pwd)/../../bins",
     "test:clean": "rm *.tgz || /bin/true",
     "test": "yarn test:e2e",
-    "pretest": "yarn build && yarn test:pack",
     "posttest": "yarn test:clean",
     "build": "npx vue build --target lib --name index",
+    "build:pack": "echo \"$(npm pack)\"",
     "prepublishOnly": "yarn build"
   },
   "license": "MIT",
