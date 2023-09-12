@@ -52,6 +52,11 @@ commands:
           command: |
             cd datashare-extension-neo4j
             ./neo4j is_publishable -p neo4j_dump_widget_plugin
+      - restore_cache:
+          name: Restore yarn package cache
+          keys:
+            - v4-deps-yarn-{{ checksum "yarn.lock" }}
+            - v4-deps-yarn- # used if checksum fails
       - run:
           name: Build binary
           command: |
@@ -62,6 +67,11 @@ commands:
           root: datashare-extension-neo4j/bins
           paths:
             - datashare-plugin-neo4j-dump-widget-*
+      - save_cache:
+          when: always
+          paths:
+            - ~/.cache/yarn
+          key: v4-deps-yarn-{{ checksum "yarn.lock" }}
 
   build-python-binary:
     description: Build neo4j_app Python binary
