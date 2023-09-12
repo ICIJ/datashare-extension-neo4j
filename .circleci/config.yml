@@ -55,8 +55,8 @@ commands:
       - restore_cache:
           name: Restore yarn package cache
           keys:
-            - v4-deps-yarn-{{ checksum "yarn.lock" }}
-            - v4-deps-yarn- # used if checksum fails
+            - v4-deps-dump-plugin-{{ checksum "plugins/neo4j-dump-widget/yarn.lock" }}
+            - v4-deps-dump-plugin # used if checksum fails
       - run:
           name: Build binary
           command: |
@@ -71,7 +71,7 @@ commands:
           when: always
           paths:
             - ~/.cache/yarn
-          key: v4-deps-yarn-{{ checksum "yarn.lock" }}
+          key: v4-deps-dump-plugin-{{ checksum "plugins/neo4j-dump-widget/yarn.lock" }}
 
   build-python-binary:
     description: Build neo4j_app Python binary

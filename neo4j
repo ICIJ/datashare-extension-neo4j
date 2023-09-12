@@ -94,7 +94,7 @@ function _helpers() {
         tar_filename=$(yarn -s build:pack)
         cp "$tar_filename" "$ROOT_DIR/bins"
         cd "$ROOT_DIR/bins"
-        _unpack_npm_package $tar_filename
+        _unpack_npm_package "$tar_filename"
     }
 
     function _check_release_version() {
@@ -127,7 +127,7 @@ function _helpers() {
         if _should_run_project "neo4j_dump_widget_plugin"; then
             cd "$ROOT_DIR"/plugins/neo4j-dump-widget
             local npm_version
-            npm_version=$(cat package.json | jq -r '.version')
+            npm_version=$(jq -r '.version' package.json)
             if ! [ "$npm_version" = "$file_version" ]; then _exit_with_message "Dump plugin version \"$npm_version\" differs from \"$file_version\""; fi
         fi
 
@@ -165,7 +165,7 @@ function _helpers() {
                 -H "Accept: application/vnd.github+json" \
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
-                https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases | jq --arg jq_version $version 'map(select(.tag_name == $jq_version))[0].upload_url'
+                https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases | jq --arg jq_version "$version" 'map(select(.tag_name == $jq_version))[0].upload_url'
         )
         if [[ -z $upload_url ]]; then
             if [[ -n $CREATE_RELEASE ]]; then
@@ -291,7 +291,7 @@ function _helpers() {
         zip_path="$ROOT_DIR/bins/datashare-plugin-neo4j-dump-widget-$version.zip"
 
         # Create the zip distribution
-        cat $tar_path | zip > $zip_path
+        cat "$tar_path" | zip > "$zip_path"
 
         local tar_filename
         local zip_filename
@@ -359,7 +359,7 @@ function _helpers() {
         if [ "$PLATFORM" == "Darwin" ]; then
             transform="-s/package/$package_name/"
         elif [ "$PLATFORM" == "Linux" ]; then
-            transform="--transform='s,package/,$package_name/,'"
+            transform="--transform=s,package/,$package_name/,"
         else
             _exit_with_message "Unknown platform $PLATFORM"
         fi
@@ -553,7 +553,7 @@ Please run ./neo4j format"
             local local_extension_path
             local_extension_path="$ROOT_DIR/bins/$(_make_neoj_binary_name)"
             sed -r "s@^neo4jStartServerCmd=.*\$@neo4jStartServerCmd=$local_extension_path --config-path $settings_path@" \
-                $template_path >"$settings_path"
+                "$template_path" >"$settings_path"
         else
             cp "$settings_path" "$template_path"
         fi
@@ -562,7 +562,7 @@ Please run ./neo4j format"
         if [[ -n $DS_DOCKER_DATA_DIR ]]; then
             ds_data_dir=" --dataDir $DS_DOCKER_DATA_DIR"
         fi
-        datashare -s $settings_path "$ds_data_dir" --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins
+        datashare -s "$settings_path" "$ds_data_dir" --pluginsDir="$ROOT_DIR"/bins --extensionsDir="$ROOT_DIR"/bins
     }
 
     function set_version() {
