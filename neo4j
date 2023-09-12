@@ -89,10 +89,16 @@ function _helpers() {
 
     function _build_neo4j_dump_widget_plugin() {
         cd "$ROOT_DIR"/plugins/neo4j-dump-widget
-        yarn pretest
+        yarn build
+        local tar_filename
+        tar_filename=$(yarn -s build:pack)
+        cp "$tar_filename" "$ROOT_DIR/bins"
+        cd "$ROOT_DIR/bins"
+        _unpack_npm_package $tar_filename
     }
 
     function _check_release_version() {
+        # TODO: add flags.... per projects
         local file_version
         file_version=$(head -n 1 "$ROOT_DIR"/version)
 
@@ -105,16 +111,26 @@ function _helpers() {
         source_version=$("$ROOT_DIR"/neo4j --version)
         if ! [ "$source_version" = "$file_version" ]; then _exit_with_message "Source version \"$source_version\" differs from \"$file_version\""; fi
 
-        # Java version
-        local java_version
-        java_version=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-        if ! [ "$java_version" = "$file_version" ]; then _exit_with_message "Java version \"$java_version\" differs from \"$file_version\""; fi
+        if _should_run_project "neo4j_extension"; then
+            local java_version
+            java_version=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+            if ! [ "$java_version" = "$file_version" ]; then _exit_with_message "Java version \"$java_version\" differs from \"$file_version\""; fi
+        fi
 
-        # Python version
-        cd "$ROOT_DIR"/neo4j-app || exit
-        local python_version
-        python_version=$(poetry version -s)
-        if ! [ "$python_version" = "$file_version" ]; then _exit_with_message "Python version \"$python_version\" differs from \"$file_version\""; fi
+        if _should_run_project "neo4j_app"; then
+            cd "$ROOT_DIR"/neo4j-app
+            local python_version
+            python_version=$(poetry version -s)
+            if ! [ "$python_version" = "$file_version" ]; then _exit_with_message "Python version \"$python_version\" differs from \"$file_version\""; fi
+        fi
+
+        if _should_run_project "neo4j_dump_widget_plugin"; then
+            cd "$ROOT_DIR"/plugins/neo4j-dump-widget
+            local npm_version
+            npm_version=$(cat package.json | jq -r '.version')
+            if ! [ "$npm_version" = "$file_version" ]; then _exit_with_message "Dump plugin version \"$npm_version\" differs from \"$file_version\""; fi
+        fi
+
         cd "$ROOT_DIR"
 
         echo "All versions match !"
@@ -136,25 +152,35 @@ function _helpers() {
             --network="host" "${@}"
     }
 
+    function _frontend_setup() {
+        command -v npm 1>/dev/null 2>&1 || _exit_with_message "NPM is not installed"
+        command -v yarn 1>/dev/null 2>&1 || _exit_with_message "yarn is not installed"
+    }
+
     function _get_release_upload_url() {
-        if [[ -n $CREATE_RELEASE ]]; then
-            upload_url=$(
-                curl -L \
-                    -X POST \
-                    -H "Accept: application/vnd.github+json" \
-                    -H "Authorization: Bearer $GITHUB_TOKEN" \
-                    -H "X-GitHub-Api-Version: 2022-11-28" \
-                    https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases \
-                    -d "{\"tag_name\":\"$version\",\"name\":\"$version\",\"draft\":true,\"generate_release_notes\":true}" | jq ".upload_url"
-            )
-        else
-            upload_url=$(
-                curl -L \
-                    -H "Accept: application/vnd.github+json" \
-                    -H "Authorization: Bearer $GITHUB_TOKEN" \
-                    -H "X-GitHub-Api-Version: 2022-11-28" \
-                    https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases | jq --arg jq_version $version 'map(select(.tag_name == $jq_version))[0].upload_url'
-            )
+        local version
+        version=$1
+        upload_url=$(
+            curl -L \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases | jq --arg jq_version $version 'map(select(.tag_name == $jq_version))[0].upload_url'
+        )
+        if [[ -z $upload_url ]]; then
+            if [[ -n $CREATE_RELEASE ]]; then
+                upload_url=$(
+                    curl -L \
+                        -X POST \
+                        -H "Accept: application/vnd.github+json" \
+                        -H "Authorization: Bearer $GITHUB_TOKEN" \
+                        -H "X-GitHub-Api-Version: 2022-11-28" \
+                        https://api.github.com/repos/ICIJ/datashare-extension-neo4j/releases \
+                        -d "{\"tag_name\":\"$version\",\"name\":\"$version\",\"draft\":true,\"generate_release_notes\":true}" | jq ".upload_url"
+                )
+            else
+                _exit_with_message "Release $version do not exist, please create it"
+            fi
         fi
         upload_url=$(echo "${upload_url%\{*}" | tr -d '"')
         echo "$upload_url"
@@ -215,10 +241,10 @@ function _helpers() {
         upload_url=$(_get_release_upload_url "$version")
 
         sed -nr "s@.*(bins/$NEO4J_APP_BIN-.+-$version)\$@\1@p" "$MANIFEST_PATH" | while read -r binary; do
-            local filename
-            filename=$(basename -- "$binary")
+            local package_name
+            package_name=$(basename -- "$binary")
             local url
-            url="$upload_url?name=$filename"
+            url="$upload_url?name=$package_name"
             echo "Uploading $binary to $url"
             curl -L \
                 -X POST \
@@ -240,11 +266,11 @@ function _helpers() {
 
         local jar_path
         jar_path="$ROOT_DIR/target/datashare-extension-neo4j-$version-jar-with-dependencies.jar"
-        filename=$(basename -- "$jar_path")
+        package_name=$(basename -- "$jar_path")
 
         local url
-        url="$upload_url?name=$filename"
-        echo "Uploading $binary to $url"
+        url="$upload_url?name=$package_name"
+        echo "Uploading $jar_path to $url"
         curl -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
@@ -253,6 +279,51 @@ function _helpers() {
             -H "Content-Type: application/octet-stream" \
             "$url" \
             --data-binary "@$jar_path"
+    }
+
+    function _publish_neo4j_dump_widget_plugin() {
+        local version
+        version=$(_print_version)
+
+        local tar_path
+        tar_path="$ROOT_DIR/bins/datashare-plugin-neo4j-dump-widget-$version.tgz"
+        local zip_path
+        zip_path="$ROOT_DIR/bins/datashare-plugin-neo4j-dump-widget-$version.zip"
+
+        # Create the zip distribution
+        cat $tar_path | zip > $zip_path
+
+        local tar_filename
+        local zip_filename
+        tar_filename=$(basename -- "$tar_path")
+        zip_filename=$(basename -- "$zip_path")
+
+        local upload_url
+        upload_url=$(_get_release_upload_url "$version")
+
+        local tar_url
+        tar_url="$upload_url?name=$tar_filename"
+        echo "Uploading $tar_path to $tar_url"
+        curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/octet-stream" \
+            "$tar_url" \
+            --data-binary "@$tar_path"
+
+        local zip_url
+        zip_url="$upload_url?name=$zip_filename"
+        echo "Uploading $zip_path to $zip_url"
+        curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/octet-stream" \
+            "$zip_url" \
+            --data-binary "@$zip_path"
     }
 
     function _pytest() {
@@ -274,6 +345,26 @@ function _helpers() {
         else
             return 1
         fi
+    }
+
+    function _unpack_npm_package() {
+        local tar_path
+        tar_path=$1
+
+        local package_name
+        package_name=$(basename -- "$tar_path")
+        package_name="${package_name%.*}"
+
+        local transform
+        if [ "$PLATFORM" == "Darwin" ]; then
+            transform="-s/package/$package_name/"
+        elif [ "$PLATFORM" == "Linux" ]; then
+            transform="--transform='s,package/,$package_name/,'"
+        else
+            _exit_with_message "Unknown platform $PLATFORM"
+        fi
+
+        tar "$transform" -xvzf "$tar_path"
     }
 
     function _update_manifest() {
@@ -437,6 +528,8 @@ Please run ./neo4j format"
             _publish_neo4j_app
         elif _should_run_project "neo4j_extension"; then
             _publish_neo4j_extension
+        elif _should_run_project "neo4j_dump_widget_plugin"; then
+            _publish_neo4j_dump_widget_plugin
         else
             _exit_with_message "Can't pre-publish project $PROJECT"
         fi
@@ -501,6 +594,9 @@ Please run ./neo4j format"
             cd "$PYTHON_APP_DIR"
             poetry install --no-interaction -vvv --with=dev --no-ansi
             echo "Python setup succeeded !"
+        elif _should_run_project "neo4j_dump_widget_plugin"; then
+            _print_step "Setting up neo4j_dump_widget_plugin"
+            _frontend_setup
         else
             _exit_with_message "Can't setup project $PROJECT"
         fi
