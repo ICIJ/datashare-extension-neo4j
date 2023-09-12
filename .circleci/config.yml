@@ -1,8 +1,16 @@
 version: 2.1
 
 parameters:
-  release_branch:
-    description: Trigger branch release
+  release_all:
+    description: Release all assets
+    type: boolean
+    default: false
+  release_backend:
+    description: Release the backend
+    type: boolean
+    default: false
+  release_dump_plugin:
+    description: Release the dump plugin frontend
     type: boolean
     default: false
   branch:
@@ -23,10 +31,40 @@ executors:
   darwin-universal2:
     macos:
       xcode: 14.2.0
+  frontend:
+    docker:
+      - image: cimg/node:16.16.0
 
 commands:
-  build-binary:
-    description: Build neo4j_app binary
+  build-dump-plugin-cmd:
+    description: Build the dump plugin frontend
+    parameters:
+      branch:
+        type: string
+    steps:
+      - checkout-code:
+          revision: << parameters.branch >>
+      # Fail early
+      - check-is-latest-commit:
+          branch: << parameters.branch >>
+      - run:
+          name: Perform sanity checks
+          command: |
+            cd datashare-extension-neo4j
+            ./neo4j is_publishable -p neo4j_dump_widget_plugin
+      - run:
+          name: Build binary
+          command: |
+            cd datashare-extension-neo4j
+            ./neo4j setup -p neo4j_dump_widget_plugin
+            ./neo4j build -p neo4j_dump_widget_plugin
+      - persist_to_workspace:
+          root: datashare-extension-neo4j/bins
+          paths:
+            - datashare-plugin-neo4j-dump-widget-*
+
+  build-python-binary:
+    description: Build neo4j_app Python binary
     parameters:
       branch:
         type: string
@@ -52,7 +90,8 @@ commands:
           name: Perform sanity checks
           command: |
             cd datashare-extension-neo4j
-            ./neo4j is_publishable
+            ./neo4j is_publishable -p neo4j_app
+            ./neo4j is_publishable -p neo4j_extension
       # Fail early
       - check-is-latest-commit:
           branch: << parameters.branch >>
@@ -75,7 +114,16 @@ commands:
         type: string
     steps:
       - run: |
-          if [[ ! -d datashare-extension-neo4j ]]; then git clone git@github.com:ICIJ/datashare-extension-neo4j.git; fi 
+          if [[ ! -d datashare-extension-neo4j ]]; then
+            if ! [[ -f ~/.ssh/known_hosts ]]; then 
+              mkdir -p ~/.ssh
+              touch ~/.ssh/known_hosts
+            fi
+            if [[ -z $(cat  ~/.ssh/known_hosts | grep github.com) ]]; then
+              ssh-keyscan github.com >> ~/.ssh/known_hosts
+            fi
+          fi 
+          git clone git@github.com:ICIJ/datashare-extension-neo4j.git;
           cd datashare-extension-neo4j
           git checkout << parameters.revision >>
 
@@ -93,6 +141,16 @@ commands:
           if ! [[ "$current_commit" = "$last_commit" ]];then
             echo "$current_commit is not the last commit on << parameters.branch >>" && exit 1
           fi
+
+  create-and-push-tag:
+    description: "Create and push tag"
+    steps:
+      - run:
+          command: |
+            cd datashare-extension-neo4j
+            tag=$(./neo4j --version)
+            git tag "$tag"
+            git push origin "$tag"
 
 jobs:
   build:
@@ -122,18 +180,16 @@ jobs:
     steps:
       - checkout-code:
           revision: << parameters.branch >>
-      - build-binary:
+      - build-python-binary:
           branch: << parameters.branch >>
 
-  build-jar:
-    executor: docker-machine
+  build-dump-plugin:
+    executor: frontend
     parameters:
       branch:
         type: string
     steps:
-      - checkout-code:
-          revision: << parameters.branch >>
-      - build-jar:
+      - build-dump-plugin-cmd:
           branch: << parameters.branch >>
 
   # We build test services to benefit from caching, using docker-compose up directly doesn't seem to benefit from it
@@ -145,7 +201,7 @@ jobs:
           name: Build external services
           command: ./neo4j docker_build_test_services
 
-  build-unknown-linux-binary:
+  build-unknown-linux-python-binary:
     executor: unknown-linux
     parameters:
       branch:
@@ -156,10 +212,10 @@ jobs:
     steps:
       - checkout-code:
           revision: << parameters.branch >>
-      - build-binary:
+      - build-python-binary:
           branch: << parameters.branch >>
 
-  publish-binaries:
+  publish-backend-binaries:
     parameters:
       branch:
         type: string
@@ -173,7 +229,7 @@ jobs:
       - check-is-latest-commit:
           branch: << parameters.branch >>
       - run:
-          name: Publish assets to Github release
+          name: Publish backend assets to GH release
           command: |
             cd datashare-extension-neo4j
             tag=$(./neo4j --version)
@@ -188,6 +244,33 @@ jobs:
             ./neo4j publish -p neo4j_app --create-release
             ./neo4j build -p neo4j_extension
             ./neo4j publish -p neo4j_extension
+
+  publish-dump-plugin-binaries:
+    parameters:
+      branch:
+        type: string
+      create_tag:
+        type: boolean
+    executor: frontend
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout-code:
+          revision: << parameters.branch >>
+      # Try to fail early in  case another commit happened
+      - check-is-latest-commit:
+          branch: << parameters.branch >>
+      - when:
+          condition: <<parameters.create_tag>>
+          steps:
+            - create-and-push-tag
+      - run:
+          name: Publish dump plugin assets to GH release
+          # We rebuild everything here since it's really quick, we could have copied the tar
+          command: |
+            cd datashare-extension-neo4j
+            cp /tmp/workspace/datashare-plugin-neo4j-dump-widget-"$tag".tgz bins
+            ./neo4j publish -p neo4j_dump_widget_plugin --create-release
 
   test-script:
     executor: docker-machine
@@ -242,7 +325,11 @@ workflows:
 
   build_and_test:
     when:
-      not: << pipeline.parameters.release_branch >>
+      not:
+        or:
+          - << pipeline.parameters.release_all >>
+          - << pipeline.parameters.release_backend >>
+          - << pipeline.parameters.release_dump_plugin >>
     jobs:
       - build
       - build-test-services
@@ -257,18 +344,55 @@ workflows:
             - build
             - build-test-services
 
-  release-branch:
-    when: << pipeline.parameters.release_branch >>
+  release-all:
+    when: << pipeline.parameters.release_all >>
     jobs:
-      - build-unknown-linux-binary:
+      - build-unknown-linux-python-binary:
           matrix:
             parameters:
               resource_cls: [ medium, arm.medium ]
               branch: [ << pipeline.parameters.branch >> ]
       - build-darwin-universal2-binary:
           branch: << pipeline.parameters.branch >>
-      - publish-binaries:
+      - build-dump-plugin:
+          branch: << pipeline.parameters.branch >>
+      - publish-backend-binaries:
           branch: << pipeline.parameters.branch >>
           requires:
-            - build-unknown-linux-binary
+            - build-unknown-linux-python-binary
             - build-darwin-universal2-binary
+      - publish-dump-plugin-binaries:
+          branch: << pipeline.parameters.branch >>
+          create_tag: false
+          requires:
+            - build-dump-plugin
+            # We need to create the tag during the backend creation since it will update the manifest of Python
+            #  binaries and create a tag + release from there
+            - publish-backend-binaries
+
+  release-backend:
+    when: << pipeline.parameters.release_backend >>
+    jobs:
+      - build-unknown-linux-python-binary:
+          matrix:
+            parameters:
+              resource_cls: [ medium, arm.medium ]
+              branch: [ << pipeline.parameters.branch >> ]
+      - build-darwin-universal2-binary:
+          branch: << pipeline.parameters.branch >>
+      - publish-backend-binaries:
+          branch: << pipeline.parameters.branch >>
+          requires:
+            - build-unknown-linux-python-binary
+            - build-darwin-universal2-binary
+
+  release-dump-plugin:
+    when: << pipeline.parameters.release_dump_plugin >>
+    jobs:
+      - build-dump-plugin:
+          branch: << pipeline.parameters.branch >>
+      - publish-dump-plugin-binaries:
+          branch: << pipeline.parameters.branch >>
+          create_tag: true
+          requires:
+            - build-dump-plugin
