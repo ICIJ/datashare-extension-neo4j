@@ -11,6 +11,8 @@ import static org.icij.datashare.text.Project.isAllowed;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.inject.Inject;
+import com.google.inject.Singleton;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -37,7 +39,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.inject.Inject;
 import kong.unirest.Unirest;
 import kong.unirest.apache.ApacheClient;
 import net.codestory.http.Context;
@@ -52,6 +53,7 @@ import org.neo4j.cypherdsl.core.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Singleton
 @Prefix("/api/neo4j")
 public class Neo4jResource {
     private final Repository repository;
