@@ -6,18 +6,20 @@ import logging
 import sys
 from configparser import ConfigParser
 from logging.handlers import SysLogHandler
-from typing import Dict, List, Optional, TextIO, Union
+from typing import Dict, List, Optional, TextIO, Union, cast
 
 import neo4j
 from pydantic import Field, validator
 
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.client import ESClient, OSClient
+from neo4j_app.core.neo4j.projects import is_enterprise
 from neo4j_app.core.utils.logging import DATE_FMT, STREAM_HANDLER_FMT
 from neo4j_app.core.utils.pydantic import (
     BaseICIJModel,
     IgnoreExtraModel,
     LowerCamelCaseModel,
+    safe_copy,
 )
 
 _SYSLOG_MODEL_SPLIT_CHAR = "@"
@@ -41,6 +43,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_max_retry_wait_s: Union[int, float] = 60
     es_timeout_s: Union[int, float] = 60 * 5
     es_keep_alive: str = "1m"
+    force_migrations: bool = False
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
     neo4j_app_max_records_in_memory: int = int(1e6)
@@ -60,7 +63,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_user: Optional[str] = None
     # Other supported schemes are neo4j+ssc, neo4j+s, bolt, bolt+ssc, bolt+s
     neo4j_uri_scheme: str = "neo4j"
-    force_migrations: bool = False
+    supports_neo4j_enterprise: Optional[bool] = None
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
     # per request basis using FastApi dependencies...
@@ -155,6 +158,15 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             max_retry_wait_s=self.es_max_retry_wait_s,
         )
         return client
+
+    async def with_neo4j_support(self) -> AppConfig:
+        with self.to_neo4j_driver() as neo4j_driver:
+            support = await is_enterprise(neo4j_driver)
+        copied = safe_copy(
+            self, deep=True, update={"supports_neo4j_enterprise": support}
+        )
+        copied = cast(AppConfig, copied)
+        return copied
 
     def setup_loggers(self):
         import neo4j_app

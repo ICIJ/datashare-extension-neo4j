@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Tuple
 
 import neo4j
 
@@ -19,7 +19,7 @@ class Project(BaseICIJModel):
 
     @classmethod
     def from_neo4j(cls, record: neo4j.Record, key="project") -> Project:
-        project = dict(record[key])
+        project = dict(record.value(key))
         return Project(**project)
 
 
@@ -40,7 +40,16 @@ async def projects_tx(tx: neo4j.AsyncTransaction) -> List[Project]:
     return projects
 
 
-async def create_project_tx(tx: neo4j.AsyncTransaction, name: str) -> Project:
+async def create_project_db(neo4j_driver: neo4j.AsyncDriver, project: str):
+    if await is_enterprise(neo4j_driver):
+        db_name = await project_db(neo4j_driver, project=project)
+        query = "CREATE DATABASE $db_name IF NOT EXISTS"
+        await neo4j_driver.execute_query(query, db_name=db_name)
+
+
+async def create_project_tx(
+    tx: neo4j.AsyncTransaction, name: str
+) -> Tuple[Project, bool]:
     if name == PROJECT_REGISTRY_DB:
         raise ValueError(
             f'Bad luck, name "{PROJECT_REGISTRY_DB}" is reserved for internal use.'
@@ -49,8 +58,11 @@ async def create_project_tx(tx: neo4j.AsyncTransaction, name: str) -> Project:
     query = f"""MERGE (project:{PROJECT_NODE} {{ {PROJECT_NAME}: $name }})
 RETURN project"""
     res = await tx.run(query, name=name)
-    project = Project.from_neo4j(await res.single())
-    return project
+    rec = await res.single()
+    summary = await res.consume()
+    existed = summary.counters.nodes_created == 0
+    project = Project.from_neo4j(rec)
+    return project, existed
 
 
 async def project_registry_db(neo4j_driver: neo4j.AsyncDriver) -> str:

@@ -3,6 +3,7 @@ DOCUMENT_TAG = "Documents"
 NE_TAG = "Named entities"
 OTHER_TAG = "Other"
 GRAPH_TAG = "Graphs"
+PROJECT_TAG = "Project"
 
 
 DOC_IMPORT_SUM = "Import documents from elasticsearch to neo4j"
@@ -175,3 +176,8 @@ and then the query which will actually be performed will be:
 The `<docFieldType>` defaults to `type` and is supposed to be forwarded from the Java \
 app to the Python one through configuration. 
 """
+
+DOC_PROJECT_INIT = (
+    "Initializes the app for the provided project (creates and migrate"
+    " the associated neo4j DB)"
+)

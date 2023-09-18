@@ -3,6 +3,7 @@ package org.icij.datashare;
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.TestUtils.assertJson;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
@@ -21,7 +22,6 @@ import org.icij.datashare.text.Project;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 public class Neo4jResourceTest {
 
+    public static final String SINGLE_PROJECT = "foo-datashare";
     private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
 
     @Prefix("/api/neo4j")
@@ -69,7 +70,7 @@ public class Neo4jResourceTest {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
                 {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
-                    put("neo4jSingleProject", "foo-datashare");
+                    put("neo4jSingleProject", SINGLE_PROJECT);
                     // TODO: fix this path ?
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
                     put("neo4jAppStartTimeoutS", "2");
@@ -85,7 +86,7 @@ public class Neo4jResourceTest {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
                 {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
-                    put("neo4jSingleProject", "foo-datashare");
+                    put("neo4jSingleProject", SINGLE_PROJECT);
                     put("mode", "LOCAL");
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
                 }
@@ -100,7 +101,7 @@ public class Neo4jResourceTest {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
                 {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
-                    put("neo4jSingleProject", "foo-datashare");
+                    put("neo4jSingleProject", SINGLE_PROJECT);
                     put("mode", "EMBEDDED");
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
                 }
@@ -114,7 +115,7 @@ public class Neo4jResourceTest {
             propertyProvider = new PropertiesProvider(new HashMap<>() {
                 {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
-                    put("neo4jSingleProject", "foo-datashare");
+                    put("neo4jSingleProject", SINGLE_PROJECT);
                     // TODO: how to fix the path ?
                     put("neo4jStartServerCmd", "src/test/resources/python_mock " + neo4jAppPort);
                 }
@@ -123,7 +124,7 @@ public class Neo4jResourceTest {
         }
     }
 
-    public static class BindNeo4jResource
+    public abstract static class BindNeo4jResourceBase
         extends ProdWebServerRuleExtension
         implements BeforeAllCallback, AfterEachCallback {
         @Mock
@@ -154,6 +155,26 @@ public class Neo4jResourceTest {
         @Override
         public void afterEach(ExtensionContext extensionContext) {
             reset(parentRepository);
+        }
+    }
+
+    public static class BindNeo4jResource extends BindNeo4jResourceBase {
+        @Override
+        public void beforeAll(ExtensionContext extensionContext)
+            throws InvocationTargetException, NoSuchMethodException, InstantiationException,
+            IllegalAccessException {
+            super.beforeAll(extensionContext);
+            Neo4jResource.supportNeo4jEnterprise = false;
+        }
+    }
+
+    public static class BindNeo4jResourceEnterprise extends BindNeo4jResourceBase {
+        @Override
+        public void beforeAll(ExtensionContext extensionContext)
+            throws InvocationTargetException, NoSuchMethodException, InstantiationException,
+            IllegalAccessException {
+            super.beforeAll(extensionContext);
+            Neo4jResource.supportNeo4jEnterprise = true;
         }
     }
 
@@ -399,6 +420,79 @@ public class Neo4jResourceTest {
         }
 
         @Test
+        public void test_init_project_should_return_200() throws IOException, InterruptedException {
+            // Given
+            Neo4jResource.projects.clear();
+            neo4jAppResource.startServerProcess(false);
+            neo4jApp.configure(
+                routes -> routes.post("/projects/init", context -> new Payload(200))
+            );
+
+            // When
+            Response response = post("/api/neo4j/init?project=foo-datashare")
+                .withPreemptiveAuthentication("foo", "null")
+                .response();
+
+            // Then
+            assertThat(response.code()).isEqualTo(200);
+        }
+
+        @Test
+        public void test_init_project_should_return_201() throws IOException, InterruptedException {
+            // Given
+            Neo4jResource.projects.clear();
+            neo4jAppResource.startServerProcess(false);
+            neo4jApp.configure(
+                routes -> routes.post("/projects/init", context -> new Payload(201))
+            );
+
+            // When
+            Response response = post("/api/neo4j/init?project=foo-datashare")
+                .withPreemptiveAuthentication("foo", "null")
+                .response();
+
+            // Then
+            assertThat(response.code()).isEqualTo(201);
+        }
+
+        @Test
+        public void test_init_project_should_cache() throws IOException, InterruptedException {
+            // Given
+            Neo4jResource.projects.add("foo-datashare");
+            neo4jAppResource.startServerProcess(false);
+
+            neo4jApp.configure(
+                routes -> routes.post("/projects/init", context -> new Payload(418))
+            );
+
+            // When
+            Response response = post("/api/neo4j/init?project=foo-datashare")
+                .withPreemptiveAuthentication("foo", "null")
+                .response();
+
+            // Then
+            assertThat(response.code()).isEqualTo(200);
+        }
+
+
+        @Test
+        public void test_init_project_should_return_401_for_unauthorized_user() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/projects/init", context -> new Payload(418))
+            );
+
+            // When
+            Response response = post("/api/neo4j/init?project=foo-datashare")
+                .withPreemptiveAuthentication("unauthorized", "null")
+                .response();
+
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+
+        @Test
         public void test_post_documents_import_should_return_200() {
             // Given
             neo4jApp.configure(
@@ -613,6 +707,68 @@ public class Neo4jResourceTest {
             assertThat(response.code()).isEqualTo(403);
         }
 
+        @Test
+        public void test_check_extension_project_community()
+            throws IOException, InterruptedException {
+            // Given
+            String project = "foo-datashare";
+            assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(false);
+            neo4jAppResource.startServerProcess(false);
+
+            // When
+            try {
+                neo4jAppResource.checkExtensionProject(project);
+            } catch (Neo4jResource.InvalidProjectError e) {
+                fail("Project " + project + " is expected to be valid");
+            }
+        }
+
+        @Test
+        public void test_check_extension_project_community_should_throw()
+            throws IOException, InterruptedException {
+            // Given
+            String project = "not-the-neo4j-project";
+            assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(false);
+            neo4jAppResource.startServerProcess(false);
+
+            // When
+            String expected = "Invalid project\n"
+                + "Detail: Invalid project 'not-the-neo4j-project' extension is setup to support"
+                + " project 'foo-datashare'";
+            assertThat(assertThrows(Neo4jResource.InvalidProjectError.class,
+                () -> neo4jAppResource.checkExtensionProject(project)
+            ).getMessage()).isEqualTo(expected);
+        }
+
+    }
+
+    @DisplayName("test with mocked app and enterprise support")
+    @ExtendWith(MockNeo4jApp.class)
+    @ExtendWith(MockAppProperties.class)
+    @ExtendWith(BindNeo4jResourceEnterprise.class)
+    @Nested
+    class Neo4jResourceEnterpriseTest implements FluentRestTest {
+        @Override
+        public int port() {
+            return port;
+        }
+
+        @Test
+        public void test_check_extension_project_enterprise()
+            throws IOException, InterruptedException {
+            // Given
+            String project = "some-project";
+            assertThat(project).isNotEqualTo(SINGLE_PROJECT);
+            assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(true);
+            neo4jAppResource.startServerProcess(false);
+
+            // When
+            try {
+                neo4jAppResource.checkExtensionProject(project);
+            } catch (Neo4jResource.InvalidProjectError e) {
+                fail("Project " + project + " is expected to be valid");
+            }
+        }
     }
 
     @DisplayName("test admin import local")
