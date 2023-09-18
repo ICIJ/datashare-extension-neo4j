@@ -7,7 +7,6 @@ import random
 import traceback
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, Optional, Tuple, Union
-from unittest.mock import AsyncMock, MagicMock
 
 import neo4j
 import pytest
