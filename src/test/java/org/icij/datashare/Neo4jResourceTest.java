@@ -420,10 +420,9 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_init_project_should_return_200() throws IOException, InterruptedException {
+        public void test_init_project_should_return_200() {
             // Given
             Neo4jResource.projects.clear();
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post("/projects/init", context -> new Payload(200))
             );
@@ -438,10 +437,9 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_init_project_should_return_201() throws IOException, InterruptedException {
+        public void test_init_project_should_return_201() {
             // Given
             Neo4jResource.projects.clear();
-            neo4jAppResource.startServerProcess(false);
             neo4jApp.configure(
                 routes -> routes.post("/projects/init", context -> new Payload(201))
             );
@@ -456,10 +454,9 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_init_project_should_cache() throws IOException, InterruptedException {
+        public void test_init_project_should_cache() {
             // Given
             Neo4jResource.projects.add("foo-datashare");
-            neo4jAppResource.startServerProcess(false);
 
             neo4jApp.configure(
                 routes -> routes.post("/projects/init", context -> new Payload(418))
@@ -708,12 +705,10 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_check_extension_project_community()
-            throws IOException, InterruptedException {
+        public void test_check_extension_project_community() {
             // Given
             String project = "foo-datashare";
             assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(false);
-            neo4jAppResource.startServerProcess(false);
 
             // When
             try {
@@ -724,12 +719,10 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_check_extension_project_community_should_throw()
-            throws IOException, InterruptedException {
+        public void test_check_extension_project_community_should_throw() {
             // Given
             String project = "not-the-neo4j-project";
             assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(false);
-            neo4jAppResource.startServerProcess(false);
 
             // When
             String expected = "Invalid project\n"
@@ -754,8 +747,7 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_check_extension_project_enterprise()
-            throws IOException, InterruptedException {
+        public void test_check_extension_project_enterprise() {
             // Given
             String project = "some-project";
             assertThat(project).isNotEqualTo(SINGLE_PROJECT);

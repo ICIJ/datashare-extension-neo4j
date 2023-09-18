@@ -48,15 +48,14 @@ async def test_es_client_should_search_with_pagination_size():
     # Given
     pagination = 666
     es_client = ESClient(pagination=pagination)
+    index = "test-datashare-project"
 
     # When
     with patch.object(AsyncElasticsearch, "search") as mocked_search:
         mocked_search.side_effect = _mocked_search
-        await es_client.search(body=None, index=TEST_INDEX)
+        await es_client.search(body=None, index=index)
         # Then
-        mocked_search.assert_called_once_with(
-            body=None, index=TEST_INDEX, size=pagination
-        )
+        mocked_search.assert_called_once_with(body=None, index=index, size=pagination)
 
 
 @pytest.mark.asyncio
@@ -64,15 +63,14 @@ async def test_os_client_should_search_with_pagination_size():
     # Given
     pagination = 666
     es_client = OSClient(pagination=pagination)
+    index = "test-datashare-project"
 
     # When
     with patch.object(AsyncOpenSearch, "search") as mocked_search:
         mocked_search.side_effect = _mocked_search
-        await es_client.search(body=None, index=TEST_INDEX)
+        await es_client.search(body=None, index=index)
         # Then
-        mocked_search.assert_called_once_with(
-            body=None, index=TEST_INDEX, size=pagination
-        )
+        mocked_search.assert_called_once_with(body=None, index=index, size=pagination)
 
 
 @pytest.mark.asyncio
@@ -82,11 +80,12 @@ async def test_es_client_should_raise_when_size_is_provided():
     es_client = ESClient(pagination=pagination)
     size = 100
     body = None
+    index = "test-datashare-project"
 
-    # When
-    expected_msg = "SClient run searches using the pagination_size"
+    # When/Then
+    expected_msg = "ESClient run searches using the pagination_size"
     with pytest.raises(ValueError, match=expected_msg):
-        await es_client.search(body=body, index=TEST_INDEX, size=size)
+        await es_client.search(body=body, index=index, size=size)
 
 
 @pytest.mark.asyncio
