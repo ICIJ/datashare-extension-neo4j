@@ -137,6 +137,8 @@ public class Neo4jResource {
         long elapsed = 0;
         while (elapsed < timeout) {
             if (isOpen(this.host, this.port) && pingSuccessful()) {
+                // TODO: in addition we should ping the Python service, ports might be open slightly
+                //  ahead of readiness
                 return;
             } else {
                 try {
@@ -147,8 +149,8 @@ public class Neo4jResource {
             }
             elapsed = System.currentTimeMillis() - start;
         }
-        long timeouts = timeout / 1000;
-        throw new RuntimeException("Couldn't start Python " + timeouts + "s after starting it !");
+        long timeoutS = timeout / 1000;
+        throw new RuntimeException("Couldn't start Python " + timeoutS + "s after starting it !");
     }
 
     protected boolean pingSuccessful() {
