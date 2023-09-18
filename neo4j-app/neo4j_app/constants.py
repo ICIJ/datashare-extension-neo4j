@@ -14,7 +14,7 @@ DOC_ID_CSV = f"ID({DOC_NODE})"
 DOC_EXTRACTION_DATE = "extractionDate"
 DOC_PATH = "path"
 DOC_ROOT_ID = "rootDocument"
-DOC_ROOT_REL_LABEL = "HAS_PARENT"
+DOC_ROOT_TYPE = "HAS_PARENT"
 DOC_COLUMNS = {
     DOC_ID: {NEO4J_CSV_COL: DOC_ID_CSV},
     DOC_DIRNAME: {},
@@ -31,14 +31,29 @@ PROJECT_NAME = "name"
 PROJECT_NODE = "_Project"
 
 # TODO: check that it the name retained in https://github.com/ICIJ/datashare/pull/1180
+EMAIL_CATEGORY = "EMAIL"
 EMAIL_HEADER = "emailHeader"
-EMAIL_RECEIVED_REL_LABEL = "RECEIVED"
-EMAIL_SENT_REL_LABEL = "SENT"
+EMAIL_RECEIVED_TYPE = "RECEIVED"
+EMAIL_SENT_TYPE = "SENT"
 # TODO: check the naming here, we use "fields" here since the RFC specification
 #  https://www.rfc-editor.org/rfc/rfc2822 refers to this kind of header as fields, this
 #  is not very ubiquitous nor end user friendly. FTM and other knowledge base don't
 #  seem to propose a naming for these fields. "role" might be friendly
 EMAIL_REL_HEADER_FIELDS = "fields"
+
+EMAIL_REL_COLS = {
+    EMAIL_REL_HEADER_FIELDS: {NEO4J_CSV_COL: "STRING[]"},
+}
+
+# TODO: check that this list is exhaustive, we know it isn't !!!
+SENT_EMAIL_HEADERS = {"tika_metadata_message_from"}
+# TODO: check that this list is exhaustive, we know it isn't !!!
+RECEIVED_EMAIL_HEADERS = {
+    "tika_metadata_message_bcc",
+    "tika_metadata_message_cc",
+    "tika_metadata_message_to",
+}
+
 
 MIGRATION_COMPLETED = "completed"
 MIGRATION_LABEL = "label"

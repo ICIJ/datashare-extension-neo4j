@@ -11,7 +11,7 @@ from neo4j_app.constants import (
     DOC_NODE,
     DOC_PATH,
     DOC_ROOT_ID,
-    DOC_ROOT_REL_LABEL,
+    DOC_ROOT_TYPE,
 )
 
 
@@ -35,7 +35,7 @@ CALL {{
     WITH doc, row
     WHERE doc.{DOC_ID} = row.{DOC_ID} and row.{DOC_ROOT_ID} IS NOT NULL
     MERGE (root:{DOC_NODE} {{{DOC_ID}: row.{DOC_ROOT_ID}}})
-    MERGE (doc)-[:{DOC_ROOT_REL_LABEL}]->(root)
+    MERGE (doc)-[:{DOC_ROOT_TYPE}]->(root)
 }} IN TRANSACTIONS OF $batchSize ROWS
 """
     res = await neo4j_session.run(query, rows=records, batchSize=transaction_batch_size)

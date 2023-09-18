@@ -1,11 +1,16 @@
 import hashlib
-from typing import Dict, List, TextIO
+from typing import Dict, List, Optional, TextIO
 
 from neo4j_app.constants import (
     DOC_COLUMNS,
     DOC_ID,
     DOC_NODE,
     DOC_ROOT_ID,
+    EMAIL_HEADER,
+    EMAIL_RECEIVED_TYPE,
+    EMAIL_REL_COLS,
+    EMAIL_REL_HEADER_FIELDS,
+    EMAIL_SENT_TYPE,
     NEO4J_ARRAY_SPLIT_CHAR,
     NEO4J_CSV_END_ID,
     NEO4J_CSV_ID,
@@ -22,8 +27,11 @@ from neo4j_app.constants import (
     NE_ID,
     NE_IDS,
     NE_MENTION_NORM,
+    NE_METADATA,
     NE_NODE,
     NE_OFFSETS,
+    RECEIVED_EMAIL_HEADERS,
+    SENT_EMAIL_HEADERS,
 )
 from neo4j_app.core.elasticsearch.utils import JOIN, PARENT, SOURCE
 from neo4j_app.core.neo4j import write_neo4j_csv
@@ -102,7 +110,7 @@ def es_to_neo4j_named_entity_csv(
 _NE_DOC_REL_END_COL = f"{NEO4J_CSV_END_ID}({DOC_NODE})"
 
 
-def es_to_neo4j_named_entity_doc_rel_csv(ne_hit: Dict) -> List[Dict[str, str]]:
+def es_to_neo4j_named_entity_doc_rel_csv(ne_hit: Dict) -> List[Dict]:
     rel = es_to_neo4j_named_entity_row(ne_hit)
     item = rel[0]
     item[NEO4J_CSV_START_ID] = make_ne_hit_id(
@@ -114,6 +122,23 @@ def es_to_neo4j_named_entity_doc_rel_csv(ne_hit: Dict) -> List[Dict[str, str]]:
     return [item]
 
 
+def es_to_neo4j_email_rel_csv(ne_hit: Dict) -> List[Optional[Dict[str, str]]]:
+    item = es_to_neo4j_named_entity_doc_rel_csv(ne_hit)[0]
+    metadata = item.get(NE_METADATA)
+    if metadata is None:
+        return [None]
+    email_header = metadata.get(EMAIL_HEADER)
+    if email_header is None:
+        return [None]
+    if email_header in RECEIVED_EMAIL_HEADERS:
+        item[NEO4J_CSV_TYPE] = EMAIL_RECEIVED_TYPE
+    elif email_header in SENT_EMAIL_HEADERS:
+        item[NEO4J_CSV_TYPE] = EMAIL_SENT_TYPE
+    else:
+        return [None]
+    return [item]
+
+
 _NE_DOC_REL_OFFSETS_CSV_COL = (
     f"{NE_OFFSETS}:{NE_APPEARS_IN_DOC_COLS[NE_OFFSETS][NEO4J_CSV_COL]}"
 )
@@ -121,6 +146,11 @@ _NE_DOC_REL_EXTRACTORS_CSV_COL = (
     f"{NE_EXTRACTORS}:{NE_APPEARS_IN_DOC_COLS[NE_EXTRACTORS][NEO4J_CSV_COL]}"
 )
 _NE_DOC_REL_IDS_CSV_COL = f"{NE_IDS}:{NE_APPEARS_IN_DOC_COLS[NE_IDS][NEO4J_CSV_COL]}"
+
+_EMAIL_REL_FIELDS_CSV_COL = (
+    f"{EMAIL_REL_HEADER_FIELDS}:"
+    f"{EMAIL_REL_COLS[EMAIL_REL_HEADER_FIELDS][NEO4J_CSV_COL]}"
+)
 
 
 def write_es_rows_to_ne_doc_rel_csv(f: TextIO, rows: List[Dict], header: List[str]):
@@ -135,3 +165,20 @@ def write_es_rows_to_ne_doc_rel_csv(f: TextIO, rows: List[Dict], header: List[st
             sorted(row.pop(NE_IDS))
         )
     write_neo4j_csv(f, rows=rows, header=header, write_header=False)
+
+
+_EMAIL_REL_HEADER_FIELDS_CSV_COL = (
+    f"{EMAIL_REL_HEADER_FIELDS}:"
+    f"{EMAIL_REL_COLS[EMAIL_REL_HEADER_FIELDS][NEO4J_CSV_COL]}"
+)
+
+
+def write_es_rows_to_email_rel_csv(f: TextIO, rows: List[Dict], header: List[str]):
+    written = []
+    for row in rows:
+        row[_EMAIL_REL_HEADER_FIELDS_CSV_COL] = NEO4J_ARRAY_SPLIT_CHAR.join(
+            sorted(set(row.pop(EMAIL_REL_HEADER_FIELDS)))
+        )
+        written.append(row)
+    if written:
+        write_neo4j_csv(f, rows=written, header=header, write_header=False)

@@ -74,6 +74,12 @@ async def test_post_named_entities_import_should_return_200(
                 relationship_paths=["entity-docs.csv"],
                 n_relationships=2,
             ),
+            RelationshipCSVs(
+                types=[],
+                header_path="email-docs-header.csv",
+                relationship_paths=["email-docs.csv"],
+                n_relationships=0,
+            ),
         ],
     )
     assert res.metadata == expected_metadata
