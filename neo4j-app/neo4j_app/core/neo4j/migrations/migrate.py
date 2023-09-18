@@ -23,6 +23,7 @@ from neo4j_app.constants import (
 )
 from neo4j_app.core.neo4j.projects import (
     Project,
+    create_project_db,
     create_project_tx,
     project_db_session,
     registry_db_session,
@@ -82,7 +83,7 @@ class Neo4jMigration(_BaseMigration):
 
     @classmethod
     def from_neo4j(cls, record: neo4j.Record, key="migration") -> Neo4jMigration:
-        migration = dict(record[key])
+        migration = dict(record.value(key))
         if "started" in migration:
             migration["started"] = migration["started"].to_native()
         if "completed" in migration:
@@ -290,22 +291,27 @@ async def migrate_project_db_schema(
 
 
 async def init_project(
-    driver: neo4j.AsyncDriver,
+    neo4j_driver: neo4j.AsyncDriver,
     name: str,
     registry: MigrationRegistry,
     *,
     timeout_s: float,
     throttle_s: float,
-):
+) -> bool:
+    # Create project DB
+    await create_project_db(neo4j_driver, project=name)
+
     # Create project
-    async with registry_db_session(driver) as sess:
-        project = await sess.execute_write(create_project_tx, name=name)
+    async with registry_db_session(neo4j_driver) as sess:
+        project, already_exists = await sess.execute_write(create_project_tx, name=name)
 
     # Migrate it
     await migrate_project_db_schema(
-        driver,
+        neo4j_driver,
         registry=registry,
         project=project.name,
         timeout_s=timeout_s,
         throttle_s=throttle_s,
     )
+
+    return already_exists

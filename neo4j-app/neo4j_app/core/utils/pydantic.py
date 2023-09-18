@@ -10,6 +10,20 @@ def to_lower_camel(field: str) -> str:
     )
 
 
+_FIELD_ARGS = ["include", "exclude", "update"]
+
+
+# TODO: remove this one when migrating to pydantic 2.0
+def safe_copy(model: BaseModel, **kwargs) -> BaseModel:
+    for k in _FIELD_ARGS:
+        for field in kwargs[k]:
+            if not hasattr(model, field):
+                msg = f"Unknown attribute {field} for {model.__class__}"
+                raise AttributeError(msg)
+
+    return model.copy(**kwargs)
+
+
 class BaseICIJModel(BaseModel):
     class Config:
         allow_mutation = False

@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
+import java.util.HashMap;
 import kong.unirest.HttpRequest;
 import kong.unirest.HttpResponse;
 import kong.unirest.Unirest;
@@ -38,6 +39,29 @@ public class Neo4jClient {
     public Neo4jClient(int port) {
         this.port = port;
         this.httpClient = java.net.http.HttpClient.newHttpClient();
+    }
+
+    public boolean initProject(String project) {
+        String url = buildNeo4jUrl("/projects/init?project=" + project);
+        logger.debug("Initializing project: {}", project);
+        HttpResponse res = doHttpRequestAsEmpty(
+            Unirest.post(url).header("Content-Type", "application/json")
+        );
+        int status = res.getStatus();
+        switch (status) {
+            case 200:
+                return false;
+            case 201:
+                return true;
+            default:
+                throw new IllegalStateException("Unexpected init status: " + status);
+        }
+    }
+
+    public HashMap<String, Object> config() {
+        String url = buildNeo4jUrl("/config");
+        logger.debug("Fetching Python app config");
+        return doHttpRequest(Unirest.get(url), HashMap.class);
     }
 
     public Objects.IncrementalImportResponse importDocuments(
@@ -122,6 +146,11 @@ public class Neo4jClient {
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
+
+    private <R extends HttpRequest<R>> HttpResponse doHttpRequestAsEmpty(HttpRequest<R> request)
+        throws Neo4jAppError {
+        return handleUnirestErrors(request.asEmpty());
+    }
 
     private <T, R extends HttpRequest<R>> T doHttpRequest(HttpRequest<R> request, Class<T> clazz)
         throws Neo4jAppError {

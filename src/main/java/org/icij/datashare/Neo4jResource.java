@@ -31,6 +31,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -60,7 +61,6 @@ public class Neo4jResource {
     private static final String NEO4J_APP_BIN = "neo4j-app";
     private static final Path TMP_ROOT = Path.of(
         FileSystems.getDefault().getSeparator(), "tmp");
-    private static final String NEO4J_DEFAULT_DB = "neo4j";
     private static final long NEO4J_DEFAULT_DUMPED_DOCUMENTS = 1000;
     private static final String SYSLOG_SPLIT_CHAR = "@";
 
@@ -80,6 +80,10 @@ public class Neo4jResource {
             put("neo4jUser", "");
         }
     };
+
+    protected static final HashSet<String> projects = new HashSet<>();
+    protected static Boolean supportNeo4jEnterprise;
+
     private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
     // TODO: not sure that we want to delete the process when this deleted...
     // Cleaner which will ensure the Python server will be close when the resource is deleted
@@ -177,6 +181,21 @@ public class Neo4jResource {
         return wrapNeo4jAppCall(() -> {
             boolean isRunning = neo4jAppPid() != null;
             return new Neo4jAppStatus(isRunning);
+        });
+    }
+
+    @Post("/init?project=:project")
+    public Payload postInitProject(String project, Context context) {
+        return wrapNeo4jAppCall(() -> {
+            checkProjectAccess(project, context);
+            boolean created = this.initProject(project);
+            int code;
+            if (created) {
+                code = 201;
+            } else {
+                code = 200;
+            }
+            return new Payload(created).withCode(code);
         });
     }
 
@@ -350,6 +369,18 @@ public class Neo4jResource {
         }
     }
 
+    protected boolean supportsNeo4jEnterprise() {
+        checkNeo4jAppStarted();
+        synchronized (Neo4jResource.class) {
+            if (supportNeo4jEnterprise == null) {
+                Boolean support = (Boolean) client.config().get("supportsNeo4jEnterprise");
+                supportNeo4jEnterprise = Objects.requireNonNull(support,
+                    "Couldn't read enterprise support from config");
+            }
+        }
+        return Neo4jResource.supportNeo4jEnterprise;
+    }
+
     protected void checkServerCommand(List<String> startServerCmd) {
         if (startServerCmd.isEmpty()) {
             throw new InvalidNeo4jCommandError("Empty neo4j server command");
@@ -427,6 +458,20 @@ public class Neo4jResource {
         return null;
     }
 
+    protected boolean initProject(String projectId) {
+        checkExtensionProject(projectId);
+        checkNeo4jAppStarted();
+        boolean created;
+        synchronized (projects) {
+            if (!projects.contains(projectId)) {
+                created = client.initProject(projectId);
+                projects.add(projectId);
+            } else {
+                created = false;
+            }
+        }
+        return created;
+    }
 
     protected org.icij.datashare.Objects.IncrementalImportResponse importDocuments(
         String projectId,
@@ -505,7 +550,7 @@ public class Neo4jResource {
 
     private <T> Payload wrapNeo4jAppCall(Callable<T> responseProvider) {
         try {
-            return new Payload(responseProvider.call()).withCode(200);
+            return new Payload(responseProvider.call());
         } catch (InvalidProjectError e) {
             return new Payload("application/problem+json", e).withCode(403);
         } catch (Neo4jNotRunningError e) {
@@ -546,14 +591,14 @@ public class Neo4jResource {
     }
 
     protected void checkExtensionProject(String candidateProject) {
-        // When a single neo4j DB is available check that the current project is the one supported
-        // by the DB
-        if (this.neo4jSingleProjectId != null) {
-            if (!Objects.equals(this.neo4jSingleProjectId, candidateProject)) {
-                InvalidProjectError error = new InvalidProjectError(
-                    this.neo4jSingleProjectId, candidateProject);
-                logger.error(error.getMessage());
-                throw error;
+        if (!supportsNeo4jEnterprise()) {
+            if (this.neo4jSingleProjectId != null) {
+                if (!Objects.equals(this.neo4jSingleProjectId, candidateProject)) {
+                    InvalidProjectError error = new InvalidProjectError(
+                        this.neo4jSingleProjectId, candidateProject);
+                    logger.error(error.getMessage());
+                    throw error;
+                }
             }
         }
     }

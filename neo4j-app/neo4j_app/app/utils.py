@@ -18,6 +18,7 @@ from neo4j_app.app.documents import documents_router
 from neo4j_app.app.graphs import graphs_router
 from neo4j_app.app.main import main_router
 from neo4j_app.app.named_entities import named_entities_router
+from neo4j_app.app.projects import projects_router
 from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
 from neo4j_app.core.neo4j.migrations import delete_all_migrations
@@ -96,7 +97,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, internal_exception_handler)
     app.add_event_handler("startup", app.state.config.setup_loggers)
-    # This one is not a migration, migrations run on project DBs, this one runs on a
+    # This one is not a migration, migrations run on project DBs, it runs on a
     # utility DB
     app.add_event_handler(
         "startup", functools.partial(create_project_registry_db_, app)
@@ -107,6 +108,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.include_router(named_entities_router())
     app.include_router(admin_router())
     app.include_router(graphs_router())
+    app.include_router(projects_router())
     return app
 
 

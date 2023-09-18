@@ -299,5 +299,37 @@ public class Neo4jClientTest {
                 () -> client.dumpGraph("unknown", body)
             ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid project unknown");
         }
+
+        @Test
+        public void test_init_project() {
+            // Given
+            String newProject = "new-project";
+            neo4jApp.configure(routes -> routes.post("/projects/init", () -> new Payload(201)));
+            // When
+            boolean created = client.initProject(newProject);
+            // Then
+            assert created;
+        }
+
+        @Test
+        public void test_init_existing_project() {
+            // Given
+            String newProject = "existing-project";
+            neo4jApp.configure(routes -> routes.post("/projects/init", () -> new Payload(200)));
+            // When
+            boolean created = client.initProject(newProject);
+            // Then
+            assert !created;
+        }
+
+        @Test
+        public void test_config() {
+            // Given
+            neo4jApp.configure(routes -> routes.get("/config", (ctx) -> new HashMap<>()));
+            // When
+            HashMap<String, Object> res = client.config();
+            // Then
+            assertThat(res).isEqualTo(new HashMap<String, Object>());
+        }
     }
 }
