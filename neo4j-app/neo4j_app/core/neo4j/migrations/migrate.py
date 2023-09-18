@@ -298,11 +298,6 @@ async def init_project(
     timeout_s: float,
     throttle_s: float,
 ):
-    if name == PROJECT_REGISTRY_DB:
-        raise ValueError(
-            f'Bad luck, name "{PROJECT_REGISTRY_DB}" is reserved for internal use.'
-            f" Can't initialize project"
-        )
     # Create project
     async with registry_db_session(driver) as sess:
         project = await sess.execute_write(create_project_tx, name=name)

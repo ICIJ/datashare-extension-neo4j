@@ -41,6 +41,11 @@ async def projects_tx(tx: neo4j.AsyncTransaction) -> List[Project]:
 
 
 async def create_project_tx(tx: neo4j.AsyncTransaction, name: str) -> Project:
+    if name == PROJECT_REGISTRY_DB:
+        raise ValueError(
+            f'Bad luck, name "{PROJECT_REGISTRY_DB}" is reserved for internal use.'
+            f" Can't initialize project"
+        )
     query = f"""MERGE (project:{PROJECT_NODE} {{ {PROJECT_NAME}: $name }})
 RETURN project"""
     res = await tx.run(query, name=name)

@@ -204,6 +204,7 @@ async def import_named_entities(
     # Since this is an incremental import we consider it reasonable to use an ES join,
     # however for named entities bulk import join should be avoided and post filtering
     # on the documentId will probably be much more efficient !
+
     # TODO: if joining is too slow, switch to post filtering
     # TODO: project document fields here in order to reduce the ES payloads...
     async with es_client.try_open_pit(index=es_index, keep_alive=es_keep_alive) as pit:

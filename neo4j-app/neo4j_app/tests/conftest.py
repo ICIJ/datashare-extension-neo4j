@@ -17,12 +17,13 @@ from fastapi import APIRouter
 from neo4j import AsyncGraphDatabase
 from starlette.testclient import TestClient
 
+import neo4j_app
 from neo4j_app.app.utils import create_app
 from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClient, ESClientABC
 from neo4j_app.core.elasticsearch.client import PointInTime
+from neo4j_app.core.neo4j.projects import NEO4J_COMMUNITY_DB
 from neo4j_app.core.utils.pydantic import BaseICIJModel
-
 
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
 #  let's try to find a way to define the scope dynamically:
@@ -476,3 +477,43 @@ def fail_if_exception(msg: Optional[str] = None):
         if msg is None:
             msg = "Test failed due to the following error"
         pytest.fail(f"{msg}\n{trace}")
+
+
+async def mocked_is_enterprise(_: neo4j.AsyncDriver) -> bool:
+    return True
+
+
+@contextlib.asynccontextmanager
+async def _mocked_project_db_session(
+    neo4j_driver: neo4j.AsyncDriver, project: str  # pylint: disable=unused-argument
+) -> neo4j.AsyncSession:
+    async with neo4j_driver.session(database=NEO4J_COMMUNITY_DB) as sess:
+        yield sess
+
+
+async def _mocked_project_registry_db(neo4j_driver: neo4j.AsyncDriver) -> str:
+    return NEO4J_COMMUNITY_DB
+
+
+@pytest.fixture()
+def mock_enterprise(monkeypatch):
+    mock_enterprise_(monkeypatch)
+
+
+def mock_enterprise_(monkeypatch):
+    monkeypatch.setattr(
+        neo4j_app.core.neo4j.projects, "project_db_session", _mocked_project_db_session
+    )
+    monkeypatch.setattr(
+        neo4j_app.core.neo4j.migrations.migrate,
+        "project_db_session",
+        _mocked_project_db_session,
+    )
+    monkeypatch.setattr(
+        neo4j_app.core.neo4j.projects,
+        "project_registry_db",
+        _mocked_project_registry_db,
+    )
+    monkeypatch.setattr(
+        neo4j_app.core.neo4j.projects, "is_enterprise", mocked_is_enterprise
+    )
