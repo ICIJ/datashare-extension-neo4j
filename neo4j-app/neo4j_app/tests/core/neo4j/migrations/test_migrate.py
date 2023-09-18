@@ -8,7 +8,7 @@ import pytest_asyncio
 from neo4j.exceptions import ClientError
 
 import neo4j_app
-from neo4j_app.core.neo4j import Migration, migrate_db_schemas, V_0_1_0
+from neo4j_app.core.neo4j import Migration, V_0_1_0, migrate_db_schemas
 from neo4j_app.core.neo4j.migrations import migrate
 from neo4j_app.core.neo4j.migrations.migrate import (
     MigrationError,
@@ -17,18 +17,15 @@ from neo4j_app.core.neo4j.migrations.migrate import (
     init_project,
     retrieve_projects,
 )
-from neo4j_app.core.neo4j.projects import NEO4J_COMMUNITY_DB, Project
-from neo4j_app.tests.conftest import TEST_PROJECT, wipe_db
+from neo4j_app.core.neo4j.projects import Project
+from neo4j_app.tests.conftest import (
+    TEST_PROJECT,
+    mock_enterprise_,
+    mocked_is_enterprise,
+    wipe_db,
+)
 
 _BASE_REGISTRY = [V_0_1_0]
-
-
-async def _mocked_is_enterprise(_: neo4j.AsyncDriver) -> bool:
-    return True
-
-
-async def _mocked_project_registry_db(_: neo4j.AsyncDriver) -> str:
-    return NEO4J_COMMUNITY_DB
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -82,7 +79,8 @@ _MIGRATION_1 = Migration(
     ],
 )
 async def test_migrate_db_schema(
-    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
+    _migration_index_and_constraint: neo4j.AsyncDriver,
+    # pylint: disable=invalid-name
     registry: List[Migration],
     expected_indexes: Set[str],
     not_expected_indexes: Set[str],
@@ -119,7 +117,8 @@ async def test_migrate_db_schema(
 
 @pytest.mark.asyncio
 async def test_migrate_db_schema_should_raise_after_timeout(
-    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
+    _migration_index_and_constraint: neo4j.AsyncDriver,
+    # pylint: disable=invalid-name
 ):
     # Given
     neo4j_driver = _migration_index_and_constraint
@@ -180,7 +179,8 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
 async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
     monkeypatch,
     caplog,
-    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
+    _migration_index_and_constraint: neo4j.AsyncDriver,
+    # pylint: disable=invalid-name
 ):
     # Given
     neo4j_driver = _migration_index_and_constraint
@@ -238,23 +238,18 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("enterprise", [True, False])
 async def test_retrieve_project_dbs(
-    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
+    _migration_index_and_constraint: neo4j.AsyncDriver,
+    # pylint: disable=invalid-name
     enterprise: bool,
     monkeypatch,
 ):
     # Given
     neo4j_driver = _migration_index_and_constraint
-    projects = await retrieve_projects(neo4j_driver)
 
     if enterprise:
-        monkeypatch.setattr(
-            neo4j_app.core.neo4j.projects, "is_enterprise", _mocked_is_enterprise
-        )
-        monkeypatch.setattr(
-            neo4j_app.core.neo4j.projects,
-            "project_registry_db",
-            _mocked_project_registry_db,
-        )
+        mock_enterprise_(monkeypatch)
+
+    projects = await retrieve_projects(neo4j_driver)
 
     # Then
     assert projects == [Project(name=TEST_PROJECT)]
@@ -267,8 +262,9 @@ async def test_migrate_should_use_registry_db_when_with_enterprise_support(
 ):
     # Given
     registry = _BASE_REGISTRY
+
     monkeypatch.setattr(
-        neo4j_app.core.neo4j.projects, "is_enterprise", _mocked_is_enterprise
+        neo4j_app.core.neo4j.projects, "is_enterprise", mocked_is_enterprise
     )
     neo4j_driver = _migration_index_and_constraint
 
