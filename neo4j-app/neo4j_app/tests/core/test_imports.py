@@ -12,9 +12,10 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import neo4j
 import pytest
 import pytest_asyncio
+from elasticsearch._async.helpers import async_streaming_bulk
 
 from neo4j_app import ROOT_DIR
-from neo4j_app.constants import DOC_NODE, DOC_ROOT_REL_LABEL, NE_APPEARS_IN_DOC, NE_NODE
+from neo4j_app.constants import DOC_NODE, DOC_ROOT_TYPE, NE_APPEARS_IN_DOC, NE_NODE
 from neo4j_app.core.elasticsearch import ESClient
 from neo4j_app.core.elasticsearch.to_neo4j import make_ne_hit_id
 from neo4j_app.core.elasticsearch.utils import match_all
@@ -38,6 +39,23 @@ from neo4j_app.tests.conftest import (
     index_named_entities,
     index_noise,
 )
+
+
+def _make_email(doc_id: str, header_field: str) -> Dict:
+    return {
+        "_id": f"email-{header_field}",
+        "_source": {
+            "join": {"name": "NamedEntity", "parent": doc_id},
+            "type": "NamedEntity",
+            "offsets": [0],
+            "extractor": "spacy",
+            "extractorLanguage": "en",
+            "category": "EMAIL",
+            "mentionNorm": "dev@icij.org",
+            "mention": "dev@icij.org",
+            "metadata": {"emailHeader": header_field},
+        },
+    }
 
 
 @pytest_asyncio.fixture()
@@ -70,6 +88,7 @@ async def _populate_es(
     es_test_client_module: ESClient,
 ) -> AsyncGenerator[ESClient, None]:
     es_client = es_test_client_module
+    index_name = TEST_PROJECT
     n = 20
     # Index some Documents
     async for _ in index_docs(es_client, n=n):
@@ -79,6 +98,22 @@ async def _populate_es(
         pass
     # Index other noise
     async for _ in index_noise(es_client, n=n):
+        pass
+    # An email entity
+    last_doc_id = f"doc-{n - 1}"
+    from_email = _make_email(last_doc_id, "tika_metadata_message_from")
+    to_email = _make_email(last_doc_id, "tika_metadata_message_to")
+    ops = [from_email, to_email]
+    for op in ops:
+        op.update(
+            {
+                "_op_type": "index",
+                "_index": index_name,
+                "_routing": "DocumentNamedEntityRoute",
+            }
+        )
+    refresh = "wait_for"
+    async for _ in async_streaming_bulk(es_client, actions=ops, refresh=refresh):
         pass
     yield es_client
 
@@ -509,11 +544,11 @@ doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
     expected_ne = _expected_ne_nodes_lines()
     assert_content(ne_nodes_path, expected_ne, sort_lines=True)
 
-    assert len(metadata.relationships) == 2
+    assert len(metadata.relationships) == 3
 
     doc_root_rel_export = metadata.relationships[0]
     assert doc_root_rel_export.n_relationships == 4 - 1
-    assert doc_root_rel_export.types == [DOC_ROOT_REL_LABEL]
+    assert doc_root_rel_export.types == [DOC_ROOT_TYPE]
 
     expected_doc_root_rels_header = """:START_ID(Document),:END_ID(Document)
 """
@@ -542,7 +577,70 @@ mentionIds:STRING[],offsets:LONG[],:START_ID,:END_ID(Document),:TYPE
     ne_doc_rels = _expected_ne_doc_rel_lines()
     assert_content(ne_doc_rels_path, ne_doc_rels, sort_lines=True)
 
+    email_rels_export = metadata.relationships[2]
+    assert email_rels_export.n_relationships == 0
+    assert email_rels_export.types == []
+
+    ne_email_header_path = archive_dir / email_rels_export.header_path
+    expected_email_rels_header = """fields:STRING[],:START_ID,:END_ID(Document),:TYPE
+"""
+    assert_content(ne_email_header_path, expected_email_rels_header)
+
+    email_rels_path = archive_dir / email_rels_export.relationship_paths[0]
+    assert_content(email_rels_path, "")
+
     assert archive_dir.joinpath("bulk-import.sh").exists()
+
+
+@pytest.mark.asyncio
+async def test_to_neo4j_email_csvs(
+    _populate_es: ESClient, neo4j_test_driver: neo4j.AsyncDriver, tmpdir
+):
+    # pylint: disable=invalid-name
+    # Given
+    export_dir = Path(tmpdir)
+    es_doc_type_field = "type"
+    es_client = _populate_es
+    neo4j_driver = neo4j_test_driver
+    es_query = {"ids": {"values": ["doc-19"]}}
+    res = await to_neo4j_csvs(
+        es_query=es_query,
+        project=TEST_PROJECT,
+        export_dir=export_dir,
+        es_client=es_client,
+        es_concurrency=None,
+        es_keep_alive="1m",
+        es_doc_type_field=es_doc_type_field,
+        neo4j_driver=neo4j_driver,
+    )
+    # When
+    archive_dir = export_dir.joinpath("archive")
+    archive_dir.mkdir()
+    with tarfile.open(res.path, "r:gz") as f:
+        f.extractall(archive_dir)
+
+    # Then
+    metadata_path = archive_dir / "metadata.json"
+    assert metadata_path.exists()
+    metadata = Neo4jCSVs.parse_file(metadata_path)
+    assert metadata == res.metadata
+    assert metadata.db == "neo4j"
+
+    email_rels_export = metadata.relationships[2]
+    assert email_rels_export.n_relationships == 2
+    assert email_rels_export.types == []
+
+    ne_email_header_path = archive_dir / email_rels_export.header_path
+    expected_email_rels_header = """fields:STRING[],:START_ID,:END_ID(Document),:TYPE
+"""
+    assert_content(ne_email_header_path, expected_email_rels_header)
+
+    email_rels_path = archive_dir / email_rels_export.relationship_paths[0]
+    ne_id = make_ne_hit_id(mention_norm="dev@icij.org", category="EMAIL")
+    expected_email_lines = f"""tika_metadata_message_from,{ne_id},doc-19,SENT
+tika_metadata_message_to,{ne_id},doc-19,RECEIVED
+"""
+    assert_content(email_rels_path, expected_email_lines, sort_lines=True)
 
 
 @pytest.mark.parametrize(

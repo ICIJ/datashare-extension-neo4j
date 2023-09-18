@@ -6,9 +6,9 @@ from neo4j_app.constants import (
     DOC_ID,
     DOC_NODE,
     EMAIL_HEADER,
-    EMAIL_RECEIVED_REL_LABEL,
+    EMAIL_RECEIVED_TYPE,
     EMAIL_REL_HEADER_FIELDS,
-    EMAIL_SENT_REL_LABEL,
+    EMAIL_SENT_TYPE,
     NE_APPEARS_IN_DOC,
     NE_CATEGORY,
     NE_DOC_ID,
@@ -21,25 +21,19 @@ from neo4j_app.constants import (
     NE_METADATA,
     NE_NODE,
     NE_OFFSETS,
+    RECEIVED_EMAIL_HEADERS,
+    SENT_EMAIL_HEADERS,
 )
 
-# TODO: check that this list is exhaustive, we know it isn't !!!
-_SENT_EMAIL_HEADERS = ["tika_metadata_message_from"]
-# TODO: check that this list is exhaustive, we know it isn't !!!
-_RECEIVED_EMAIL_HEADERS = [
-    "tika_metadata_message_bcc",
-    "tika_metadata_message_cc",
-    "tika_metadata_message_to",
-]
 
-_MERGE_SENT_EMAIL = f"""MERGE (mention)-[emailRel:{EMAIL_SENT_REL_LABEL}]->(doc)
+_MERGE_SENT_EMAIL = f"""MERGE (mention)-[emailRel:{EMAIL_SENT_TYPE}]->(doc)
 ON CREATE
     SET emailRel.{EMAIL_REL_HEADER_FIELDS} = [row.{NE_METADATA}.{EMAIL_HEADER}]
 ON MATCH
     SET emailRel.{EMAIL_REL_HEADER_FIELDS} =  apoc.coll.toSet(emailRel.{EMAIL_REL_HEADER_FIELDS} + row.{NE_METADATA}.{EMAIL_HEADER})
 RETURN emailRel"""
 
-_MERGE_RECEIVED_EMAIL = f"""MERGE (mention)-[emailRel:{EMAIL_RECEIVED_REL_LABEL}]->(doc)
+_MERGE_RECEIVED_EMAIL = f"""MERGE (mention)-[emailRel:{EMAIL_RECEIVED_TYPE}]->(doc)
 ON CREATE
     SET emailRel.{EMAIL_REL_HEADER_FIELDS} = [row.{NE_METADATA}.{EMAIL_HEADER}]
 ON MATCH
@@ -94,8 +88,8 @@ RETURN mention
         query,
         rows=records,
         batchSize=transaction_batch_size,
-        sentHeaders=_SENT_EMAIL_HEADERS,
-        receivedHeaders=_RECEIVED_EMAIL_HEADERS,
+        sentHeaders=list(SENT_EMAIL_HEADERS),
+        receivedHeaders=list(RECEIVED_EMAIL_HEADERS),
     )
     summary = await res.consume()
     return summary

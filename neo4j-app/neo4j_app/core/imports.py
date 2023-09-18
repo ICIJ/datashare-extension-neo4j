@@ -12,7 +12,18 @@ from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, TextIO, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Protocol,
+    TextIO,
+    Tuple,
+    cast,
+)
 
 import neo4j
 from datrie import BaseTrie
@@ -24,7 +35,10 @@ from neo4j_app.constants import (
     DOC_ID,
     DOC_ID_CSV,
     DOC_NODE,
-    DOC_ROOT_REL_LABEL,
+    DOC_ROOT_TYPE,
+    EMAIL_HEADER,
+    EMAIL_REL_COLS,
+    EMAIL_REL_HEADER_FIELDS,
     NEO4J_CSV_COL,
     NEO4J_CSV_END_ID,
     NEO4J_CSV_ID,
@@ -42,6 +56,7 @@ from neo4j_app.constants import (
     NE_ID,
     NE_IDS,
     NE_MENTION_NORM,
+    NE_METADATA,
     NE_NODE,
     NE_OFFSETS,
 )
@@ -51,9 +66,11 @@ from neo4j_app.core.elasticsearch.to_neo4j import (
     es_to_neo4j_doc_csv,
     es_to_neo4j_doc_root_rel_csv,
     es_to_neo4j_doc_row,
+    es_to_neo4j_email_rel_csv,
     es_to_neo4j_named_entity_csv,
     es_to_neo4j_named_entity_doc_rel_csv,
     es_to_neo4j_named_entity_row,
+    write_es_rows_to_email_rel_csv,
     write_es_rows_to_ne_doc_rel_csv,
 )
 from neo4j_app.core.elasticsearch.utils import (
@@ -324,7 +341,7 @@ async def to_neo4j_csvs(
         with doc_nodes_path.open() as f:
             reader = get_neo4j_csv_reader(f, fieldnames=doc_nodes_headers)
             document_ids = list(set(row[f"{DOC_ID}:{DOC_ID_CSV}"] for row in reader))
-        ne_nodes_csvs, ne_rels_csvs = await _to_neo4j_ne_csvs(
+        ne_nodes_csvs, ne_doc_csvs, email_csvs = await _to_neo4j_ne_csvs(
             document_ids=document_ids,
             export_dir=export_dir,
             es_pit=pit,
@@ -335,7 +352,7 @@ async def to_neo4j_csvs(
             es_doc_type_field=es_doc_type_field,
         )
         nodes.append(ne_nodes_csvs)
-        relationships.append(ne_rels_csvs)
+        relationships.extend((ne_doc_csvs, email_csvs))
     metadata = Neo4jCSVs(db=neo4j_db, nodes=nodes, relationships=relationships)
     _, targz_path = tempfile.mkstemp(
         prefix="neo4j-export-", suffix=".tar.gz", dir=export_dir
@@ -406,7 +423,7 @@ async def _to_neo4j_doc_csvs(
         n_nodes=n_doc_nodes,
     )
     rel = RelationshipCSVs(
-        types=[DOC_ROOT_REL_LABEL],
+        types=[DOC_ROOT_TYPE],
         header_path=doc_root_rel_header_path.name,
         relationship_paths=[doc_root_rel_path.name],
         n_relationships=n_doc_rels,
@@ -415,6 +432,7 @@ async def _to_neo4j_doc_csvs(
 
 
 _NE_DOC_REL_HEADER = [NEO4J_CSV_START_ID, _DOC_REL_END_CSV_COL, NEO4J_CSV_TYPE]
+_NE_NODES_HEADER = [NEO4J_CSV_ID, NE_MENTION_NORM, NEO4J_CSV_LABEL]
 
 
 async def _to_neo4j_ne_csvs(
@@ -427,73 +445,133 @@ async def _to_neo4j_ne_csvs(
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
     es_doc_type_field: str,
-):
-    ne_nodes_path = export_dir.joinpath("entities.csv")
-    ne_nodes_header_path = export_dir.joinpath("entities-header.csv")
-    _, ne_nodes_col_to_csv_header = _make_header_and_mapping(NE_COLUMNS)
-    ne_nodes_header = [NEO4J_CSV_ID, NE_MENTION_NORM, NEO4J_CSV_LABEL]
+) -> Tuple[NodeCSVs, RelationshipCSVs, RelationshipCSVs]:
+    ne_nodes_header_path, ne_nodes_path = _ne_node_paths(export_dir)
     with ne_nodes_header_path.open("w") as f:
-        get_neo4j_csv_writer(f, ne_nodes_header).writeheader()
-    ne_doc_rel_path = export_dir.joinpath("entity-docs.csv")
-    ne_doc_rel_header_path = export_dir.joinpath("entity-docs-header.csv")
-    ne_doc_rel_header, _ = _make_header_and_mapping(NE_APPEARS_IN_DOC_COLS)
-    ne_doc_rel_header.extend(_NE_DOC_REL_HEADER)
+        get_neo4j_csv_writer(f, _NE_NODES_HEADER).writeheader()
+    ne_doc_rel_header_path, ne_doc_rel_path = _ne_doc_rel_paths(export_dir)
+    ne_doc_rels_header = _ne_doc_rel_header()
     with ne_doc_rel_header_path.open("w") as f:
-        get_neo4j_csv_writer(f, ne_doc_rel_header).writeheader()
+        get_neo4j_csv_writer(f, ne_doc_rels_header).writeheader()
+    email_rel_header_path, email_rel_path = _email_rel_paths(export_dir)
+    email_rels_header = _email_rel_header()
+    with email_rel_header_path.open("w") as f:
+        get_neo4j_csv_writer(f, email_rels_header).writeheader()
     logger.debug(
         "Exporting named entities from ES with concurrency of %s", es_concurrency
     )
-    with ne_nodes_path.open("w") as nodes_f:
-        with ne_doc_rel_path.open("w") as rels_f:
-            with log_elapsed_time_cm(
-                logger,
-                logging.DEBUG,
-                "Exported ES named entities to neo4j csvs in {elapsed_time} !",
-            ):
-                n_ne_nodes, n_ne_rels = await _export_es_named_entities_as_csvs(
-                    es_client=es_client,
-                    es_index=es_index,
-                    document_ids=document_ids,
-                    nodes_f=nodes_f,
-                    relationships_f=rels_f,
-                    nodes_header=ne_nodes_header,
-                    relationships_header=ne_doc_rel_header,
-                    nodes_col_to_csv_header=ne_nodes_col_to_csv_header,
-                    es_pit=es_pit,
-                    es_concurrency=es_concurrency,
-                    es_keep_alive=es_keep_alive,
-                    es_doc_type_field=es_doc_type_field,
-                )
-    node = NodeCSVs(
+    with ne_nodes_path.open("w") as nodes_f, ne_doc_rel_path.open(
+        "w"
+    ) as rels_f, email_rel_path.open("w") as email_rel_f:
+        with log_elapsed_time_cm(
+            logger,
+            logging.DEBUG,
+            "Exported ES named entities to neo4j csvs in {elapsed_time} !",
+        ):
+            res = await _export_es_named_entities_as_csvs(
+                es_client=es_client,
+                es_index=es_index,
+                document_ids=document_ids,
+                nodes_f=nodes_f,
+                doc_ne_rel_f=rels_f,
+                email_rel_f=email_rel_f,
+                nodes_header=_NE_NODES_HEADER,
+                doc_ne_rels_header=ne_doc_rels_header,
+                email_rels_header=email_rels_header,
+                nodes_col_to_csv_header=_NE_NODES_COL_TO_CSV_HEADER,
+                es_pit=es_pit,
+                es_concurrency=es_concurrency,
+                es_keep_alive=es_keep_alive,
+                es_doc_type_field=es_doc_type_field,
+            )
+    n_ne_nodes, n_ne_rels, n_email_rels = res
+    nodes = NodeCSVs(
         labels=[NE_NODE],
         header_path=ne_nodes_header_path.name,
         node_paths=[ne_nodes_path.name],
         n_nodes=n_ne_nodes,
     )
-    rel = RelationshipCSVs(
+    ne_doc_rels = RelationshipCSVs(
         types=[NE_APPEARS_IN_DOC],
         header_path=ne_doc_rel_header_path.name,
         relationship_paths=[ne_doc_rel_path.name],
         n_relationships=n_ne_rels,
     )
-    return node, rel
+    ne_email_rels = RelationshipCSVs(
+        types=[],
+        header_path=email_rel_header_path.name,
+        relationship_paths=[email_rel_path.name],
+        n_relationships=n_email_rels,
+    )
+    return nodes, ne_doc_rels, ne_email_rels
 
 
+def _ne_doc_rel_header() -> List[str]:
+    ne_doc_rels_header, _ = _make_header_and_mapping(NE_APPEARS_IN_DOC_COLS)
+    ne_doc_rels_header.extend(_NE_DOC_REL_HEADER)
+    return ne_doc_rels_header
+
+
+def _email_rel_header() -> List[str]:
+    email_rels_header, _ = _make_header_and_mapping(EMAIL_REL_COLS)
+    email_rels_header.extend(_NE_DOC_REL_HEADER)
+    return email_rels_header
+
+
+def _make_header_and_mapping(
+    column_description: Dict[str, Dict]
+) -> Tuple[List[str], Dict[str, str]]:
+    header = []
+    mapping = dict()
+    for col, types in column_description.items():
+        col_header = col
+        conversion_type = types.get(NEO4J_CSV_COL)
+        if conversion_type is not None:
+            col_header += f":{conversion_type}"
+        header.append(col_header)
+        mapping[col] = col_header
+    return header, mapping
+
+
+_, _NE_NODES_COL_TO_CSV_HEADER = _make_header_and_mapping(NE_COLUMNS)
+
+
+def _ne_node_paths(export_dir: Path) -> Tuple[Path, Path]:
+    ne_nodes_path = export_dir.joinpath("entities.csv")
+    ne_nodes_header_path = export_dir.joinpath("entities-header.csv")
+    return ne_nodes_header_path, ne_nodes_path
+
+
+def _ne_doc_rel_paths(export_dir: Path) -> Tuple[Path, Path]:
+    ne_doc_rel_path = export_dir.joinpath("entity-docs.csv")
+    ne_doc_rel_header_path = export_dir.joinpath("entity-docs-header.csv")
+    return ne_doc_rel_header_path, ne_doc_rel_path
+
+
+def _email_rel_paths(export_dir: Path) -> Tuple[Path, Path]:
+    email_rel_path = export_dir.joinpath("email-docs.csv")
+    email_rel_header_path = export_dir.joinpath("email-docs-header.csv")
+    return email_rel_header_path, email_rel_path
+
+
+# TODO: the list of parameter is getting large, create an object instead
 async def _export_es_named_entities_as_csvs(
     es_client: ESClientABC,
     es_index: str,
     *,
     document_ids: List[str],
     nodes_f: TextIO,
-    relationships_f: TextIO,
+    doc_ne_rel_f: TextIO,
+    email_rel_f: TextIO,
     nodes_header: List[str],
-    relationships_header: List[str],
+    doc_ne_rels_header: List[str],
+    email_rels_header: List[str],
     nodes_col_to_csv_header: Dict[str, str],
     es_pit: Optional[PointInTime],
     es_concurrency: Optional[int],
     es_keep_alive: Optional[str],
     es_doc_type_field: str,
-):
+) -> Tuple[int, int, int]:
     if es_concurrency is None:
         es_concurrency = es_client.max_concurrency
     if es_keep_alive is None:
@@ -534,11 +612,14 @@ async def _export_es_named_entities_as_csvs(
             es_client=es_client,
             es_index=es_index,
             nodes_f=nodes_f,
-            relationships_f=relationships_f,
-            es_to_neo4j_nodes=es_to_neo4j_nodes,
-            es_to_neo4j_relationships=es_to_neo4j_named_entity_doc_rel_csv,
+            doc_ne_rel_f=doc_ne_rel_f,
+            email_rel_f=email_rel_f,
+            to_ne_nodes=es_to_neo4j_nodes,
+            to_doc_ne_rels=es_to_neo4j_named_entity_doc_rel_csv,
+            to_email_rels=es_to_neo4j_email_rel_csv,
             nodes_header=nodes_header,
-            relationships_header=relationships_header,
+            doc_ne_rel_header=doc_ne_rels_header,
+            email_rels_header=email_rels_header,
             seen_entities=seen_entities,
             sort=sort,
             lock=lock,
@@ -547,10 +628,13 @@ async def _export_es_named_entities_as_csvs(
         for body in bodies
     )
     res = [r async for r in run_with_concurrency(tasks, max_concurrency=es_concurrency)]
-    res_nodes, res_rels = zip(*res)
+    if not res:
+        return 0, 0, 0
+    res_nodes, res_doc_ne_rels, res_email_rels = zip(*res)
     total_nodes = sum(res_nodes)
-    total_rels = sum(res_rels)
-    return total_nodes, total_rels
+    total_rels = sum(res_doc_ne_rels)
+    total_emails = sum(res_email_rels)
+    return total_nodes, total_rels, total_emails
 
 
 async def _aggregate_and_write_ne_nodes_and_relationships(
@@ -558,31 +642,40 @@ async def _aggregate_and_write_ne_nodes_and_relationships(
     es_index: str,
     *,
     nodes_f: TextIO,
-    relationships_f: TextIO,
-    es_to_neo4j_nodes: Callable[[Dict], List[Dict[str, str]]],
-    es_to_neo4j_relationships: Callable[[Dict], List[Dict[str, str]]],
+    doc_ne_rel_f: TextIO,
+    email_rel_f: TextIO,
+    to_ne_nodes: Callable[[Dict], List[Dict[str, str]]],
+    to_doc_ne_rels: Callable[[Dict], List[Dict[str, str]]],
+    to_email_rels: Callable[[Dict], List[Dict[str, str]]],
     nodes_header: List[str],
-    relationships_header: List[str],
+    doc_ne_rel_header: List[str],
+    email_rels_header: List[str],
     seen_entities: BaseTrie,
     lock: asyncio.Lock,
     **kwargs,
-) -> Tuple[Optional[int], Optional[int]]:
-    total_nodes = 0
-    total_rels = 0
+) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    total_nodes, total_rels, total_emails = 0, 0, 0
     max_seen_docs = es_client.pagination_size
     # We do an aggregation by docID, this is possible since each search is
     # processing different doc_ids batches AND the search is sorted by docID, so
     # we know that when the docID changes then we're done
-    buffer = defaultdict(dict)
+    buf, email_buf = defaultdict(dict), defaultdict(dict)
     current_doc_id = None
     seen_docs = set()
+    write_doc_ne = functools.partial(
+        write_es_rows_to_ne_doc_rel_csv, header=doc_ne_rel_header
+    )
+    write_doc_ne = cast(_WriteCSV, write_doc_ne)
+    write_email = functools.partial(
+        write_es_rows_to_email_rel_csv, header=email_rels_header
+    )
+    write_email = cast(_WriteCSV, write_email)
     async for res in es_client.poll_search_pages(es_index, **kwargs):
-        ne_rows = [row for hit in res[HITS][HITS] for row in es_to_neo4j_nodes(hit)]
-        ne_rels = [
-            row for hit in res[HITS][HITS] for row in es_to_neo4j_relationships(hit)
-        ]
-        for rel in ne_rels:
-            doc_id = rel[_DOC_REL_END_CSV_COL]
+        ne_rows = [row for hit in res[HITS][HITS] for row in to_ne_nodes(hit)]
+        ne_rels = [row for hit in res[HITS][HITS] for row in to_doc_ne_rels(hit)]
+        ne_email_rels = [row for hit in res[HITS][HITS] for row in to_email_rels(hit)]
+        for doc_rel, email_rel in zip(ne_rels, ne_email_rels):
+            doc_id = doc_rel[_DOC_REL_END_CSV_COL]
             # Let's empty the buffer when we find a new document to avoid filling
             # memory
             if doc_id != current_doc_id:
@@ -590,16 +683,13 @@ async def _aggregate_and_write_ne_nodes_and_relationships(
                 seen_docs.add(current_doc_id)
                 if len(seen_docs) >= max_seen_docs:
                     async with lock:
-                        total_rels += len(buffer)
-                        write_es_rows_to_ne_doc_rel_csv(
-                            relationships_f,
-                            rows=list(buffer.values()),
-                            header=relationships_header,
-                        )
-                        relationships_f.flush()
-                        buffer = defaultdict(dict)
+                        total_rels += len(buf)
+                        _flush_buffer(buf, write_doc_ne, doc_ne_rel_f)
+                        total_emails += len(email_buf)
+                        _flush_buffer(email_buf, write_email, email_rel_f)
                         seen_docs = {current_doc_id}
-            buffer = _fill_ne_aggregation_buffer(buffer, rel)
+            buf = _fill_doc_ne_aggregation_buffer(buf, doc_rel)
+            email_buf = _fill_email_aggregation_buffer(email_buf, email_rel)
         async with lock:
             ne_with_keys = ((_ne_trie_key(ne), ne) for ne in ne_rows)
             new_rows = []
@@ -614,22 +704,29 @@ async def _aggregate_and_write_ne_nodes_and_relationships(
                     nodes_f, rows=new_rows, header=nodes_header, write_header=False
                 )
                 nodes_f.flush()
-    if buffer:
+    if buf:
         async with lock:
-            total_rels += len(buffer)
-            write_es_rows_to_ne_doc_rel_csv(
-                relationships_f, rows=list(buffer.values()), header=relationships_header
-            )
-            relationships_f.flush()
-    return total_nodes, total_rels
+            total_rels += len(buf)
+            _flush_buffer(buf, write_doc_ne, doc_ne_rel_f)
+            total_emails += len(email_buf)
+            _flush_buffer(email_buf, write_email, email_rel_f)
+    return total_nodes, total_rels, total_emails
 
 
-_NeDocRelationshipBuffer = Dict[Tuple[Tuple[str, str], str], Dict]
+_RelationshipBuffer = Dict[Tuple, Dict]
+_WriteCSV = Callable[[TextIO, List[Dict]], None]
 
 
-def _fill_ne_aggregation_buffer(
-    buffer: _NeDocRelationshipBuffer, rel: Dict
-) -> _NeDocRelationshipBuffer:
+def _flush_buffer(buffer: _RelationshipBuffer, write_rows_fn: _WriteCSV, f: TextIO):
+    rows = list(buffer.values())
+    write_rows_fn(f, rows)
+    f.flush()
+    buffer.clear()
+
+
+def _fill_doc_ne_aggregation_buffer(
+    buffer: _RelationshipBuffer, rel: Dict
+) -> _RelationshipBuffer:
     key = ((rel[NE_MENTION_NORM], rel[NE_CATEGORY]), rel[_DOC_REL_END_CSV_COL])
     item = buffer[key]
     if NEO4J_CSV_TYPE not in item:
@@ -649,6 +746,31 @@ def _fill_ne_aggregation_buffer(
     if NE_OFFSETS not in item:
         item[NE_OFFSETS] = []
     item[NE_OFFSETS].extend(rel[NE_OFFSETS])
+    return buffer
+
+
+def _fill_email_aggregation_buffer(
+    buffer: _RelationshipBuffer, rel: Optional[Dict]
+) -> _RelationshipBuffer:
+    if rel is None:  # It wasn't an email or it was an email with no metadata
+        return buffer
+    # We must include the type of relation in the key otherwise will end up mixing
+    # SEND and RECEIVE
+    key = (
+        (rel[NE_MENTION_NORM], rel[NE_CATEGORY]),
+        rel[_DOC_REL_END_CSV_COL],
+        rel[NEO4J_CSV_TYPE],
+    )
+    item = buffer[key]
+    if NEO4J_CSV_TYPE not in item:
+        item[NEO4J_CSV_TYPE] = rel[NEO4J_CSV_TYPE]
+    if NEO4J_CSV_START_ID not in item:
+        item[NEO4J_CSV_START_ID] = rel[NEO4J_CSV_START_ID]
+    if _DOC_REL_END_CSV_COL not in item:
+        item[_DOC_REL_END_CSV_COL] = rel[_DOC_REL_END_CSV_COL]
+    if EMAIL_REL_HEADER_FIELDS not in item:
+        item[EMAIL_REL_HEADER_FIELDS] = []
+    item[EMAIL_REL_HEADER_FIELDS].append(rel[NE_METADATA][EMAIL_HEADER])
     return buffer
 
 
@@ -727,21 +849,6 @@ def _make_named_entity_with_parent_queries(
 
 def _ne_trie_key(ne: Dict) -> str:
     return str((ne[NEO4J_CSV_LABEL].lower(), ne[NE_MENTION_NORM]))
-
-
-def _make_header_and_mapping(
-    column_description: Dict[str, Dict]
-) -> Tuple[List[str], Dict[str, str]]:
-    header = []
-    mapping = dict()
-    for col, types in column_description.items():
-        col_header = col
-        conversion_type = types.get(NEO4J_CSV_COL)
-        if conversion_type is not None:
-            col_header += f":{conversion_type}"
-        header.append(col_header)
-        mapping[col] = col_header
-    return header, mapping
 
 
 def _compress_csvs_destructively(
