@@ -74,20 +74,6 @@ class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
         pass
 
 
-class AsyncContextManagerMock(AsyncMock):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        for key in ("aenter_return", "aexit_return"):
-            setattr(self, key, kwargs[key] if key in kwargs else MagicMock())
-
-    async def __aenter__(self):
-        return self.aenter_return
-
-    async def __aexit__(self, *args):
-        return self.aexit_return
-
-
 # Define a session level even_loop fixture to overcome limitation explained here:
 # https://github.com/tortoise/tortoise-orm/issues/638#issuecomment-830124562
 @pytest.fixture(scope="session")
