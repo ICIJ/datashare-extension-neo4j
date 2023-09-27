@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
 from neo4j_app.app.admin import admin_router
+from neo4j_app.app.dependencies import lifespan_deps
 from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
 from neo4j_app.app.documents import documents_router
 from neo4j_app.app.graphs import graphs_router
@@ -85,6 +86,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app = FastAPI(
         title=config.doc_app_name,
         openapi_tags=_make_open_api_tags([DOCUMENT_TAG, NE_TAG, OTHER_TAG]),
+        lifespan=lifespan_deps,
     )
     # Important note: we only put the config in the global state, we provide all
     # persistent DB connection pool, clients and so on through dependency injection.
