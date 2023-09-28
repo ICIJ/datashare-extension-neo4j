@@ -57,4 +57,4 @@ def test_post_named_entities_import_should_return_200(
 
     # Then
     assert res.status_code == 200, res.json()  # Should it be 200 or 201
-    assert res.json() == expected_response.dict()
+    assert res.json() == expected_response.dict(by_alias=True)

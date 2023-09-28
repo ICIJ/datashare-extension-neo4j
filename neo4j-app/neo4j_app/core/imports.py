@@ -119,6 +119,8 @@ from neo4j_app.core.objects import (
 from neo4j_app.core.utils import batch
 from neo4j_app.core.utils.asyncio import run_with_concurrency
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
+from neo4j_app.core.utils.progress import scaled_progress
+from neo4j_app.typing import PercentProgress
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +155,7 @@ async def import_documents(
     neo4j_import_batch_size: int,
     neo4j_transaction_batch_size: int,
     max_records_in_memory: int,
+    progress: Optional[PercentProgress] = None,
 ) -> IncrementalImportResponse:
     neo4j_db = await project_db(neo4j_driver, project)
     es_index = project_index(project)
@@ -187,6 +190,7 @@ async def import_documents(
             to_neo4j_row=es_to_neo4j_doc_row,
             max_records_in_memory=max_records_in_memory,
             imported_entity_label="document nodes",
+            progress=progress,
         )
     res = IncrementalImportResponse(
         imported=import_summary.imported,
@@ -208,6 +212,7 @@ async def import_named_entities(
     neo4j_import_batch_size: int,
     neo4j_transaction_batch_size: int,
     max_records_in_memory: int,
+    progress: Optional[PercentProgress] = None,
 ) -> IncrementalImportResponse:
     neo4j_db = await project_db(neo4j_driver, project)
     es_index = project_index(project)
@@ -218,6 +223,9 @@ async def import_named_entities(
         initial_n_nodes, initial_n_rels = await neo4j_session.execute_read(
             ne_creation_stats_tx
         )
+        if progress is not None:
+            await progress(5.0)
+            progress = scaled_progress(progress, start=5.0)
     # Since this is an incremental import we consider it reasonable to use an ES join,
     # however for named entities bulk import join should be avoided and post filtering
     # on the documentId will probably be much more efficient !
@@ -249,6 +257,7 @@ async def import_named_entities(
             to_neo4j_row=es_to_neo4j_named_entity_row,
             max_records_in_memory=max_records_in_memory,
             imported_entity_label="named entity nodes",
+            progress=progress,
         )
     async with neo4j_driver.session(database=neo4j_db) as neo4j_session:
         n_nodes, n_rels = await neo4j_session.execute_read(ne_creation_stats_tx)
@@ -275,6 +284,7 @@ async def _es_to_neo4j_import(
     to_neo4j_row: Callable[[Any], List[Dict]],
     max_records_in_memory: int,
     imported_entity_label: str,
+    progress: Optional[PercentProgress] = None,
 ) -> ImportSummary:
     neo4j_import_worker_factory = functools.partial(
         Neo4jImportWorker,
@@ -293,6 +303,7 @@ async def _es_to_neo4j_import(
         concurrency=es_concurrency,
         max_records_in_memory=max_records_in_memory,
         imported_entity_label=imported_entity_label,
+        progress=progress,
     )
     nodes_created = sum(summary.counters.nodes_created for summary in summaries)
     relationships_created = sum(
@@ -856,7 +867,7 @@ def _compress_csvs_destructively(
 ):
     with tarfile.open(targz_path, "w:gz") as tar:
         # Index
-        json_index = json.dumps(metadata.dict()).encode()
+        json_index = json.dumps(metadata.dict(by_alias=True)).encode()
         index = io.BytesIO(json_index)
         index_info = tarfile.TarInfo(name="metadata.json")
         index_info.size = len(json_index)

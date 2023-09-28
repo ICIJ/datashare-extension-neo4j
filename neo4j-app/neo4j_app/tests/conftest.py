@@ -6,27 +6,45 @@ import os
 import random
 import traceback
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, Generator, Optional, Tuple, Union
+from time import monotonic, sleep
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    Generator,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import neo4j
 import pytest
 import pytest_asyncio
 from elasticsearch.helpers import async_streaming_bulk
-from fastapi import APIRouter
+from fastapi import APIRouter, FastAPI
 from neo4j import AsyncGraphDatabase
 from starlette.testclient import TestClient
 
 import neo4j_app
 from neo4j_app.app.utils import create_app
 from neo4j_app.core import AppConfig
+from neo4j_app.core.config import WorkerType
 from neo4j_app.core.elasticsearch import ESClient, ESClientABC
 from neo4j_app.core.elasticsearch.client import PointInTime
+from neo4j_app.core.neo4j import MIGRATIONS
+from neo4j_app.core.neo4j.migrations.migrate import init_project
 from neo4j_app.core.neo4j.projects import NEO4J_COMMUNITY_DB
 from neo4j_app.core.utils.pydantic import BaseICIJModel
+from neo4j_app.icij_worker import ICIJApp
+from neo4j_app.typing import PercentProgress
 
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
 #  let's try to find a way to define the scope dynamically:
 #  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
+
+
+APP = ICIJApp(name="test-app")
 
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
 TEST_PROJECT = "test_project"
@@ -47,6 +65,21 @@ _INDEX_BODY = {
         }
     }
 }
+
+
+def true_after(
+    state_statement: Callable, *, after_s: float, sleep_s: float = 0.01
+) -> bool:
+    start = monotonic()
+    while "waiting for the statement to be True":
+        try:
+            assert state_statement()
+            return True
+        except AssertionError:
+            if monotonic() - start < after_s:
+                sleep(sleep_s)
+                continue
+            return False
 
 
 class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
@@ -84,11 +117,7 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-def test_client_session(
-    # Require ES to create indices and wipe ES
-    es_test_client_session: ESClient,
-) -> TestClient:
-    # pylint: disable=unused-argument
+def test_config() -> AppConfig:
     config = AppConfig(
         elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
         es_default_page_size=5,
@@ -96,18 +125,32 @@ def test_client_session(
         neo4j_port=NEO4J_TEST_PORT,
         neo4j_user=NEO4J_TEST_USER,
         neo4j_password=NEO4J_TEST_PASSWORD,
+        neo4j_app_worker_type=WorkerType.MOCK,
+        test=True,
+        neo4j_app_async_module=f"{__name__}.APP",
+        neo4j_app_async_dependencies=None,
     )
-    app = create_app(config)
+    return config
+
+
+@pytest.fixture(scope="session")
+def test_app_session(test_config: AppConfig) -> FastAPI:
+    return create_app(test_config)
+
+
+@pytest.fixture(scope="session")
+def test_client_session(test_app_session: FastAPI) -> TestClient:
+    # pylint: disable=unused-argument
     # Add a router which generates error in order to test error handling
-    app.include_router(_error_router())
-    with TestClient(app) as client:
+    test_app_session.include_router(test_error_router())
+    with TestClient(test_app_session) as client:
         yield client
 
 
 @pytest.fixture(scope="module")
 def test_client_module(
     test_client_session: TestClient,
-    # Wipe ES by requiring the "module" level es client
+    # Wipe ES by requiring the "function" level es client
     es_test_client_module: ESClient,
     # Same for neo4j
     neo4j_test_session_module: neo4j.AsyncSession,
@@ -128,7 +171,25 @@ def test_client(
     return test_client_session
 
 
-def _error_router() -> APIRouter:
+@pytest.fixture()
+def test_client_with_async(
+    # Wipe ES by requiring the "function" level es client
+    es_test_client: ESClient,
+    # Same for neo4j
+    neo4j_test_session: neo4j.AsyncSession,
+    test_async_app: ICIJApp,
+    test_config: AppConfig,
+) -> Generator[TestClient, None, None]:
+    # pylint: disable=unused-argument
+    # pylint: disable=unused-argument
+    # Let's recreate the app to wipe the worker pool and queues
+    app = create_app(test_config, async_app=test_async_app)
+    app.include_router(test_error_router())
+    with TestClient(app) as client:
+        yield client
+
+
+def test_error_router() -> APIRouter:
     class SomeExpectedBody(BaseICIJModel):
         mandatory_field: str
 
@@ -218,6 +279,18 @@ async def neo4j_test_driver() -> AsyncGenerator[neo4j.AsyncDriver, None]:
         async with driver.session(database="neo4j") as sess:
             await wipe_db(sess)
         yield driver
+
+
+@pytest_asyncio.fixture()
+async def neo4j_app_driver(neo4j_test_driver: neo4j.AsyncDriver) -> neo4j.AsyncDriver:
+    await init_project(
+        neo4j_test_driver,
+        name=TEST_PROJECT,
+        registry=MIGRATIONS,
+        timeout_s=0.001,
+        throttle_s=0.001,
+    )
+    return neo4j_test_driver
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -505,3 +578,24 @@ def mock_enterprise_(monkeypatch):
     monkeypatch.setattr(
         neo4j_app.core.neo4j.projects, "is_enterprise", mocked_is_enterprise
     )
+
+
+@APP.task
+async def hello_world(greeted: str, progress: Optional[PercentProgress] = None) -> str:
+    if progress is not None:
+        await progress(0.1)
+    greeting = f"Hello {greeted} !"
+    if progress is not None:
+        await progress(0.99)
+    return greeting
+
+
+@APP.task
+def hello_world_sync(greeted: str) -> str:
+    greeting = f"Hello {greeted} !"
+    return greeting
+
+
+@pytest.fixture(scope="session")
+def test_async_app() -> ICIJApp:
+    return APP

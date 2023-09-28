@@ -42,7 +42,7 @@ def _start_app(config_path: Optional[str] = None, force_migrations: bool = False
         config = AppConfig()
     app = create_app(config)
     uvicorn_config = config.to_uvicorn()
-    uvicorn.run(app, **uvicorn_config.dict())
+    uvicorn.run(app, **uvicorn_config.dict(by_alias=False))
 
 
 def get_arg_parser():

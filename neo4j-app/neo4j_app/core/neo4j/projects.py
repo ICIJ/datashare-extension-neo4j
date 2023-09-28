@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
-from typing import List, Tuple
+from typing import AsyncGenerator, List, Tuple
 
 import neo4j
 
@@ -84,7 +84,7 @@ def project_index(project: str) -> str:
 @asynccontextmanager
 async def project_db_session(
     neo4j_driver: neo4j.AsyncDriver, project: str
-) -> neo4j.AsyncSession:
+) -> AsyncGenerator[neo4j.AsyncSession, None]:
     db = await project_db(neo4j_driver, project)
     sess_ctx = neo4j_driver.session(database=db)
     async with sess_ctx as sess:

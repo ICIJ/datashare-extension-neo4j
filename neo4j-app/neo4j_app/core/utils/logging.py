@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from abc import ABC, abstractmethod
 from datetime import datetime
 from functools import wraps
-from typing import Optional
+from typing import Optional, final
 
 
 class DifferedLoggingMessage:
@@ -15,6 +16,35 @@ class DifferedLoggingMessage:
 
     def __str__(self):
         return str(self.fn(*self.args, **self.kwargs))
+
+
+class LogWithNameMixin(ABC):
+    @property
+    @abstractmethod
+    def logged_named(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def _logger(self) -> logging.Logger:
+        pass
+
+    @final
+    def info(self, msg, *args, **kwargs):
+        self._log(logging.INFO, msg, *args, **kwargs)
+
+    @final
+    def debug(self, msg, *args, **kwargs):
+        self._log(logging.DEBUG, msg, *args, **kwargs)
+
+    @final
+    def error(self, msg, *args, **kwargs):
+        self._log(logging.ERROR, msg, *args, **kwargs)
+
+    @final
+    def _log(self, level: int, msg, *args, **kwargs):
+        msg = f"{self.logged_name}: {msg}"
+        self._logger.log(level, msg, *args, **kwargs)
 
 
 def log_elapsed_time(

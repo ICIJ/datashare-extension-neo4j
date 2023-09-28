@@ -127,6 +127,20 @@ async def test_migrate_db_schema_should_raise_after_timeout(
     registry = [_MIGRATION_0]
 
     # When
+    query = """CREATE (:_Migration {
+    version: $version,
+    project: $project,
+    label: $label,
+    started: $started 
+ })"""
+
+    await neo4j_driver.execute_query(
+        query,
+        version=str(_MIGRATION_0.version),
+        project=TEST_PROJECT,
+        label=_MIGRATION_0.label,
+        started=datetime.now(),
+    )
     expected_msg = "Migration timeout expired"
     with pytest.raises(MigrationError, match=expected_msg):
         await migrate_db_schemas(neo4j_driver, registry, timeout_s=0, throttle_s=0.1)
