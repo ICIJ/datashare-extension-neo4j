@@ -11,6 +11,14 @@ from neo4j_app.constants import (
     NE_NODE,
     PROJECT_NAME,
     PROJECT_NODE,
+    TASK_CREATED_AT,
+    TASK_ERROR_ID,
+    TASK_ERROR_NODE,
+    TASK_ERROR_OCCURRED_AT,
+    TASK_ID,
+    TASK_NODE,
+    TASK_STATUS,
+    TASK_TYPE,
 )
 
 
@@ -22,6 +30,10 @@ async def migration_v_0_1_0_tx(tx: neo4j.AsyncTransaction):
 async def migration_v_0_2_0_tx(tx: neo4j.AsyncTransaction):
     await _create_document_and_ne_id_unique_constraint_tx(tx)
     await _create_ne_mention_norm_index_tx(tx)
+
+
+async def migration_v_0_3_0_tx(tx: neo4j.AsyncTransaction):
+    await _create_task_index_and_constraints(tx)
 
 
 async def _create_document_and_ne_id_unique_constraint_tx(tx: neo4j.AsyncTransaction):
@@ -69,3 +81,31 @@ FOR (m:{MIGRATION_NODE})
 REQUIRE (m.{MIGRATION_VERSION}, m.{MIGRATION_PROJECT}) IS UNIQUE
 """
     await tx.run(constraint_query)
+
+
+async def _create_task_index_and_constraints(tx: neo4j.AsyncTransaction):
+    constraint_query = f"""CREATE CONSTRAINT constraint_task_unique_id
+IF NOT EXISTS 
+FOR (task:{TASK_NODE})
+REQUIRE (task.{TASK_ID}) IS UNIQUE"""
+    await tx.run(constraint_query)
+    status_query = f"""CREATE INDEX index_task_status IF NOT EXISTS
+FOR (task:{TASK_NODE})
+ON (task.{TASK_STATUS})"""
+    await tx.run(status_query)
+    created_at_query = f"""CREATE INDEX index_task_created_at IF NOT EXISTS
+FOR (task:{TASK_NODE})
+ON (task.{TASK_CREATED_AT})"""
+    await tx.run(created_at_query)
+    type_query = f"""CREATE INDEX index_task_type IF NOT EXISTS
+FOR (task:{TASK_NODE})
+ON (task.{TASK_TYPE})"""
+    await tx.run(type_query)
+    error_timestamp_query = f"""CREATE INDEX index_task_error_timestamp IF NOT EXISTS
+FOR (task:{TASK_ERROR_NODE})
+ON (task.{TASK_ERROR_OCCURRED_AT})"""
+    await tx.run(error_timestamp_query)
+    error_id_query = f"""CREATE CONSTRAINT constraint_task_error_unique_id IF NOT EXISTS
+FOR (task:{TASK_ERROR_NODE})
+REQUIRE (task.{TASK_ERROR_ID}) IS UNIQUE"""
+    await tx.run(error_id_query)

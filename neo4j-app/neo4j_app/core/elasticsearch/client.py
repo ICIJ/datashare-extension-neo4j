@@ -30,6 +30,7 @@ from tenacity import (
     stop_after_attempt,
     wait_random_exponential,
 )
+from typing_extensions import Coroutine
 
 from neo4j_app.core.elasticsearch.utils import (
     ASC,
@@ -53,6 +54,8 @@ from neo4j_app.core.elasticsearch.utils import (
 from neo4j_app.core.neo4j import Neo4jImportWorker, write_neo4j_csv
 from neo4j_app.core.utils.asyncio import run_with_concurrency
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
+from neo4j_app.core.utils.progress import to_raw_progress
+from neo4j_app.typing import PercentProgress
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +229,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         max_records_in_memory: int,
         import_batch_size: int,
         imported_entity_label: str,
+        progress: Optional[PercentProgress] = None,
     ) -> [int, List[neo4j.ResultSummary]]:
         if num_neo4j_workers <= 0:
             raise ValueError("num_neo4j_workers must be > 0")
@@ -268,6 +272,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 bodies=bodies,
                 queue=queue,
                 max_concurrency=concurrency,
+                progress=progress,
             )
         # Wait for the queue to be fully consumed
         await queue.join()
@@ -352,9 +357,15 @@ class ESClientABC(metaclass=abc.ABCMeta):
         import_batch_size: int,
         bodies: List[Mapping],
         max_concurrency: Optional[int] = None,
+        progress: Optional[PercentProgress],
     ) -> int:
         lock = asyncio.Lock()
         buffer = []
+        if progress is not None and bodies:
+            count_query = deepcopy(bodies[0])
+            count_query.pop(SLICE, None)
+            total = await self.count(index=index, query=count_query)
+            progress = to_raw_progress(progress, max_progress=total)
         futures = [
             self._fill_import_buffer(
                 index=index,
@@ -363,6 +374,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 lock=lock,
                 buffer=buffer,
                 body=body,
+                progress=progress,
             )
             for body in bodies
         ]
@@ -386,6 +398,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         import_batch_size: int,
         lock: asyncio.Lock,
         buffer: List[Dict],
+        progress: Optional[Coroutine] = None,
         **kwargs,
     ) -> int:
         # TODO: use https://github.com/jd/tenacity to implement retry with backoff in
@@ -400,6 +413,8 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 if len(buffer) >= import_batch_size:
                     await _enqueue_import_batch(queue, buffer)
                     imported += len(buffer)
+                    if progress is not None:
+                        asyncio.create_task(progress(imported))
                     buffer.clear()
         return imported
 

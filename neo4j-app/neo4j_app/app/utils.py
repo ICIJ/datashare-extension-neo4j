@@ -1,7 +1,7 @@
 import functools
 import logging
 import traceback
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -13,17 +13,19 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
 from neo4j_app.app.admin import admin_router
-from neo4j_app.app.dependencies import lifespan_deps
+from neo4j_app.app.dependencies import FASTAPI_LIFESPAN_DEPS, run_app_deps, run_deps
 from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
 from neo4j_app.app.documents import documents_router
 from neo4j_app.app.graphs import graphs_router
 from neo4j_app.app.main import main_router
 from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.app.projects import projects_router
+from neo4j_app.app.tasks import tasks_router
 from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
 from neo4j_app.core.neo4j.migrations import delete_all_migrations
 from neo4j_app.core.neo4j.projects import create_project_registry_db
+from neo4j_app.icij_worker import ICIJApp
 
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
 
@@ -82,19 +84,19 @@ def _make_open_api_tags(tags: Iterable[str]) -> List[Dict]:
     return [{"name": t} for t in tags]
 
 
-def create_app(config: AppConfig) -> FastAPI:
+def create_app(config: AppConfig, async_app: Optional[ICIJApp] = None) -> FastAPI:
     app = FastAPI(
         title=config.doc_app_name,
         openapi_tags=_make_open_api_tags([DOCUMENT_TAG, NE_TAG, OTHER_TAG]),
-        lifespan=lifespan_deps,
+        lifespan=functools.partial(run_app_deps, dependencies=FASTAPI_LIFESPAN_DEPS),
     )
-    # Important note: we only put the config in the global state, we provide all
-    # persistent DB connection pool, clients and so on through dependency injection.
-    # This will allow use to use uvicorn with several workers, each worker correctly
-    # handling these objets using FastAPI asyncontextmanagers dependencies. Uvicorn
-    #  sadly doesn't support context manager factories
-    AppConfig.set_config_globally(config)
     app.state.config = config
+    if async_app is not None:
+        if async_app.config is not None and async_app.config is not config:
+            msg = f"HTTP app async app must share the same {AppConfig.__name__}"
+            raise ValueError(msg)
+        async_app.config = config
+        app.state.async_app = async_app
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, internal_exception_handler)
@@ -111,6 +113,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.include_router(admin_router())
     app.include_router(graphs_router())
     app.include_router(projects_router())
+    app.include_router(tasks_router())
     return app
 
 

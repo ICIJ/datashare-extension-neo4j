@@ -8,7 +8,11 @@ from typing import Dict, Iterable, List, Optional, TextIO, Tuple
 from .imports import Neo4Import, Neo4jImportWorker
 from .migrations import Migration
 from .migrations.migrate import MigrationError, migrate_db_schemas
-from .migrations.migrations import migration_v_0_1_0_tx, migration_v_0_2_0_tx
+from .migrations.migrations import (
+    migration_v_0_1_0_tx,
+    migration_v_0_2_0_tx,
+    migration_v_0_3_0_tx,
+)
 
 V_0_1_0 = Migration(
     version="0.1.0",
@@ -20,7 +24,12 @@ V_0_2_0 = Migration(
     label="Create doc and named entities index and constraints",
     migration_fn=migration_v_0_2_0_tx,
 )
-MIGRATIONS = [V_0_1_0, V_0_2_0]
+V_0_3_0 = Migration(
+    version="0.3.0",
+    label="Create tasks indexes and constraints",
+    migration_fn=migration_v_0_3_0_tx,
+)
+MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0]
 
 
 def get_neo4j_csv_reader(

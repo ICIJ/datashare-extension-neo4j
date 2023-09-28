@@ -708,7 +708,9 @@ def test_neo4j_bulk_import_script(
             ),
         ],
     )
-    tmpdir.joinpath("metadata.json").write_text(json.dumps(metadata.dict(), indent=2))
+    tmpdir.joinpath("metadata.json").write_text(
+        json.dumps(metadata.dict(by_alias=True), indent=2)
+    )
     script_path = tmpdir.joinpath("bulk-import.sh")
     shutil.copy(ROOT_DIR.joinpath("scripts", "bulk-import.sh"), script_path)
     cmd = [script_path, "--dry-run"]

@@ -1,9 +1,10 @@
 ADMIN_TAG = "Admin"
 DOCUMENT_TAG = "Documents"
+GRAPH_TAG = "Graphs"
 NE_TAG = "Named entities"
 OTHER_TAG = "Other"
-GRAPH_TAG = "Graphs"
-PROJECT_TAG = "Project"
+PROJECT_TAG = "Projects"
+TASKS_TAG = "Tasks"
 
 
 DOC_IMPORT_SUM = "Import documents from elasticsearch to neo4j"

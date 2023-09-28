@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import configparser
 import functools
+import importlib
 import logging
 import sys
 from configparser import ConfigParser
+from enum import Enum, unique
 from logging.handlers import SysLogHandler
-from typing import Dict, List, Optional, TextIO, Union, cast
+from typing import Callable, Dict, List, Optional, TextIO, Tuple, Type, Union, cast
 
 import neo4j
 from pydantic import Field, validator
@@ -26,7 +28,25 @@ _SYSLOG_MODEL_SPLIT_CHAR = "@"
 _SYSLOG_FMT = f"%(name)s{_SYSLOG_MODEL_SPLIT_CHAR}%(message)s"
 
 
-def _es_version():
+@unique
+class WorkerType(str, Enum):
+    MOCK = "MOCK"
+    NEO4J = "NEO4J"
+
+    @property
+    def as_worker_cls(self) -> Type["Worker"]:
+        if self is WorkerType.NEO4J:
+            from neo4j_app.icij_worker import Neo4jAsyncWorker
+
+            return Neo4jAsyncWorker
+        if self is WorkerType.MOCK:
+            from neo4j_app.tests.icij_worker.conftest import MockWorker
+
+            return MockWorker
+        raise NotImplementedError(f"as_worker_cls not implemented for {self}")
+
+
+def _es_version() -> str:
     import elasticsearch
 
     return ".".join(str(num) for num in elasticsearch.__version__)
@@ -44,15 +64,20 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_timeout_s: Union[int, float] = 60 * 5
     es_keep_alive: str = "1m"
     force_migrations: bool = False
+    neo4j_app_async_module: str = "neo4j_app.tasks.app"
+    neo4j_app_async_dependencies: Optional[str] = "neo4j_app.tasks.WORKER_LIFESPAN_DEPS"
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
     neo4j_app_max_records_in_memory: int = int(1e6)
     neo4j_app_migration_timeout_s: float = 60 * 5
     neo4j_app_migration_throttle_s: float = 1
     neo4j_app_name: str = "neo4j app"
+    neo4j_app_n_workers: int = 1
     neo4j_app_port: int = 8080
     neo4j_app_syslog_facility: Optional[str] = None
+    neo4j_app_task_queue_size: int = 2
     neo4j_app_uses_opensearch: bool = False
+    neo4j_app_worker_type: WorkerType = WorkerType.NEO4J
     neo4j_concurrency: int = 2
     neo4j_connection_timeout: float = 5.0
     neo4j_host: str = "127.0.0.1"
@@ -64,6 +89,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     # Other supported schemes are neo4j+ssc, neo4j+s, bolt, bolt+ssc, bolt+s
     neo4j_uri_scheme: str = "neo4j"
     supports_neo4j_enterprise: Optional[bool] = None
+    test: bool = False
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
     # per request basis using FastApi dependencies...
@@ -159,6 +185,9 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         )
         return client
 
+    def to_worker_cls(self) -> Type["Worker"]:
+        return WorkerType[self.neo4j_app_worker_type].as_worker_cls
+
     async def with_neo4j_support(self) -> AppConfig:
         with self.to_neo4j_driver() as neo4j_driver:
             support = await is_enterprise(neo4j_driver)
@@ -222,6 +251,25 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         except AttributeError as e:
             msg = f"Invalid syslog facility {self.neo4j_app_syslog_facility}"
             raise ValueError(msg) from e
+
+    def to_async_app(self):
+        app_path = self.neo4j_app_async_module.split(".")
+        module, app_name = app_path[:-1], app_path[-1]
+        module = ".".join(module)
+        module = importlib.import_module(module)
+        app = getattr(module, app_name)
+        app.config = self
+        return app
+
+    def to_async_deps(self) -> List[Tuple[Callable, Callable]]:
+        deps_path = self.neo4j_app_async_dependencies
+        if deps_path is None:
+            return []
+        module, app_name = deps_path[:-1], deps_path[-1]
+        module = ".".join(module)
+        module = importlib.import_module(module)
+        deps = getattr(module, app_name)
+        return deps
 
 
 class UviCornModel(BaseICIJModel):

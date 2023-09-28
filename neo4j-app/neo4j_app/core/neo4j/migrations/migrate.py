@@ -242,10 +242,6 @@ async def migrate_project_db_schema(
     async with registry_db_session(neo4j_driver) as registry_sess:
         async with project_db_session(neo4j_driver, project=project) as project_sess:
             while "Waiting for DB to be migrated or for a timeout":
-                elapsed = time.monotonic() - start
-                if elapsed > timeout_s:
-                    logger.error(_MIGRATION_TIMEOUT_MSG)
-                    raise MigrationError(_MIGRATION_TIMEOUT_MSG)
                 migrations = await project_sess.execute_read(
                     project_migrations_tx, project=project
                 )
@@ -263,31 +259,35 @@ async def migrate_project_db_schema(
                         throttle_s,
                     )
                     await asyncio.sleep(throttle_s)
-                    continue
-                done = [m for m in migrations if m.status is MigrationStatus.DONE]
-                if done:
-                    current_version = max((m.version for m in done))
-                    todo = [m for m in todo if m.version > current_version]
-                if not todo:
-                    break
-                try:
-                    await _migrate_with_lock(
-                        project_session=project_sess,
-                        registry_session=registry_sess,
-                        project=project,
-                        migration=todo[0],
-                    )
-                    todo = todo[1:]
-                    continue
-                except ConstraintError:
-                    logger.info(
-                        "Migration %s has just started somewhere else, "
-                        " waiting for %s seconds...",
-                        todo[0].label,
-                        throttle_s,
-                    )
-                    await asyncio.sleep(throttle_s)
-                    continue
+                else:
+                    done = [m for m in migrations if m.status is MigrationStatus.DONE]
+                    if done:
+                        current_version = max((m.version for m in done))
+                        todo = [m for m in todo if m.version > current_version]
+                    if not todo:
+                        break
+                    try:
+                        await _migrate_with_lock(
+                            project_session=project_sess,
+                            registry_session=registry_sess,
+                            project=project,
+                            migration=todo[0],
+                        )
+                        todo = todo[1:]
+                        continue
+                    except ConstraintError:
+                        logger.info(
+                            "Migration %s has just started somewhere else, "
+                            " waiting for %s seconds...",
+                            todo[0].label,
+                            throttle_s,
+                        )
+                        await asyncio.sleep(throttle_s)
+                elapsed = time.monotonic() - start
+                if elapsed > timeout_s:
+                    logger.error(_MIGRATION_TIMEOUT_MSG)
+                    raise MigrationError(_MIGRATION_TIMEOUT_MSG)
+                continue
 
 
 async def init_project(
