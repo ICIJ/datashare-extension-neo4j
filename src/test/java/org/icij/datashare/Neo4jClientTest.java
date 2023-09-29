@@ -1,16 +1,25 @@
 package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
+import static org.icij.datashare.Objects.TaskStatus.DONE;
+import static org.icij.datashare.Objects.TaskType.FULL_IMPORT;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TimeZone;
 import net.codestory.http.Configuration;
 import net.codestory.http.Context;
 import net.codestory.http.payload.Payload;
@@ -59,7 +68,7 @@ public class Neo4jClientTest {
                 return new Payload("application/json", body);
             }
             return new Payload("application/json",
-                TestUtils.makeJsonHttpError("Bad Request", "Invalid project " + project), 500);
+                TestUtils.makeJsonHttpError("Not Found", "Invalid project " + project), 404);
         }
 
         private Payload mockDump(Context context) throws IOException {
@@ -89,8 +98,87 @@ public class Neo4jClientTest {
                     new ByteArrayInputStream(dump.getBytes()));
             }
             return new Payload("application/json",
-                TestUtils.makeJsonHttpError("Bad Request", "Invalid project " + project), 500);
+                TestUtils.makeJsonHttpError("Not Found", "Invalid project " + project), 404);
         }
+
+        private Payload mockCreateFullImport(Context context) throws IOException {
+            String project = context.query().get("project");
+            if (!project.equals("myproject")) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Not Found", "Invalid project " + project), 404);
+            }
+            String content = context.request().content();
+            String expectedContent = "{\"taskType\":\"full_import\","
+                + "\"taskId\":null,\"inputs\":null,\"createdAt\":null}";
+            if (!content.equals(expectedContent)) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Bad Request", "Invalid payload"), 400);
+            }
+            return new Payload("text/plain", "taskId", 201);
+        }
+
+        private Payload mockGetTask(Context context, String taskId) {
+            String project = context.query().get("project");
+            if (!project.equals("myproject")) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Not Found", "Invalid project " + project), 404);
+            }
+            if (!taskId.equals("taskId")) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Not Found", "Unknown task " + taskId), 404);
+            }
+            String task = "{"
+                + "    \"id\": \"taskId\","
+                + "    \"type\": \"full_import\","
+                + "    \"inputs\": null,"
+                + "    \"status\": \"DONE\","
+                + "    \"progress\": \"100.0\","
+                + "    \"retries\": \"1\","
+                + "    \"createdAt\": \"2022-04-20T22:20:10.064409+00:00\","
+                + "    \"completedAt\": \"2022-04-20T22:20:10.064409+00:00\""
+                + "}";
+            return new Payload("application/json", task);
+        }
+
+        private Payload mockGetTaskErrors(Context context, String taskId) {
+            String project = context.query().get("project");
+            if (!project.equals("myproject")) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Not Found", "Invalid project " + project), 404);
+            }
+            if (!taskId.equals("taskId")) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Not Found", "Unknown task " + taskId), 404);
+            }
+            String errors = "["
+                + "    {"
+                + "        \"id\": \"errorId\","
+                + "        \"title\": \"someTitle\","
+                + "        \"detail\": \"some details\","
+                + "        \"occurredAt\": \"2022-04-20T22:20:10.064409+00:00\""
+                + "    }"
+                + "]";
+            return new Payload("application/json", errors);
+        }
+
+        private Payload mockGetResult(Context context, String taskId) {
+            String project = context.query().get("project");
+            if (!project.equals("myproject")) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Not Found", "Invalid project " + project), 404);
+            }
+            if (!taskId.equals("taskId")) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Not Found", "Unknown task " + taskId), 404);
+            }
+            String errors = "["
+                + "    {"
+                + "        \"attr\": \"someValue\""
+                + "    }"
+                + "]";
+            return new Payload("application/json", errors);
+        }
+
 
         @Test
         public void test_should_import_documents() {
@@ -330,6 +418,72 @@ public class Neo4jClientTest {
             HashMap<String, Object> res = client.config();
             // Then
             assertThat(res).isEqualTo(new HashMap<String, Object>());
+        }
+
+        @Test
+        public void test_create_task() {
+            // Given
+            neo4jApp.configure(routes -> routes.post("/tasks", this::mockCreateFullImport));
+            // When
+            String taskId = client.fullImport("myproject");
+            // Then•
+            assertThat(taskId).isEqualTo("taskId");
+        }
+
+        @Test
+        public void test_get_task() throws ParseException {
+            // Given
+            neo4jApp.configure(routes -> routes.get("/tasks/:taskId", this::mockGetTask));
+            // When
+            org.icij.datashare.Objects.Task task = client.task("taskId", "myproject");
+            // Then
+            SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+            isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+            Date expectedDate = isoFormat.parse("2022-04-20T22:20:10.064+00:00");
+
+            assertThat(task.id).isEqualTo("taskId");
+            assertThat(task.type).isEqualTo(FULL_IMPORT);
+            assertThat(task.status).isEqualTo(DONE);
+            assertThat(task.inputs).isEqualTo(Map.of());
+            assertThat(task.progress).isEqualTo(100.0f);
+            assertThat(task.retries).isEqualTo(1);
+            assertThat(task.createdAt).isEqualTo(expectedDate);
+            assertThat(task.completedAt).isEqualTo(expectedDate);
+        }
+
+        @Test
+        public void test_get_task_result() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.get("/tasks/:taskId/result", this::mockGetResult)
+            );
+            // When
+            List<Map<String, String>> result = client.taskResult(
+                "taskId", "myproject", List.class);
+
+            // Then
+            assertThat(result.size()).isEqualTo(1);
+            assertThat(result.get(0)).isEqualTo(Map.of("attr", "someValue"));
+        }
+
+        @Test
+        public void test_get_task_error() throws ParseException, JsonProcessingException {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.get("/tasks/:taskId/errors", this::mockGetTaskErrors)
+            );
+            // When
+            org.icij.datashare.Objects.TaskError[] errors = client.taskErrors(
+                "taskId", "myproject");
+            // Then
+            SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+            isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+            Date expectedDate = isoFormat.parse("2022-04-20T22:20:10.064+00:00");
+            assertThat(errors.length).isEqualTo(1);
+            assertThat(errors[0].id).isEqualTo("errorId");
+            assertThat(errors[0].title).isEqualTo("someTitle");
+            assertThat(errors[0].detail).isEqualTo("some details");
+            assertThat(errors[0].occurredAt).isEqualTo(expectedDate);
         }
     }
 }

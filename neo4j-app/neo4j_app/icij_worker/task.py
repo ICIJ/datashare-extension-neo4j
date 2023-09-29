@@ -12,7 +12,7 @@ from pydantic import Field, validator
 
 from neo4j_app.constants import TASK_NODE
 from neo4j_app.core.utils.pydantic import (
-    LowerCamelCaseModel,
+    ISODatetime, LowerCamelCaseModel,
     NoEnumModel,
     safe_copy,
 )
@@ -79,7 +79,7 @@ def status_precedence(state: TaskStatus) -> int:
     return PRECEDENCE_LOOKUP[state]
 
 
-class Task(NoEnumModel, LowerCamelCaseModel):
+class Task(NoEnumModel, LowerCamelCaseModel, ISODatetime):
     id: str
     type: str
     inputs: Dict[str, Any] = Field(default_factory=dict)
