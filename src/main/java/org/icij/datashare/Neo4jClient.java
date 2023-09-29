@@ -19,6 +19,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -27,6 +29,7 @@ import kong.unirest.GenericType;
 import kong.unirest.HttpResponse;
 import kong.unirest.ObjectMapper;
 import kong.unirest.Unirest;
+import org.icij.datashare.Objects.IncrementalImportRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
