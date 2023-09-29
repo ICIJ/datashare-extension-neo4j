@@ -7,8 +7,12 @@ import static org.icij.datashare.Neo4jUtils.DOC_PATH;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
+import java.io.Serializable;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.neo4j.cypherdsl.core.Cypher;
 import org.neo4j.cypherdsl.core.Node;
 import org.neo4j.cypherdsl.core.Relationship;
@@ -113,7 +117,7 @@ public class Objects {
     }
 
 
-    static class IncrementalImportResponse {
+    protected static class IncrementalImportResponse {
         protected final long imported;
         protected final long nodesCreated;
         protected final long relationshipsCreated;
@@ -130,7 +134,7 @@ public class Objects {
         }
     }
 
-    static class IncrementalImportRequest {
+    protected static class IncrementalImportRequest {
         protected HashMap<String, Object> query;
 
         @JsonCreator
@@ -140,7 +144,7 @@ public class Objects {
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
-    static class Neo4jAppNeo4jCSVRequest {
+    protected static class Neo4jAppNeo4jCSVRequest {
 
         protected HashMap<String, Object> query;
 
@@ -162,7 +166,7 @@ public class Objects {
         }
     }
 
-    static class Neo4jCSVResponse {
+    protected static class Neo4jCSVResponse {
         protected String path;
         protected Neo4jCSVMetadata metadata;
 
@@ -174,7 +178,7 @@ public class Objects {
         }
     }
 
-    static class Neo4jCSVMetadata {
+    protected static class Neo4jCSVMetadata {
         protected List<NodeCSVs> nodes;
         protected List<RelationshipCSVs> relationships;
 
@@ -186,7 +190,7 @@ public class Objects {
         }
     }
 
-    static class NodeCSVs {
+    protected static class NodeCSVs {
         protected List<String> labels;
         protected String headerPath;
         protected List<String> nodePaths;
@@ -204,7 +208,7 @@ public class Objects {
         }
     }
 
-    static class RelationshipCSVs {
+    protected static class RelationshipCSVs {
         protected List<String> types;
         protected String headerPath;
         protected List<String> relationshipPaths;
@@ -299,6 +303,91 @@ public class Objects {
             this.forceMigration = forceMigration;
         }
     }
+
+
+    protected enum TaskType {
+        FULL_IMPORT;
+
+        @JsonCreator
+        private static TaskType fromStringValue(String value) {
+            return TaskType.valueOf(value.toUpperCase());
+        }
+
+        @JsonValue
+        private String getType() {
+            return this.toString().toLowerCase();
+        }
+    }
+
+    protected enum TaskStatus {
+        CREATED, QUEUED, RUNNING, RETRY, ERROR, DONE, CANCELLED;
+    }
+
+    protected static class Task {
+        protected final TaskType type;
+        protected final String id;
+        protected final TaskStatus status;
+        protected final Map<String, Object> inputs;
+        protected final Float progress;
+        protected final Integer retries;
+        protected final Date createdAt;
+        protected final Date completedAt;
+
+        @JsonCreator
+        Task(@JsonProperty("id") String id,
+             @JsonProperty("type") TaskType type,
+             @JsonProperty("status") TaskStatus status,
+             @JsonProperty("inputs") Map<String, Object> inputs,
+             @JsonProperty("progress") Float progress,
+             @JsonProperty("retries") Integer retries,
+             @JsonProperty("createdAt") Date createdAt,
+             @JsonProperty("completedAt") Date completedAt) {
+            this.type = java.util.Objects.requireNonNull(type);
+            this.id = id;
+            this.status = status;
+            this.inputs = Optional.ofNullable(inputs).orElse(Map.of());
+            this.progress = progress;
+            this.retries = retries;
+            this.createdAt = createdAt;
+            this.completedAt = completedAt;
+        }
+    }
+
+    protected static class TaskJob<T extends Serializable> {
+        protected final TaskType taskType;
+        protected final String taskId;
+        protected final T inputs;
+        protected final Date createdAt;
+
+
+        @JsonCreator
+        TaskJob(@JsonProperty("taskType") TaskType taskType, @JsonProperty("taskId") String taskId,
+                @JsonProperty("inputs") T inputs, @JsonProperty("createdAt") Date createdAt) {
+            this.taskType = java.util.Objects.requireNonNull(taskType);
+            this.taskId = taskId;
+            this.inputs = inputs;
+            this.createdAt = createdAt;
+        }
+    }
+
+    protected static class TaskError {
+        protected final String id;
+        protected final String title;
+        protected final String detail;
+        protected final Date occurredAt;
+
+
+        @JsonCreator
+        TaskError(@JsonProperty("id") String id, @JsonProperty("title") String title,
+                  @JsonProperty("detail") String detail,
+                  @JsonProperty("occurredAt") Date occurredAt) {
+            this.id = java.util.Objects.requireNonNull(id);
+            this.title = java.util.Objects.requireNonNull(title);
+            this.detail = detail;
+            this.occurredAt = java.util.Objects.requireNonNull(occurredAt);
+        }
+    }
+
 }
 //CHECKSTYLE.ON: ParameterName
 //CHECKSTYLE.ON: MemberName
