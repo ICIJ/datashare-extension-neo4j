@@ -1,3 +1,4 @@
+from datetime import datetime
 from functools import cached_property
 from typing import cast
 
@@ -55,3 +56,8 @@ class IgnoreExtraModel(BaseICIJModel):
 class NoEnumModel(BaseICIJModel):
     class Config:
         use_enum_values = False
+
+
+class ISODatetime(BaseICIJModel):
+    class Config:
+        json_encoders = {datetime: lambda x: x.isoformat()}
