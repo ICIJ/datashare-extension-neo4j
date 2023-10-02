@@ -260,15 +260,6 @@ public class Neo4jResource {
         });
     }
 
-    @Get("/graphs/nodes/count?project=:project")
-    public Payload getGraphNodesCount(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            return this.client.graphNodesCount(project);
-        });
-    }
-
-
     protected void checkNeo4jAppStarted() {
         if (neo4jAppPid() == null) {
             throw new Neo4jNotRunningError();
