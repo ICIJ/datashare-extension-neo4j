@@ -117,20 +117,6 @@ public class Objects {
 
     }
 
-    protected static class GraphNodesCount {
-        protected final long documents;
-        protected final Map<NamedEntity.Category, Long> namedEntities;
-
-        @JsonCreator
-        GraphNodesCount(
-            @JsonProperty("documents") Long documents,
-            @JsonProperty("namedEntities") Map<NamedEntity.Category, Long> namedEntities
-        ) {
-            this.documents = Optional.ofNullable(documents).orElse(0L);
-            this.namedEntities = Optional.ofNullable(namedEntities).orElse(Map.of());
-        }
-    }
-
 
     protected static class IncrementalImportResponse {
         protected final long imported;
