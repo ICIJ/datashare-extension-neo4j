@@ -1,6 +1,7 @@
 # TODO: rename this into run_http ?
 import argparse
 import logging
+import multiprocessing
 import sys
 import traceback
 from pathlib import Path
@@ -96,4 +97,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Multiprocessing
+    multiprocessing.freeze_support()
+
     main()
