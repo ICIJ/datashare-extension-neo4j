@@ -48,6 +48,7 @@ def lifespan_config() -> AppConfig:
         raise DependencyInjectionError("config")
     return cast(AppConfig, _CONFIG)
 
+
 async def neo4j_driver_enter(_: AppConfig):
     global _NEO4J_DRIVER
     _NEO4J_DRIVER = lifespan_config().to_neo4j_driver()

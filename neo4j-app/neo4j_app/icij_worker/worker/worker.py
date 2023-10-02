@@ -9,7 +9,17 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from copy import deepcopy
 from datetime import datetime
 from inspect import isawaitable, signature
-from typing import Any, Callable, Dict, Optional, Tuple, Type, final
+from typing import (
+    Any,
+    AsyncContextManager,
+    Callable,
+    Dict,
+    Optional,
+    Tuple,
+    Type,
+    cast,
+    final,
+)
 
 from neo4j_app.core import AppConfig
 from neo4j_app.core.utils.logging import LogWithNameMixin
@@ -34,8 +44,6 @@ async def _do_nothing_cm():
 
 class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC):
     def __init__(self, app: ICIJApp, worker_id: str):
-        from neo4j_app.app.dependencies import run_deps
-
         self._app = app
         self._id = worker_id
         self._graceful_shutdown = True
@@ -201,20 +209,20 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
 
     @final
     @property
-    def _deps_cm(self):
+    def _deps_cm(self) -> AsyncContextManager:
+        cm = _do_nothing_cm
         if self._config is not None:
             from neo4j_app.app.dependencies import run_deps
 
-            return run_deps(self._config, self._config.to_async_deps())
-        return _do_nothing_cm
+            cm = functools.partial(run_deps, self._config, self._config.to_async_deps())
 
-    @final
+        return cast(AsyncContextManager, cm)
+
     async def __aenter__(self):
-        await self._deps_cm.__enter()
+        await self._deps_cm.__aenter__()
 
-    @final
     async def __aexit__(self, exc_type, exc_value, traceback):
-        await self._deps_cm.__enter(exc_type, exc_value, traceback)
+        await self._deps_cm.__aexit__(exc_type, exc_value, traceback)
 
 
 def _retrieve_registered_task(

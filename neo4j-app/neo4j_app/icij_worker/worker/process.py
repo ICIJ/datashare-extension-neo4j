@@ -19,6 +19,7 @@ class ProcessWorkerMixin(Worker, ABC):
         return task, project
 
     async def __aenter__(self):
+        await super().__aenter__()
         self._setup_signal_handlers()
 
     def _signal_handler(
