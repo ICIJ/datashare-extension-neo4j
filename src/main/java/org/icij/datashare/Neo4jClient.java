@@ -8,16 +8,12 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JavaType;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Serializable;
-import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.util.HashMap;
-import java.util.List;
 import kong.unirest.Config;
 import kong.unirest.GenericType;
 import kong.unirest.HttpRequestSummary;
@@ -191,8 +187,8 @@ public class Neo4jClient {
             .getBody();
     }
 
-    // Generics don't play well Unirest, returning Objects.TaskError[] instead of List<TaskError>
-    // helps
+    // TODO: generics don't play well Unirest, returning Objects.TaskError[] instead of
+    //  List<TaskError> helps
     protected Objects.TaskError[] taskErrors(String taskId, String project) {
         String url = buildNeo4jUrl("/tasks/" + taskId + "/errors?project=" + project);
         logger.debug("Getting task {} errors", taskId);
@@ -278,7 +274,8 @@ public class Neo4jClient {
                 try {
                     // TODO: this doesn't work properly and returns List<HashMap> instead of
                     //  List<G>... When T =  List<G>
-                    TypeReference<T> typeRef = new TypeReference<>() {};
+                    TypeReference<T> typeRef = new TypeReference<>() {
+                    };
                     return MAPPER.readValue(value, typeRef);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
