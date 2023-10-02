@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import traceback
 import uuid
 from datetime import datetime
@@ -8,7 +9,7 @@ from enum import Enum, unique
 from typing import Any, Dict, Optional
 
 import neo4j
-from pydantic import Field, validator
+from pydantic import validator
 
 from neo4j_app.constants import TASK_NODE
 from neo4j_app.core.utils.pydantic import (
@@ -17,6 +18,8 @@ from neo4j_app.core.utils.pydantic import (
     NoEnumModel,
     safe_copy,
 )
+
+logger = logging.getLogger(__name__)
 
 PROGRESS_HANDLER_ARG = "progress_handler"
 _TASK_SCHEMA = None
@@ -83,12 +86,19 @@ def status_precedence(state: TaskStatus) -> int:
 class Task(NoEnumModel, LowerCamelCaseModel, ISODatetime):
     id: str
     type: str
-    inputs: Dict[str, Any] = Field(default_factory=dict)
+    inputs: Optional[Dict[str, Any]] = None
     status: TaskStatus
     progress: Optional[float] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
     retries: Optional[int] = None
+
+    @validator("inputs")
+    def inputs_as_dict(cls, v: Optional[Dict[str, Any]]):
+        # pylint: disable=no-self-argument
+        if v is None:
+            v = dict()
+        return v
 
     @classmethod
     def create(
@@ -120,7 +130,9 @@ class Task(NoEnumModel, LowerCamelCaseModel, ISODatetime):
     def _validate_progress(cls, value: Optional[float]):
         # pylint: disable=no-self-argument
         if isinstance(value, float) and not 0 <= value <= 100:
-            raise ValueError("progress is expected to be in [0, 100]")
+            # We log here rather than raising since otherwise a single invalid log will
+            # prevent anything any deserialization related
+            logger.error("progress is expected to be in [0, 100], found %s", value)
         return value
 
     @classmethod
@@ -192,7 +204,7 @@ class TaskError(LowerCamelCaseModel):
     occurred_at: datetime
 
     @classmethod
-    def from_exception(cls, exception: Exception) -> TaskError:
+    def from_exception(cls, exception: BaseException) -> TaskError:
         title = exception.__class__.__name__
         trace_lines = traceback.format_exception(
             None, value=exception, tb=exception.__traceback__

@@ -1,13 +1,38 @@
 import xml.etree.ElementTree as e_t
 from io import StringIO
+from typing import Dict
 
 import neo4j
 import pytest
 import pytest_asyncio
 
-from neo4j_app.core.neo4j.dumps import dump_graph
-from neo4j_app.core.objects import DumpFormat
-from neo4j_app.tests.conftest import xml_elements_equal
+from neo4j_app.core.neo4j.graphs import count_graph_nodes, dump_graph
+from neo4j_app.core.objects import DumpFormat, GraphNodesCount
+from neo4j_app.tests.conftest import TEST_PROJECT, xml_elements_equal
+
+
+async def _create_docs(driver: neo4j.AsyncDriver, n: int):
+    doc_ids = [f"doc-{i}" for i in range(n)]
+    query = """UNWIND $docIds as docId
+CREATE (:Document {id: docId})
+"""
+    await driver.execute_query(query, docIds=doc_ids)
+
+
+async def _create_ents(driver: neo4j.AsyncDriver, n_ents: Dict[str, int]):
+    ents = []
+    for category, n in n_ents.items():
+        labels = ["NamedEntity", category]
+        for i in range(n):
+            props = {"mentionNorm": f"ent-{i}"}
+            mention_ids = [f"ent-{i}" for i in range(1, i + 2)]
+            ents.append({"props": props, "labels": labels, "mentionIds": mention_ids})
+    query = """UNWIND $ents as ent
+CALL apoc.create.node(ent.labels, ent.props) YIELD node as ne
+MATCH (doc:Document {id: 'doc-0'})
+MERGE (ne)-[rel:APPEARS_IN {mentionIds: ent.mentionIds}]->(doc)
+"""
+    await driver.execute_query(query, ents=ents)
 
 
 @pytest_asyncio.fixture(scope="module")
@@ -183,3 +208,36 @@ async def test_should_raise_for_invalid_dump_format(
             project=neo4j.DEFAULT_DATABASE,
         ):
             pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "n_docs,n_ents,expected_count",
+    [
+        (0, dict(), GraphNodesCount()),
+        (1, dict(), GraphNodesCount(documents=1)),
+        (
+            1,
+            {"CAT_0": 1, "CAT_1": 2},
+            GraphNodesCount(documents=1, named_entities={"CAT_0": 1, "CAT_1": 1 + 2}),
+        ),
+    ],
+)
+async def test_count_graph_nodes(
+    neo4j_test_driver: neo4j.AsyncDriver,
+    n_docs: int,
+    n_ents: Dict[str, int],
+    expected_count: GraphNodesCount,
+):
+    # Given
+    driver = neo4j_test_driver
+    if n_docs:
+        await _create_docs(driver, n_docs)
+    if n_ents:
+        await _create_ents(driver, n_ents)
+
+    # When
+    count = await count_graph_nodes(driver, project=TEST_PROJECT)
+
+    # Then
+    assert count == expected_count

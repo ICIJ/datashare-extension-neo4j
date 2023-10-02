@@ -33,6 +33,7 @@ from neo4j_app.icij_worker.exceptions import (
     TaskAlreadyReserved,
     TaskCancelled,
     UnregisteredTask,
+    WorkerCancelled,
 )
 from neo4j_app.icij_worker.task import (
     Task,
@@ -93,6 +94,8 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             try:
                 while True:
                     await self.work_once()
+            except WorkerCancelled:
+                self.info("worker cancelled, shutting down...")
             except Exception as e:
                 self.error("error occurred while consuming: %s", _format_error(e))
                 self.info("will try to shutdown gracefully...")

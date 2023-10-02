@@ -1,8 +1,14 @@
 import importlib.metadata
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException, Response
 from starlette.requests import Request
 
+from neo4j_app.app.dependencies import (
+    lifespan_es_client,
+    lifespan_import_queue,
+    lifespan_neo4j_driver,
+    lifespan_task_store,
+)
 from neo4j_app.app.doc import OTHER_TAG
 from neo4j_app.core import AppConfig
 
@@ -12,12 +18,21 @@ def main_router() -> APIRouter:
 
     @router.get("/ping")
     def ping() -> str:
+        try:
+            lifespan_neo4j_driver()
+            lifespan_es_client()
+            lifespan_import_queue()
+            lifespan_task_store()
+        except Exception as e:  # pylint: disable=broad-except
+            raise HTTPException(503, detail="Service Unavailable") from e
         return "pong"
 
     @router.get("/config", response_model=AppConfig, response_model_exclude_unset=True)
     async def config(request: Request) -> AppConfig:
-        if request.app.state.config is None:
-            request.app.state.config = await config.with_neo4j_support()
+        if request.app.state.config.supports_neo4j_enterprise is None:
+            conf = request.app.state.config
+            with_support = await conf.with_neo4j_support()
+            request.app.state.config = with_support
         return request.app.state.config
 
     @router.get("/version")
