@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, List
 
 import neo4j
@@ -13,6 +14,8 @@ from neo4j_app.constants import (
     DOC_ROOT_ID,
     DOC_ROOT_TYPE,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def import_document_rows(
@@ -45,12 +48,14 @@ CALL {{
 
 async def documents_ids_tx(tx: neo4j.AsyncTransaction) -> List[str]:
     res = await tx.run(document_ids_query())
-    res = [doc_id.value(DOC_ID) async for doc_id in res]
-    return res
+    doc_ids = await res.single()
+    doc_ids = doc_ids.get("docIds")
+    return doc_ids
 
 
 def document_ids_query() -> str:
+    # Collect on the neo4j side to gain time
     query = f"""MATCH (doc:{DOC_NODE})
-RETURN doc.{DOC_ID} as {DOC_ID}
+RETURN collect(doc.{DOC_ID}) as docIds
 """
     return query

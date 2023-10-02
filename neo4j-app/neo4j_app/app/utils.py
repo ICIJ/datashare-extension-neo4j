@@ -22,14 +22,10 @@ from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.app.projects import projects_router
 from neo4j_app.app.tasks import tasks_router
 from neo4j_app.core import AppConfig
-from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
-from neo4j_app.core.neo4j.migrations import delete_all_migrations
-from neo4j_app.core.neo4j.projects import create_project_registry_db
 from neo4j_app.icij_worker import ICIJApp
 
 INTERNAL_SERVER_ERROR = "Internal Server Error"
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
-
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +80,10 @@ def _make_open_api_tags(tags: Iterable[str]) -> List[Dict]:
     return [{"name": t} for t in tags]
 
 
+def _debug():
+    logger.info("im here")
+
+
 def create_app(config: AppConfig, async_app: Optional[ICIJApp] = None) -> FastAPI:
     app = FastAPI(
         title=config.doc_app_name,
@@ -100,13 +100,6 @@ def create_app(config: AppConfig, async_app: Optional[ICIJApp] = None) -> FastAP
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, internal_exception_handler)
-    app.add_event_handler("startup", app.state.config.setup_loggers)
-    # This one is not a migration, migrations run on project DBs, it runs on a
-    # utility DB
-    app.add_event_handler(
-        "startup", functools.partial(create_project_registry_db_, app)
-    )
-    app.add_event_handler("startup", functools.partial(migrate_app_dbs, app))
     app.include_router(main_router())
     app.include_router(documents_router())
     app.include_router(named_entities_router())
@@ -115,27 +108,6 @@ def create_app(config: AppConfig, async_app: Optional[ICIJApp] = None) -> FastAP
     app.include_router(projects_router())
     app.include_router(tasks_router())
     return app
-
-
-async def create_project_registry_db_(app: AppConfig):
-    config: AppConfig = app.state.config
-    async with config.to_neo4j_driver() as driver:
-        await create_project_registry_db(driver)
-
-
-async def migrate_app_dbs(app: FastAPI):
-    config: AppConfig = app.state.config
-    async with config.to_neo4j_driver() as driver:
-        logger.info("Running schema migrations at application startup...")
-        if config.force_migrations:
-            # TODO: improve this as is could lead to race conditions...
-            await delete_all_migrations(driver)
-        await migrate_db_schemas(
-            driver,
-            registry=MIGRATIONS,
-            timeout_s=config.neo4j_app_migration_timeout_s,
-            throttle_s=config.neo4j_app_migration_throttle_s,
-        )
 
 
 def _display_errors(errors: List[Dict]) -> str:

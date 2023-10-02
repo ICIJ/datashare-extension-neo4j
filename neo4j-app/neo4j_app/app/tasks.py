@@ -9,7 +9,8 @@ from neo4j_app.app.dependencies import (
     lifespan_task_manager,
 )
 from neo4j_app.app.doc import TASKS_TAG
-from neo4j_app.core.objects import TaskJob
+from neo4j_app.core.objects import TaskJob, TaskSearch
+from neo4j_app.core.utils.logging import log_elapsed_time_cm
 from neo4j_app.icij_worker import (
     Task,
     TaskError,
@@ -65,7 +66,10 @@ def tasks_router() -> APIRouter:
     async def _get_task(task_id: str, project: str) -> Task:
         task_manager = lifespan_task_manager()
         try:
-            task = await task_manager.get_task(task_id=task_id, project=project)
+            with log_elapsed_time_cm(
+                logger, logging.INFO, "retrieved task in {elapsed_time} !"
+            ):
+                task = await task_manager.get_task(task_id=task_id, project=project)
         except UnknownTask as e:
             raise HTTPException(status_code=404, detail=e.args[0]) from e
         return task
@@ -91,5 +95,16 @@ def tasks_router() -> APIRouter:
         except UnknownTask as e:
             raise HTTPException(status_code=404, detail=e.args[0]) from e
         return errors
+
+    @router.post("/tasks/search", response_model=List[Task])
+    async def _search_tasks(project: str, search: TaskSearch) -> List[Task]:
+        task_manager = lifespan_task_manager()
+        with log_elapsed_time_cm(
+            logger, logging.INFO, "Searched tasks in {elapsed_time} !"
+        ):
+            tasks = await task_manager.get_tasks(
+                project=project, task_type=search.type, status=search.status
+            )
+        return tasks
 
     return router

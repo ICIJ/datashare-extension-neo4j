@@ -6,6 +6,9 @@ import pytest
 from aiohttp.test_utils import TestClient
 from neo4j import Query
 
+from neo4j_app.core.objects import GraphNodesCount
+from neo4j_app.tests.conftest import TEST_PROJECT, fail_if_exception
+
 
 async def _iter_records(
     lines: Iterable[str],
@@ -21,7 +24,7 @@ async def _mocked_run(
     lines: Iterable[str],
     record_key: str,
     parameters: Optional[Dict[str, Any]] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ):
     # pylint: disable=unused-argument
     return _iter_records(lines, record_key)
@@ -192,3 +195,16 @@ async def test_post_graph_dump_should_return_400_for_invalid_dump_format(
     error = res.json()
     assert error["title"] == "Request Validation Error"
     assert "value is not a valid enumeration member" in error["detail"]
+
+
+def test_get_graph_node_counts(test_client_session: TestClient):
+    # Given
+    test_client = test_client_session
+    url = f"/graphs/nodes/count?project={TEST_PROJECT}"
+
+    # When/Then
+    res = test_client.get(url)
+    assert res.status_code == 200, res.json()
+    msg = f"Failed to convert response into a {GraphNodesCount.__name__}"
+    with fail_if_exception(msg):
+        _ = GraphNodesCount(**res.json())

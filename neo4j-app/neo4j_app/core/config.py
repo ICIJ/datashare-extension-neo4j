@@ -7,7 +7,7 @@ import sys
 from configparser import ConfigParser
 from enum import Enum, unique
 from logging.handlers import SysLogHandler
-from typing import Callable, Dict, List, Optional, TextIO, Tuple, Type, Union, cast
+from typing import Callable, Dict, List, Optional, TextIO, Tuple, Type, Union
 
 import neo4j
 from pydantic import Field, validator
@@ -70,8 +70,8 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_max_records_in_memory: int = int(1e6)
     neo4j_app_migration_timeout_s: float = 60 * 5
     neo4j_app_migration_throttle_s: float = 1
-    neo4j_app_name: str = "neo4j app"
     neo4j_app_n_async_workers: int = 1
+    neo4j_app_name: str = "neo4j app"
     neo4j_app_port: int = 8080
     neo4j_app_syslog_facility: Optional[str] = None
     neo4j_app_task_queue_size: int = 2
@@ -163,6 +163,8 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         driver = neo4j.AsyncGraphDatabase.driver(
             self.neo4j_uri,
             connection_timeout=self.neo4j_connection_timeout,
+            connection_acquisition_timeout=self.neo4j_connection_timeout,
+            max_transaction_retry_time=self.neo4j_connection_timeout,
             auth=auth,
         )
         return driver
@@ -183,12 +185,9 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         return WorkerType[self.neo4j_app_worker_type].as_worker_cls
 
     async def with_neo4j_support(self) -> AppConfig:
-        with self.to_neo4j_driver() as neo4j_driver:
+        async with self.to_neo4j_driver() as neo4j_driver:  # pylint: disable=not-async-context-manager
             support = await is_enterprise(neo4j_driver)
-        copied = safe_copy(
-            self, deep=True, update={"supports_neo4j_enterprise": support}
-        )
-        copied = cast(AppConfig, copied)
+        copied = safe_copy(self, update={"supports_neo4j_enterprise": support})
         return copied
 
     def setup_loggers(self):
@@ -196,11 +195,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         import uvicorn
         import elasticsearch
 
-        loggers = [
-            neo4j_app.__name__,
-            uvicorn.__name__,
-            elasticsearch.__name__,
-        ]
+        loggers = [neo4j_app.__name__, uvicorn.__name__, elasticsearch.__name__]
         force_info = {elasticsearch.__name__}
         try:
             import opensearchpy
@@ -213,7 +208,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         for logger in loggers:
             logger = logging.getLogger(logger)
             level = getattr(logging, self.neo4j_app_log_level)
-            if logger in force_info:
+            if logger.name in force_info:
                 level = max(logging.INFO, level)
             logger.setLevel(level)
             logger.handlers = []

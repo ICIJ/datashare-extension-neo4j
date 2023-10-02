@@ -4,12 +4,13 @@ import hashlib
 import json
 from datetime import datetime
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
+import neo4j
 from pydantic import Field
 
 from neo4j_app.core.utils.pydantic import LowerCamelCaseModel, NoEnumModel
-from neo4j_app.icij_worker import Task, TaskStatus
+from neo4j_app.icij_worker.task import Task, TaskStatus
 
 
 @unique
@@ -34,8 +35,34 @@ class IncrementalImportResponse(LowerCamelCaseModel):
     relationships_created: int = 0
 
 
-class CSVPaths:
-    path: str
+class GraphNodesCount(LowerCamelCaseModel):
+    documents: int = 0
+    named_entities: Dict[str, int] = Field(default_factory=dict)
+
+    @classmethod
+    async def from_neo4j(
+        cls,
+        *,
+        doc_res: neo4j.AsyncResult,
+        entity_res: neo4j.AsyncResult,
+        document_key="nDocs",
+        entity_labels_key="neLabels",
+        entity_count_key="nMentions",
+    ) -> GraphNodesCount:
+        doc_res = await doc_res.single()
+        n_docs = doc_res[document_key]
+        n_ents = dict()
+        async for rec in entity_res:
+            labels = rec[entity_labels_key]
+            # This might require to fix admin imports to create distinct nodes
+            if len(labels) != 1:
+                msg = (
+                    "Expected named entity to have exactly 2 labels."
+                    " Refactor this function."
+                )
+                raise ValueError(msg)
+            n_ents[labels[0]] = rec[entity_count_key]
+        return GraphNodesCount(documents=n_docs, named_entities=n_ents)
 
 
 class Neo4jCSVRequest(LowerCamelCaseModel):
@@ -68,9 +95,9 @@ class Neo4jCSVResponse(LowerCamelCaseModel):
 
 
 class TaskJob(LowerCamelCaseModel):
-    type: str
+    task_type: str
     task_id: Optional[str] = None  # Used when the task_id is created by the client
-    inputs: Dict[str, Any] = Field(default_factory=dict)
+    inputs: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
 
     def to_task(self, task_id: Optional[str] = None) -> Task:
@@ -83,7 +110,7 @@ class TaskJob(LowerCamelCaseModel):
             created_at = datetime.now()
         return Task(
             id=task_id,
-            type=self.type,
+            type=self.task_type,
             inputs=self.inputs,
             status=TaskStatus.CREATED,
             created_at=created_at,
@@ -93,4 +120,9 @@ class TaskJob(LowerCamelCaseModel):
         hashed = self.dict(by_alias=False)
         hashed.pop("created_at")
         hashed = hashlib.md5(json.dumps(hashed).encode(encoding="utf-8"))
-        return f"{self.type}-{hashed.hexdigest()}"
+        return f"{self.task_type}-{hashed.hexdigest()}"
+
+
+class TaskSearch(LowerCamelCaseModel):
+    type: Optional[str] = None
+    status: Optional[Union[List[TaskStatus], TaskStatus]] = None
