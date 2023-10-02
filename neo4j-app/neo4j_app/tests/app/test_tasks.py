@@ -59,7 +59,7 @@ def test_task_should_return_201_for_created_task(
     test_client = test_client_with_async
     url = f"/tasks?project={TEST_PROJECT}"
     inputs = {"greeted": "everyone"}
-    job = TaskJob(task_id=task_id, type="hello_world", inputs=inputs)
+    job = TaskJob(task_id=task_id, task_type="hello_world", inputs=inputs)
 
     # When
     res = test_client.post(url, json=job.dict())
@@ -101,7 +101,7 @@ def test_task_integration(test_client_type: str, request: FixtureRequest):
     test_client = request.getfixturevalue(test_client_type)
     create_url = f"/tasks?project={TEST_PROJECT}"
     inputs = {"greeted": "everyone"}
-    job = TaskJob(task_id=None, type="hello_world", inputs=inputs)
+    job = TaskJob(task_id=None, task_type="hello_world", inputs=inputs)
 
     # When
     res = test_client.post(create_url, json=job.dict())
@@ -167,7 +167,7 @@ def test_create_task_should_return_429_when_too_many_tasks(
     # Given
     test_client = test_client_limited_queue
     url = f"/tasks?project={TEST_PROJECT}"
-    job = TaskJob(type="sleep_forever")
+    job = TaskJob(task_type="sleep_forever")
 
     # When
     res_0 = test_client.post(url, json=job.dict())
@@ -215,7 +215,7 @@ def test_get_task_error(test_client_with_async: TestClient):
     test_client = test_client_with_async
     create_url = f"/tasks?project={TEST_PROJECT}"
     inputs = {"wrong_arg": None}
-    job = TaskJob(task_id=None, type="hello_world", inputs=inputs)
+    job = TaskJob(task_id=None, task_type="hello_world", inputs=inputs)
 
     # When
     res = test_client.post(create_url, json=job.dict())

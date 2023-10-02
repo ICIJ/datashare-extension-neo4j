@@ -1,4 +1,3 @@
-import pytest
 from starlette.testclient import TestClient
 
 from neo4j_app import ROOT_DIR
@@ -30,10 +29,8 @@ def test_config(test_client: TestClient):
 
     # Then
     assert res.status_code == 200, res.json()
-    try:
-        AppConfig.parse_obj(res.json())
-    except:  # pylint: disable=bare-except
-        pytest.fail(f"Failed to parse response as a {AppConfig.__name__}")
+    config = AppConfig.parse_obj(res.json())
+    assert isinstance(config.supports_neo4j_enterprise, bool)
 
 
 def test_version(test_client: TestClient):

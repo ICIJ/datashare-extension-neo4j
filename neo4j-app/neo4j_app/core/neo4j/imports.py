@@ -36,43 +36,41 @@ class Neo4jImportWorker:
         self._import_fn = import_fn
         self._transaction_batch_size = transaction_batch_size
         self._to_neo4j = to_neo4j
+        self._summaries = None
 
     async def __call__(self, queue: asyncio.Queue) -> List[neo4j.ResultSummary]:
-        # TODO:
-        #  - use https://github.com/jd/tenacity to implement retry with backoff in
-        #  case of network error
-        #  - after several failure, requeue the job...
-        summaries = []
+        self._summaries = []
         try:
             while "Waiting forever until the task is cancelled":
-                import_batch = await queue.get()
+                batch = await queue.get()
                 if self._to_neo4j is not None:
-                    import_batch = (
-                        row for rec in import_batch for row in self._to_neo4j(rec)
-                    )
-                    import_batch = [rec for rec in import_batch if rec is not None]
+                    batch = (row for rec in batch for row in self._to_neo4j(rec))
+                    batch = [rec for rec in batch if rec is not None]
                 logger.debug(
-                    "Worker %s is starting import of %s records",
+                    "worker %s importing %s records, (queuesize=%s)",
                     self.name,
-                    len(import_batch),
+                    len(batch),
+                    queue.qsize(),
                 )
-                async with self._neo4j_driver.session(
-                    database=self._neo4j_db
-                ) as neo4j_session:
-                    summary = await self._import_fn(
-                        neo4j_session,
-                        import_batch,
-                        transaction_batch_size=self._transaction_batch_size,
-                    )
-                logger.debug("Worker %s completed import !", self.name)
-                summaries.append(summary)
+                # TODO: execute this in background instead ?
+                await self._import_batch(batch)
                 queue.task_done()
+                logger.debug(
+                    "worker %s imported batch (queuesize=%s)", self.name, queue.qsize()
+                )
         # Let's return
         except asyncio.CancelledError:
-            logger.debug(
-                "Worker %s received cancellation signal, returning results", self.name
+            logger.debug("worker %s received cancellation, exiting", self.name)
+            return self._summaries
+
+    async def _import_batch(self, batch: List[Dict]):
+        async with self._neo4j_driver.session(database=self._neo4j_db) as neo4j_session:
+            summary = await self._import_fn(
+                neo4j_session,
+                batch,
+                transaction_batch_size=self._transaction_batch_size,
             )
-            return summaries
+        self._summaries.append(summary)
 
     @cached_property
     def name(self) -> str:

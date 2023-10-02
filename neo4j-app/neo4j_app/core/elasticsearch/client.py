@@ -30,10 +30,10 @@ from tenacity import (
     stop_after_attempt,
     wait_random_exponential,
 )
-from typing_extensions import Coroutine
 
 from neo4j_app.core.elasticsearch.utils import (
     ASC,
+    COUNT,
     DOC_,
     HITS,
     ID,
@@ -49,10 +49,11 @@ from neo4j_app.core.elasticsearch.utils import (
     SIZE,
     SLICE,
     SORT,
+    SOURCE,
     match_all,
 )
 from neo4j_app.core.neo4j import Neo4jImportWorker, write_neo4j_csv
-from neo4j_app.core.utils.asyncio import run_with_concurrency
+from neo4j_app.core.utils.asyncio import iterate_with_concurrency, run_with_concurrency
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 from neo4j_app.core.utils.progress import to_raw_progress
 from neo4j_app.typing_ import PercentProgress
@@ -250,14 +251,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
             neo4j_import_worker_factory(f"neo4j-node-worker-{i}")
             for i in range(num_neo4j_workers)
         ]
-        neo4j_tasks = set(
+        neo4j_tasks = [
             asyncio.create_task(worker(queue), name=worker.name)
             for worker in neo4j_workers
-        )
-        # To prevent keeping references to finished tasks forever, make each task remove
-        # its own reference from the set after completion
-        for task in neo4j_tasks:
-            task.add_done_callback(neo4j_tasks.discard)
+        ]
         # 1 slice is not supported...
         concurrency = max(concurrency, 2)
         with log_elapsed_time_cm(
@@ -275,7 +272,15 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 progress=progress,
             )
         # Wait for the queue to be fully consumed
-        await queue.join()
+        queue_complete = asyncio.create_task(queue.join())
+        await asyncio.wait(
+            [queue_complete, *neo4j_tasks], return_when=asyncio.FIRST_COMPLETED
+        )
+        if not queue_complete.done():
+            logger.error("some task failed before queue was consumed...")
+            for task in neo4j_tasks:
+                if task.done():  # There was an exception
+                    raise task.exception()
         # Cancel consumer tasks which will make them break their infinite loop and
         # return the result summaries
         for task in neo4j_tasks:
@@ -284,8 +289,10 @@ class ESClientABC(metaclass=abc.ABCMeta):
         # wait for tasks to end
         if not n_imported:
             return n_imported, []
-        # Wait for all results to be there
+        # Wait for all results to exit and return summaries
         summaries = await asyncio.gather(*neo4j_tasks)
+        for i in range(len(neo4j_tasks)):  # pylint: disable=consider-using-enumerate
+            del neo4j_tasks[i]
         summaries = sum(summaries, [])
         return n_imported, summaries
 
@@ -359,14 +366,22 @@ class ESClientABC(metaclass=abc.ABCMeta):
         max_concurrency: Optional[int] = None,
         progress: Optional[PercentProgress],
     ) -> int:
+        if not bodies:
+            return 0
         lock = asyncio.Lock()
         buffer = []
+        raw_progress = None
         if progress is not None and bodies:
-            count_query = deepcopy(bodies[0])
-            count_query.pop(SLICE, None)
-            total = await self.count(index=index, query=count_query)
-            progress = to_raw_progress(progress, max_progress=total)
-        futures = [
+            count_queries = [deepcopy(b) for b in bodies]
+            for q in count_queries:
+                q.pop(SLICE, None)
+                q.pop(SOURCE, None)
+            count_tasks = (self.count(index=index, body=b) for b in count_queries)
+            res_it = run_with_concurrency(count_tasks, max_concurrency=max_concurrency)
+            ne_counts = [c[COUNT] async for c in res_it]
+            ne_counts = sum(ne_counts)
+            raw_progress = to_raw_progress(progress, max_progress=ne_counts)
+        gens = [
             self._fill_import_buffer(
                 index=index,
                 queue=queue,
@@ -374,20 +389,22 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 lock=lock,
                 buffer=buffer,
                 body=body,
-                progress=progress,
             )
             for body in bodies
         ]
         if max_concurrency is None:
-            max_concurrency = len(futures)
+            max_concurrency = len(gens)
         imported = 0
-        async for n_imported in run_with_concurrency(
-            futures, max_concurrency=max_concurrency
+        async for n_imported in iterate_with_concurrency(
+            gens, max_concurrency=max_concurrency
         ):
             imported += n_imported
+            if raw_progress is not None:
+                asyncio.create_task(raw_progress(imported))
         if buffer:
-            imported += len(buffer)
-            await _enqueue_import_batch(queue, buffer)
+            imported += await _enqueue_import_batch(queue, buffer)
+            if progress is not None:
+                asyncio.create_task(raw_progress(imported))
         return imported
 
     async def _fill_import_buffer(
@@ -398,25 +415,17 @@ class ESClientABC(metaclass=abc.ABCMeta):
         import_batch_size: int,
         lock: asyncio.Lock,
         buffer: List[Dict],
-        progress: Optional[Coroutine] = None,
         **kwargs,
-    ) -> int:
-        # TODO: use https://github.com/jd/tenacity to implement retry with backoff in
-        #  case of network error
-        imported = 0
+    ) -> AsyncGenerator[int, None]:
         # Since we can't provide an async generator to the neo4j client, let's store
         # results into a list fitting in memory, which will then be split into
         # transaction batches
         async for res in self.poll_search_pages(index, **kwargs):
-            buffer.extend(res[HITS][HITS])
             async with lock:
+                buffer.extend(res[HITS][HITS])
                 if len(buffer) >= import_batch_size:
-                    await _enqueue_import_batch(queue, buffer)
-                    imported += len(buffer)
-                    if progress is not None:
-                        asyncio.create_task(progress(imported))
+                    yield await _enqueue_import_batch(queue, buffer)
                     buffer.clear()
-        return imported
 
     async def _write_search_to_neo4j_csvs_with_lock(
         self,
@@ -595,13 +604,15 @@ except ImportError:
     pass
 
 
-async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]):
+async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]) -> int:
     # Let's monitor the time it takes to enqueue the batch, if it's long it
     # means that more neo4j workers are needed
     with log_elapsed_time_cm(
         logger, logging.DEBUG, "Waited {elapsed_time} to enqueue batch"
     ):
-        await queue.put(copy(import_batch))
+        queued = copy(import_batch)
+        await queue.put(queued)
+        return len(queued)
 
 
 def sliced_search(

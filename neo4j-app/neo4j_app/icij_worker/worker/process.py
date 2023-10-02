@@ -4,6 +4,7 @@ import threading
 from abc import ABC
 from typing import Callable, cast
 
+from neo4j_app.icij_worker.exceptions import WorkerCancelled
 from neo4j_app.icij_worker.worker.worker import Worker
 
 
@@ -13,16 +14,16 @@ class ProcessWorkerMixin(Worker, ABC):
         self._setup_signal_handlers()
 
     def _signal_handler(
-        self,
-        signal_name: int,
-        _,
-        __,  # pylint: disable=invalid-name
-        *,
-        graceful: bool,
+            self,
+            signal_name: int,
+            _,
+            __,  # pylint: disable=invalid-name
+            *,
+            graceful: bool,
     ):
         self.error("received %s", signal_name)
         self._graceful_shutdown = graceful
-        raise KeyboardInterrupt()
+        raise WorkerCancelled()
 
     def _setup_signal_handlers(self):
         if threading.current_thread() is threading.main_thread():
@@ -31,6 +32,8 @@ class ProcessWorkerMixin(Worker, ABC):
             )
             handle_sigint = cast(Callable[[int], None], handle_sigint)
             signal.signal(signal.SIGINT, handle_sigint)
+            # Let's always shutdown gracefully for now since when the server shutdown
+            # it will try to SIGTERM, we want to avoid loosing track of running tasks
             handle_sigterm = functools.partial(
                 self._signal_handler, "SIGTERM", graceful=True
             )

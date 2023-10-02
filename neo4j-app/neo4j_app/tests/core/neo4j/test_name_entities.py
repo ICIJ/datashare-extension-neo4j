@@ -11,7 +11,7 @@ from neo4j_app.core.neo4j.named_entities import (
     import_named_entity_rows,
     ne_creation_stats_tx,
 )
-from neo4j_app.tests.conftest import make_named_entities
+from neo4j_app.tests.conftest import fail_if_exception, make_named_entities
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -160,6 +160,35 @@ async def test_import_named_entity_rows_should_import_email_relationship(
     assert doc["id"] == "docId"
     rel = record.get("rel")
     assert rel["fields"] == [header_field]
+
+
+@pytest.mark.asyncio()
+async def test_import_named_entity_rows_should_import_records_with_null_email_header(
+    _create_document: neo4j.AsyncSession,
+):
+    # pylint: disable=invalid-name
+    # Given
+    neo4j_session = _create_document
+    records = [
+        {
+            "id": "senderId",
+            "documentId": "docId",
+            "category": "EMAIL",
+            "mentionNorm": "dev@icij.org",
+            "offsets": [0],
+            "extractor": "fromNoWhere",
+            "metadata": {"emailHeader": None},
+        }
+    ]
+    transaction_batch_size = 2
+    # When
+    msg = "Failed to import create email relationship when email header is None"
+    with fail_if_exception(msg):
+        await import_named_entity_rows(
+            neo4j_session,
+            records=records,
+            transaction_batch_size=transaction_batch_size,
+        )
 
 
 @pytest.mark.asyncio()

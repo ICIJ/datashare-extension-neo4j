@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, List, Tuple
 
 import neo4j
@@ -25,6 +26,7 @@ from neo4j_app.constants import (
     SENT_EMAIL_HEADERS,
 )
 
+logger = logging.getLogger(__name__)
 
 _MERGE_SENT_EMAIL = f"""MERGE (mention)-[emailRel:{EMAIL_SENT_TYPE}]->(doc)
 ON CREATE
@@ -69,8 +71,12 @@ CALL {{
     WITH mention, doc, row
     CALL apoc.do.case(
         [
-            row.{NE_METADATA} IS NOT NULL AND row.{NE_METADATA}.{EMAIL_HEADER} IN $sentHeaders, '{_MERGE_SENT_EMAIL}',
-            row.{NE_METADATA} IS NOT NULL AND row.{NE_METADATA}.{EMAIL_HEADER} IN $receivedHeaders, '{_MERGE_RECEIVED_EMAIL}'
+            row.{NE_METADATA} IS NOT NULL 
+                AND row.{NE_METADATA}.{EMAIL_HEADER} IS NOT NULL
+                AND row.{NE_METADATA}.{EMAIL_HEADER} IN $sentHeaders, '{_MERGE_SENT_EMAIL}',
+            row.{NE_METADATA} IS NOT NULL 
+                AND row.{NE_METADATA}.{EMAIL_HEADER} IS NOT NULL 
+                AND row.{NE_METADATA}.{EMAIL_HEADER} IN $receivedHeaders, '{_MERGE_RECEIVED_EMAIL}'
         ],
         'RETURN NULL as emailRel',
       {{

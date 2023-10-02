@@ -24,13 +24,12 @@ class Project(BaseICIJModel):
 
 
 async def create_project_registry_db(neo4j_driver: neo4j.AsyncDriver):
-    async with neo4j_driver:
-        if await is_enterprise(neo4j_driver):
-            logger.info("Creating project registry DB...")
-            query = "CREATE DATABASE $registry_db IF NOT EXISTS"
-            await neo4j_driver.execute_query(query, registry_db=PROJECT_REGISTRY_DB)
-        else:
-            logger.info("Using default db as registry DB !")
+    if await is_enterprise(neo4j_driver):
+        logger.info("Creating project registry DB...")
+        query = "CREATE DATABASE $registry_db IF NOT EXISTS"
+        await neo4j_driver.execute_query(query, registry_db=PROJECT_REGISTRY_DB)
+    else:
+        logger.info("Using default db as registry DB !")
 
 
 async def projects_tx(tx: neo4j.AsyncTransaction) -> List[Project]:

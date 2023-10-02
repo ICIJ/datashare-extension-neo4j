@@ -2,9 +2,15 @@ from typing import AsyncGenerator, Optional
 
 import neo4j
 
-from neo4j_app.constants import MIGRATION_NODE
+from neo4j_app.constants import (
+    DOC_NODE,
+    MIGRATION_NODE,
+    NE_APPEARS_IN_DOC,
+    NE_IDS,
+    NE_NODE,
+)
 from neo4j_app.core.neo4j.projects import project_db
-from neo4j_app.core.objects import DumpFormat
+from neo4j_app.core.objects import DumpFormat, GraphNodesCount
 
 _GRAPHML_DUMP_CONFIG = {
     "format": "gephi",
@@ -80,3 +86,23 @@ RETURN cypherStatements;
         )
         async for rec in res:
             yield rec["cypherStatements"]
+
+
+async def count_graph_nodes(
+    neo4j_driver: neo4j.AsyncDriver, project: str
+) -> GraphNodesCount:
+    neo4j_db = await project_db(neo4j_driver, project)
+    async with neo4j_driver.session(database=neo4j_db) as sess:
+        count = await sess.execute_read(_count_graph_nodes_tx)
+        return count
+
+
+async def _count_graph_nodes_tx(tx: neo4j.AsyncTransaction) -> GraphNodesCount:
+    doc_query = f"MATCH (doc:{DOC_NODE}) RETURN count(*) as nDocs"
+    doc_res = await tx.run(doc_query)
+    entity_query = f"""MATCH (ne:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->(doc:{DOC_NODE})
+RETURN [l IN labels(ne) WHERE l <> '{NE_NODE}'] as neLabels,
+    sum(size(rel.{NE_IDS})) as nMentions"""
+    entity_res = await tx.run(entity_query)
+    count = await GraphNodesCount.from_neo4j(doc_res=doc_res, entity_res=entity_res)
+    return count

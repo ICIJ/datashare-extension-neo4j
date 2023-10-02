@@ -8,6 +8,7 @@ from typing import AsyncGenerator, Dict, List, Optional, Tuple
 
 import neo4j
 from neo4j.exceptions import ConstraintError, ResultNotSingleError
+from fastapi.encoders import jsonable_encoder
 
 from neo4j_app.constants import (
     TASK_ERROR_NODE,
@@ -89,7 +90,7 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
 
     async def _save_result(self, result: TaskResult, project: str):
         async with self._project_session(project) as sess:
-            res_str = json.dumps(result.result)
+            res_str = json.dumps(jsonable_encoder(result.result))
             await sess.execute_write(
                 _save_result_tx, task_id=result.task_id, result=res_str
             )
@@ -134,7 +135,7 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
         return self._logger_
 
     async def _aexit__(self, exc_type, exc_val, exc_tb):
-        if self._inherited_driver:
+        if not self._inherited_driver:
             await self._driver.__aexit__(exc_type, exc_val, exc_tb)
 
 
