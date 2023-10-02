@@ -2,7 +2,6 @@ package org.icij.datashare;
 
 import static org.icij.datashare.HttpUtils.fromException;
 import static org.icij.datashare.LoggingUtils.lazy;
-import static org.icij.datashare.Objects.GraphNodesCount;
 import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.Objects.IncrementalImportResponse;
 import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
@@ -85,12 +84,6 @@ public class Neo4jClient {
         logger.debug("Fetching Python app config");
         return Unirest.get(url).asObject(new GenericType<HashMap<String, Object>>() {
         }).getBody();
-    }
-
-    protected GraphNodesCount graphNodesCount(String project) {
-        String url = buildNeo4jUrl("/graphs/nodes/count?project=" + project);
-        logger.debug("Counting graph nodes");
-        return Unirest.get(url).asObject(GraphNodesCount.class).getBody();
     }
 
     protected String fullImport(String project) {
