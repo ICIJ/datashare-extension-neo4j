@@ -9,7 +9,6 @@ from datetime import datetime
 from functools import cached_property
 from multiprocessing import Queue
 from pathlib import Path
-from types import TracebackType
 from typing import Dict, List, Optional, Union
 
 import neo4j
@@ -272,14 +271,6 @@ class MockWorker(ProcessWorkerMixin, MockEventPublisher):
                 return errors[key]
             except KeyError as e:
                 raise UnknownTask(task_id) from e
-
-    async def __aexit__(
-        self,
-        __exc_type: type[BaseException] | None,
-        __exc_value: BaseException | None,
-        __traceback: TracebackType | None,
-    ) -> bool | None:
-        pass
 
 
 class Recoverable(ValueError):

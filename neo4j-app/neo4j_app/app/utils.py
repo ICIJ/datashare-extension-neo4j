@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
 from neo4j_app.app.admin import admin_router
-from neo4j_app.app.dependencies import FASTAPI_LIFESPAN_DEPS, run_app_deps, run_deps
+from neo4j_app.app.dependencies import FASTAPI_LIFESPAN_DEPS, run_app_deps
 from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
 from neo4j_app.app.documents import documents_router
 from neo4j_app.app.graphs import graphs_router
@@ -41,7 +41,7 @@ def json_error(*, title, detail, **kwargs) -> Dict:
 
 
 async def request_validation_error_handler(
-    request: Request, exc: RequestValidationError
+        request: Request, exc: RequestValidationError
 ):
     title = _REQUEST_VALIDATION_ERROR
     detail = display_errors(exc.errors())
