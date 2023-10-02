@@ -2,6 +2,7 @@ package org.icij.datashare;
 
 import static org.icij.datashare.HttpUtils.fromException;
 import static org.icij.datashare.LoggingUtils.lazy;
+import static org.icij.datashare.Objects.GraphNodesCount;
 import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.Objects.IncrementalImportResponse;
 import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
@@ -27,7 +28,6 @@ import kong.unirest.GenericType;
 import kong.unirest.HttpResponse;
 import kong.unirest.ObjectMapper;
 import kong.unirest.Unirest;
-import org.icij.datashare.Objects.IncrementalImportRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,6 +83,14 @@ public class Neo4jClient {
         return handleUnirestError(
             Unirest.get(url).asObject(new GenericType<HashMap<String, Object>>() {
             })
+        ).getBody();
+    }
+
+    protected GraphNodesCount graphNodesCount(String project) {
+        String url = buildNeo4jUrl("/graphs/nodes/count?project=" + project);
+        logger.debug("Counting graph nodes");
+        return handleUnirestError(
+            Unirest.get(url).asObject(GraphNodesCount.class)
         ).getBody();
     }
 
