@@ -120,7 +120,7 @@ from neo4j_app.core.utils import batch
 from neo4j_app.core.utils.asyncio import run_with_concurrency
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 from neo4j_app.core.utils.progress import scaled_progress
-from neo4j_app.typing import PercentProgress
+from neo4j_app.typing_ import PercentProgress
 
 logger = logging.getLogger(__name__)
 

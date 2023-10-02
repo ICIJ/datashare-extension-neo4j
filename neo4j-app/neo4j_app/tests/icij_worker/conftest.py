@@ -31,7 +31,7 @@ from neo4j_app.icij_worker.exceptions import (
 )
 from neo4j_app.icij_worker.task_store import TaskStore
 from neo4j_app.icij_worker.worker import ProcessWorkerMixin
-from neo4j_app.typing import PercentProgress
+from neo4j_app.typing_ import PercentProgress
 
 
 @pytest_asyncio.fixture(scope="function")

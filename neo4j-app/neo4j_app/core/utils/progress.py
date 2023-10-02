@@ -1,4 +1,4 @@
-from neo4j_app.typing import PercentProgress, RawProgress
+from neo4j_app.typing_ import PercentProgress, RawProgress
 
 
 def to_raw_progress(progress: PercentProgress, max_progress: int) -> RawProgress:

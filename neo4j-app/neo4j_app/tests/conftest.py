@@ -37,7 +37,7 @@ from neo4j_app.core.neo4j.migrations.migrate import init_project
 from neo4j_app.core.neo4j.projects import NEO4J_COMMUNITY_DB
 from neo4j_app.core.utils.pydantic import BaseICIJModel
 from neo4j_app.icij_worker import ICIJApp
-from neo4j_app.typing import PercentProgress
+from neo4j_app.typing_ import PercentProgress
 
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
 #  let's try to find a way to define the scope dynamically:

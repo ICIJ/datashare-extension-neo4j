@@ -10,7 +10,7 @@ from neo4j_app.core.objects import IncrementalImportResponse
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 from neo4j_app.core.utils.progress import scaled_progress
 from neo4j_app.core.utils.pydantic import LowerCamelCaseModel
-from neo4j_app.typing import PercentProgress
+from neo4j_app.typing_ import PercentProgress
 from . import app
 
 logger = logging.getLogger(__name__)
