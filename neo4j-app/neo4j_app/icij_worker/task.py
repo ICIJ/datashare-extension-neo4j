@@ -12,7 +12,8 @@ from pydantic import Field, validator
 
 from neo4j_app.constants import TASK_NODE
 from neo4j_app.core.utils.pydantic import (
-    ISODatetime, LowerCamelCaseModel,
+    ISODatetime,
+    LowerCamelCaseModel,
     NoEnumModel,
     safe_copy,
 )

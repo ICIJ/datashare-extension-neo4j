@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.icij.datashare.text.NamedEntity;
 import org.neo4j.cypherdsl.core.Cypher;
 import org.neo4j.cypherdsl.core.Node;
 import org.neo4j.cypherdsl.core.Relationship;
@@ -114,6 +115,20 @@ public class Objects {
             this.query = query;
         }
 
+    }
+
+    protected static class GraphNodesCount {
+        protected final long documents;
+        protected final Map<NamedEntity.Category, Long> namedEntities;
+
+        @JsonCreator
+        GraphNodesCount(
+            @JsonProperty("documents") Long documents,
+            @JsonProperty("namedEntities") Map<NamedEntity.Category, Long> namedEntities
+        ) {
+            this.documents = Optional.ofNullable(documents).orElse(0L);
+            this.namedEntities = Optional.ofNullable(namedEntities).orElse(Map.of());
+        }
     }
 
 
