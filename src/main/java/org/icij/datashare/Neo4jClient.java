@@ -2,6 +2,16 @@ package org.icij.datashare;
 
 import static org.icij.datashare.HttpUtils.fromException;
 import static org.icij.datashare.LoggingUtils.lazy;
+import static org.icij.datashare.Objects.GraphNodesCount;
+import static org.icij.datashare.Objects.IncrementalImportRequest;
+import static org.icij.datashare.Objects.IncrementalImportResponse;
+import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
+import static org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest;
+import static org.icij.datashare.Objects.Neo4jCSVResponse;
+import static org.icij.datashare.Objects.Task;
+import static org.icij.datashare.Objects.TaskError;
+import static org.icij.datashare.Objects.TaskJob;
+import static org.icij.datashare.Objects.TaskType;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -21,7 +31,6 @@ import kong.unirest.HttpResponse;
 import kong.unirest.Interceptor;
 import kong.unirest.ObjectMapper;
 import kong.unirest.Unirest;
-import org.icij.datashare.Objects.IncrementalImportRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,10 +87,15 @@ public class Neo4jClient {
         }).getBody();
     }
 
-    public String fullImport(String project) {
+    protected GraphNodesCount graphNodesCount(String project) {
+        String url = buildNeo4jUrl("/graphs/nodes/count?project=" + project);
+        logger.debug("Counting graph nodes");
+        return Unirest.get(url).asObject(GraphNodesCount.class).getBody();
+    }
+
+    protected String fullImport(String project) {
         String url = buildNeo4jUrl("/tasks?project=" + project);
-        Objects.TaskJob<?> body = new Objects.TaskJob<>(
-            Objects.TaskType.FULL_IMPORT, null, null, null);
+        TaskJob<?> body = new TaskJob<>(TaskType.FULL_IMPORT, null, null, null);
         logger.debug("Starting full import for project: {}", project);
         return Unirest.post(url)
             .body(body)
@@ -90,7 +104,7 @@ public class Neo4jClient {
             .getBody();
     }
 
-    protected Objects.IncrementalImportResponse importDocuments(
+    protected IncrementalImportResponse importDocuments(
         String project, IncrementalImportRequest body
     ) {
         String url = buildNeo4jUrl("/documents?project=" + project);
@@ -99,10 +113,10 @@ public class Neo4jClient {
         return Unirest.post(url)
             .body(body)
             .header("Content-Type", "application/json")
-            .asObject(Objects.IncrementalImportResponse.class).getBody();
+            .asObject(IncrementalImportResponse.class).getBody();
     }
 
-    protected Objects.IncrementalImportResponse importNamedEntities(
+    protected IncrementalImportResponse importNamedEntities(
         String project, IncrementalImportRequest body
     ) {
         String url = buildNeo4jUrl("/named-entities?project=" + project);
@@ -110,11 +124,11 @@ public class Neo4jClient {
             lazy(() -> MAPPER.writeValueAsString(body)));
         return Unirest.post(url).body(body)
             .header("Content-Type", "application/json")
-            .asObject(Objects.IncrementalImportResponse.class)
+            .asObject(IncrementalImportResponse.class)
             .getBody();
     }
 
-    protected InputStream dumpGraph(String project, Objects.Neo4jAppDumpRequest body)
+    protected InputStream dumpGraph(String project, Neo4jAppDumpRequest body)
         throws URISyntaxException, IOException, InterruptedException {
         // Let's use the native HTTP client here as unirest doesn't offer an easy way to deal with
         // stream responses...
@@ -156,25 +170,25 @@ public class Neo4jClient {
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
-    protected Objects.Neo4jCSVResponse exportNeo4jCSVs(
-        String projectId, Objects.Neo4jAppNeo4jCSVRequest body
+    protected Neo4jCSVResponse exportNeo4jCSVs(
+        String projectId, Neo4jAppNeo4jCSVRequest body
     ) {
         String url = buildNeo4jUrl("/admin/neo4j-csvs?project=" + projectId);
         logger.debug("Exporting data to neo4j csv with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return Unirest.post(url).body(body)
             .header("Content-Type", "application/json")
-            .asObject(Objects.Neo4jCSVResponse.class)
+            .asObject(Neo4jCSVResponse.class)
             .getBody();
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
-    protected Objects.Task task(String taskId, String project) {
+    protected Task task(String taskId, String project) {
         String url = buildNeo4jUrl("/tasks/" + taskId + "?project=" + project);
         logger.debug("Getting task {}", taskId);
         return Unirest.get(url)
             .header("Content-Type", "application/json")
-            .asObject(Objects.Task.class)
+            .asObject(Task.class)
             .getBody();
     }
 
@@ -187,14 +201,14 @@ public class Neo4jClient {
             .getBody();
     }
 
-    // TODO: generics don't play well Unirest, returning Objects.TaskError[] instead of
+    // TODO: generics don't play well Unirest, returning TaskError[] instead of
     //  List<TaskError> helps
-    protected Objects.TaskError[] taskErrors(String taskId, String project) {
+    protected TaskError[] taskErrors(String taskId, String project) {
         String url = buildNeo4jUrl("/tasks/" + taskId + "/errors?project=" + project);
         logger.debug("Getting task {} errors", taskId);
         return Unirest.get(url)
             .header("Content-Type", "application/json")
-            .asObject(Objects.TaskError[].class)
+            .asObject(TaskError[].class)
             .getBody();
     }
 
