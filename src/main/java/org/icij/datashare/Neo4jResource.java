@@ -6,6 +6,15 @@ import static org.icij.datashare.HttpUtils.fromException;
 import static org.icij.datashare.HttpUtils.parseContext;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
+import static org.icij.datashare.Objects.DumpQuery;
+import static org.icij.datashare.Objects.DumpRequest;
+import static org.icij.datashare.Objects.IncrementalImportRequest;
+import static org.icij.datashare.Objects.IncrementalImportResponse;
+import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
+import static org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest;
+import static org.icij.datashare.Objects.Neo4jCSVResponse;
+import static org.icij.datashare.Objects.SortedDumpRequest;
+import static org.icij.datashare.Objects.StartNeo4jAppRequest;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.icij.datashare.text.Project.isAllowed;
 
@@ -162,9 +171,8 @@ public class Neo4jResource {
         return wrapNeo4jAppCall(() -> {
                 boolean forceMigrations = false;
                 if (!context.request().content().isBlank()) {
-                    forceMigrations = parseContext(context,
-                        org.icij.datashare.Objects.StartNeo4jAppRequest.class
-                    ).forceMigration;
+                    forceMigrations = parseContext(
+                        context, StartNeo4jAppRequest.class).forceMigration;
                 }
                 boolean alreadyRunning = this.startNeo4jApp(forceMigrations);
                 return new Payload(new ServerStartResponse(alreadyRunning));
@@ -205,8 +213,8 @@ public class Neo4jResource {
     public Payload postDocuments(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
-            org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
-                parseContext(context, org.icij.datashare.Objects.IncrementalImportRequest.class);
+            IncrementalImportRequest incrementalImportRequest = parseContext(
+                context, IncrementalImportRequest.class);
             return this.importDocuments(project, incrementalImportRequest);
         });
     }
@@ -216,8 +224,8 @@ public class Neo4jResource {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
             // TODO: this should throw a bad request when not parsed correcly...
-            org.icij.datashare.Objects.IncrementalImportRequest incrementalImportRequest =
-                parseContext(context, org.icij.datashare.Objects.IncrementalImportRequest.class);
+            IncrementalImportRequest incrementalImportRequest = parseContext(
+                context, IncrementalImportRequest.class);
             return this.importNamedEntities(project, incrementalImportRequest);
         });
     }
@@ -228,8 +236,7 @@ public class Neo4jResource {
         return wrapNeo4jAppCall(() -> {
             checkCheckLocal();
             checkProjectAccess(project, context);
-            org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request = parseContext(
-                context, org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest.class);
+            Neo4jAppNeo4jCSVRequest request = parseContext(context, Neo4jAppNeo4jCSVRequest.class);
             return this.exportNeo4jCSVs(project, request);
         });
     }
@@ -239,8 +246,7 @@ public class Neo4jResource {
     public Payload postGraphDump(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
-            org.icij.datashare.Objects.DumpRequest request = parseContext(
-                context, org.icij.datashare.Objects.DumpRequest.class);
+            DumpRequest request = parseContext(context, DumpRequest.class);
             return this.dumpGraph(project, request);
         });
     }
@@ -249,9 +255,16 @@ public class Neo4jResource {
     public Payload postSortedGraphDump(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
-            org.icij.datashare.Objects.SortedDumpRequest request = parseContext(
-                context, org.icij.datashare.Objects.SortedDumpRequest.class);
+            SortedDumpRequest request = parseContext(context, SortedDumpRequest.class);
             return this.sortedDumpGraph(project, request);
+        });
+    }
+
+    @Get("/graphs/nodes/count?project=:project")
+    public Payload getGraphNodesCount(String project, Context context) {
+        return wrapNeo4jAppCall(() -> {
+            checkProjectAccess(project, context);
+            return this.client.graphNodesCount(project);
         });
     }
 
@@ -475,17 +488,16 @@ public class Neo4jResource {
         return created;
     }
 
-    protected org.icij.datashare.Objects.IncrementalImportResponse importDocuments(
-        String projectId,
-        org.icij.datashare.Objects.IncrementalImportRequest request
+    protected IncrementalImportResponse importDocuments(
+        String projectId, IncrementalImportRequest request
     ) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         return client.importDocuments(projectId, request);
     }
 
-    protected org.icij.datashare.Objects.IncrementalImportResponse importNamedEntities(
-        String projectId, org.icij.datashare.Objects.IncrementalImportRequest request
+    protected IncrementalImportResponse importNamedEntities(
+        String projectId, IncrementalImportRequest request
     ) {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
@@ -493,9 +505,7 @@ public class Neo4jResource {
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
-    protected InputStream exportNeo4jCSVs(
-        String projectId, org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest request
-    ) {
+    protected InputStream exportNeo4jCSVs(String projectId, Neo4jAppNeo4jCSVRequest request) {
         // TODO: the database should be chosen dynamically with the Mode (local vs. server) and
         //  the project
         checkExtensionProject(projectId);
@@ -503,8 +513,7 @@ public class Neo4jResource {
         // Define a temp dir
         Path exportDir = null;
         try {
-            org.icij.datashare.Objects.Neo4jCSVResponse res =
-                client.exportNeo4jCSVs(projectId, request);
+            Neo4jCSVResponse res = client.exportNeo4jCSVs(projectId, request);
             logger.info("Exported data from ES to neo4j, statistics: {}",
                 lazy(() -> MAPPER.writeValueAsString(res.metadata)));
             exportDir = Paths.get(res.path);
@@ -528,9 +537,9 @@ public class Neo4jResource {
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
     protected InputStream dumpGraph(
-        String projectId, org.icij.datashare.Objects.DumpRequest request
+        String projectId, DumpRequest request
     ) throws URISyntaxException, IOException, InterruptedException {
-        org.icij.datashare.Objects.Neo4jAppDumpRequest neo4jAppRequest = validateDumpRequest(
+        Neo4jAppDumpRequest neo4jAppRequest = validateDumpRequest(
             request);
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
@@ -538,15 +547,13 @@ public class Neo4jResource {
     }
 
     protected InputStream sortedDumpGraph(
-        String projectId, org.icij.datashare.Objects.SortedDumpRequest request
+        String projectId, SortedDumpRequest request
     ) throws URISyntaxException, IOException, InterruptedException {
         checkExtensionProject(projectId);
         checkNeo4jAppStarted();
         Statement statement = request.query.defaultQueryStatement(getDocumentNodesLimit());
-        org.icij.datashare.Objects.Neo4jAppDumpRequest neo4jAppRequest =
-            new org.icij.datashare.Objects.Neo4jAppDumpRequest(
-                request.format, statement.getCypher()
-            );
+        Neo4jAppDumpRequest neo4jAppRequest = new Neo4jAppDumpRequest(
+            request.format, statement.getCypher());
         return client.dumpGraph(projectId, neo4jAppRequest);
     }
 
@@ -605,8 +612,8 @@ public class Neo4jResource {
         }
     }
 
-    protected org.icij.datashare.Objects.Neo4jAppDumpRequest validateDumpRequest(
-        org.icij.datashare.Objects.DumpRequest request) {
+    protected Neo4jAppDumpRequest validateDumpRequest(
+        DumpRequest request) {
         String validated = null;
         if (isLocal()) {
             if (request.query != null) {
@@ -615,13 +622,13 @@ public class Neo4jResource {
         } else {
             long defaultLimit = getDocumentNodesLimit();
             if (request.query == null) {
-                validated = org.icij.datashare.Objects.DumpQuery.defaultQueryStatement(
+                validated = DumpQuery.defaultQueryStatement(
                     defaultLimit).getCypher();
             } else {
                 validated = request.query.asValidated(getDocumentNodesLimit()).getCypher();
             }
         }
-        return new org.icij.datashare.Objects.Neo4jAppDumpRequest(request.format, validated);
+        return new Neo4jAppDumpRequest(request.format, validated);
     }
 
     private boolean isLocal() {
