@@ -23,11 +23,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.util.HashMap;
-import kong.unirest.Config;
 import kong.unirest.GenericType;
-import kong.unirest.HttpRequestSummary;
 import kong.unirest.HttpResponse;
-import kong.unirest.Interceptor;
 import kong.unirest.ObjectMapper;
 import kong.unirest.Unirest;
 import org.slf4j.Logger;
@@ -58,7 +55,6 @@ public class Neo4jClient {
         Unirest.config()
             .setObjectMapper(makeObjectMapper())
             .socketTimeout(HTTP_TIMEOUT)
-            .interceptor(new Neo4jClient.ErrorInterceptor())
         ;
     }
 
@@ -82,19 +78,22 @@ public class Neo4jClient {
     public HashMap<String, Object> config() {
         String url = buildNeo4jUrl("/config");
         logger.debug("Fetching Python app config");
-        return Unirest.get(url).asObject(new GenericType<HashMap<String, Object>>() {
-        }).getBody();
+        return handleUnirestError(
+            Unirest.get(url).asObject(new GenericType<HashMap<String, Object>>() {
+            })
+        ).getBody();
     }
 
     protected String fullImport(String project) {
         String url = buildNeo4jUrl("/tasks?project=" + project);
         TaskJob<?> body = new TaskJob<>(TaskType.FULL_IMPORT, null, null, null);
         logger.debug("Starting full import for project: {}", project);
-        return Unirest.post(url)
-            .body(body)
-            .header("Content-Type", "application/json")
-            .asString()
-            .getBody();
+        return handleUnirestError(
+            Unirest.post(url)
+                .body(body)
+                .header("Content-Type", "application/json")
+                .asString()
+        ).getBody();
     }
 
     protected IncrementalImportResponse importDocuments(
@@ -103,10 +102,12 @@ public class Neo4jClient {
         String url = buildNeo4jUrl("/documents?project=" + project);
         logger.debug("Importing documents to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
-        return Unirest.post(url)
-            .body(body)
-            .header("Content-Type", "application/json")
-            .asObject(IncrementalImportResponse.class).getBody();
+        return handleUnirestError(
+            Unirest.post(url)
+                .body(body)
+                .header("Content-Type", "application/json")
+                .asObject(IncrementalImportResponse.class)
+        ).getBody();
     }
 
     protected IncrementalImportResponse importNamedEntities(
@@ -115,10 +116,11 @@ public class Neo4jClient {
         String url = buildNeo4jUrl("/named-entities?project=" + project);
         logger.debug("Importing named entities to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
-        return Unirest.post(url).body(body)
-            .header("Content-Type", "application/json")
-            .asObject(IncrementalImportResponse.class)
-            .getBody();
+        return handleUnirestError(
+            Unirest.post(url).body(body)
+                .header("Content-Type", "application/json")
+                .asObject(IncrementalImportResponse.class)
+        ).getBody();
     }
 
     protected InputStream dumpGraph(String project, Neo4jAppDumpRequest body)
@@ -169,29 +171,32 @@ public class Neo4jClient {
         String url = buildNeo4jUrl("/admin/neo4j-csvs?project=" + projectId);
         logger.debug("Exporting data to neo4j csv with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
-        return Unirest.post(url).body(body)
-            .header("Content-Type", "application/json")
-            .asObject(Neo4jCSVResponse.class)
-            .getBody();
+        return handleUnirestError(
+            Unirest.post(url).body(body)
+                .header("Content-Type", "application/json")
+                .asObject(Neo4jCSVResponse.class)
+        ).getBody();
     }
     //CHECKSTYLE.ON: AbbreviationAsWordInName
 
     protected Task task(String taskId, String project) {
         String url = buildNeo4jUrl("/tasks/" + taskId + "?project=" + project);
         logger.debug("Getting task {}", taskId);
-        return Unirest.get(url)
-            .header("Content-Type", "application/json")
-            .asObject(Task.class)
-            .getBody();
+        return handleUnirestError(
+            Unirest.get(url)
+                .header("Content-Type", "application/json")
+                .asObject(Task.class)
+        ).getBody();
     }
 
     protected <T> T taskResult(String taskId, String project, Class<T> clazz) {
         String url = buildNeo4jUrl("/tasks/" + taskId + "/result?project=" + project);
         logger.debug("Getting task {} result", taskId);
-        return Unirest.get(url)
-            .header("Content-Type", "application/json")
-            .asObject(clazz)
-            .getBody();
+        return handleUnirestError(
+            Unirest.get(url)
+                .header("Content-Type", "application/json")
+                .asObject(clazz)
+        ).getBody();
     }
 
     // TODO: generics don't play well Unirest, returning TaskError[] instead of
@@ -199,10 +204,11 @@ public class Neo4jClient {
     protected TaskError[] taskErrors(String taskId, String project) {
         String url = buildNeo4jUrl("/tasks/" + taskId + "/errors?project=" + project);
         logger.debug("Getting task {} errors", taskId);
-        return Unirest.get(url)
-            .header("Content-Type", "application/json")
-            .asObject(TaskError[].class)
-            .getBody();
+        return handleUnirestError(
+            Unirest.get(url)
+                .header("Content-Type", "application/json")
+                .asObject(TaskError[].class)
+        ).getBody();
     }
 
     private String buildNeo4jUrl(String url) {
@@ -272,7 +278,7 @@ public class Neo4jClient {
                 try {
                     return MAPPER.readValue(s, clazz);
                 } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
+                    throw new Neo4jAppError(fromException(e));
                 }
             }
 
@@ -285,7 +291,7 @@ public class Neo4jClient {
                     };
                     return MAPPER.readValue(value, typeRef);
                 } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
+                    throw new Neo4jAppError(fromException(e));
                 }
             }
 
@@ -294,27 +300,19 @@ public class Neo4jClient {
                 try {
                     return MAPPER.writeValueAsString(o);
                 } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
+                    throw new Neo4jAppError(fromException(e));
                 }
             }
         };
     }
 
-    private static class ErrorInterceptor implements Interceptor {
-
-        @Override
-        public void onResponse(
-            HttpResponse<?> response, HttpRequestSummary request, Config config
-        ) {
-            if (!response.isSuccess()) {
-                response.getParsingError().ifPresent(e -> {
-                    throw new Neo4jAppError(fromException(e));
-                });
-            }
-            response.ifFailure(HttpUtils.HttpError.class, r -> {
-                HttpUtils.HttpError error = r.getBody();
-                throw new Neo4jAppError(error);
-            });
-        }
+    private static <T> HttpResponse<T> handleUnirestError(HttpResponse<T> response) {
+        response.ifFailure(Neo4jAppError.class, r -> {
+            throw r.getBody();
+        });
+        response.getParsingError().ifPresent(e -> {
+            throw new Neo4jAppError(fromException(e));
+        });
+        return response;
     }
 }
