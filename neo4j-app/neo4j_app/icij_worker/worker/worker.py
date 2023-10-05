@@ -37,11 +37,6 @@ from neo4j_app.icij_worker.task import (
 PROGRESS_HANDLER_ARG = "progress"
 
 
-@asynccontextmanager
-async def _do_nothing_cm():
-    yield
-
-
 class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC):
     def __init__(self, app: ICIJApp, worker_id: str):
         self._app = app
@@ -209,14 +204,15 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
 
     @final
     @property
-    def _deps_cm(self) -> AsyncContextManager:
-        cm = _do_nothing_cm
+    @asynccontextmanager
+    async def _deps_cm(self):
         if self._config is not None:
             from neo4j_app.app.dependencies import run_deps
 
-            cm = functools.partial(run_deps, self._config, self._config.to_async_deps())
-
-        return cast(AsyncContextManager, cm)
+            async with run_deps(self._config, self._config.to_async_deps()):
+                yield
+        else:
+            yield
 
     async def __aenter__(self):
         await self._deps_cm.__aenter__()
