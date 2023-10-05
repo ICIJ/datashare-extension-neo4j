@@ -41,7 +41,7 @@ def json_error(*, title, detail, **kwargs) -> Dict:
 
 
 async def request_validation_error_handler(
-        request: Request, exc: RequestValidationError
+    request: Request, exc: RequestValidationError
 ):
     title = _REQUEST_VALIDATION_ERROR
     detail = display_errors(exc.errors())

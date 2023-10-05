@@ -28,7 +28,7 @@ async def full_import(project: str, progress: PercentProgress) -> FullImportResp
     progress = scaled_progress(progress, end=doc_import_max_progress)
     config = lifespan_config()
     with log_elapsed_time_cm(
-            logger, logging.INFO, "Imported documents in {elapsed_time} !"
+        logger, logging.INFO, "Imported documents in {elapsed_time} !"
     ):
         es_client = lifespan_es_client()
         neo4j_driver = lifespan_neo4j_driver()
@@ -48,7 +48,7 @@ async def full_import(project: str, progress: PercentProgress) -> FullImportResp
     logger.info("imported documents: %s", doc_res.json(sort_keys=True))
     progress = scaled_progress(progress, start=doc_import_max_progress)
     with log_elapsed_time_cm(
-            logger, logging.INFO, "Imported named entities in {elapsed_time} !"
+        logger, logging.INFO, "Imported named entities in {elapsed_time} !"
     ):
         ne_res = await import_named_entities(
             project=project,
