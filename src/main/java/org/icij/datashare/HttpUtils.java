@@ -21,7 +21,7 @@ public class HttpUtils {
         );
     }
 
-    // Follow the JSON error + detail spec https://datatracker.ietf.org/doc/html/draft-ietf-appsawg-http-problem-00#page-4
+    // Follow the JSON error + detail spec https://datatracker.ietf.org/doc/html/rfc9457
     @JsonIncludeProperties({"title", "detail", "trace"})
     @JsonIgnoreProperties(value = {"trace"})
     protected static class HttpError extends RuntimeException {
