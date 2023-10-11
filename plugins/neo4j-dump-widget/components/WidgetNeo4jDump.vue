@@ -39,7 +39,7 @@
                       id="input-selected-path"
                       type="text"
                       disabled></b-form-input>
-                    <b-button variant="primary" v-b-modal="`treeview`" class="input-group-append">
+                    <b-button variant="primary" v-b-modal="treeview" class="input-group-append">
                       Select path
                     </b-button>
                     <b-modal
@@ -58,6 +58,10 @@
                 </div>
               </div>
             </b-form-group>
+          </div>
+          <div class="col-12 col-md-6 flex-column">
+            <neo4j-entity-count></neo4j-entity-count>
+            <neo4j-graph-import></neo4j-graph-import>
           </div>
         </div>
       </div>
@@ -82,7 +86,9 @@ import bodybuilder from 'bodybuilder'
 import { concat, get, map, random } from 'lodash'
 import { mapState } from 'vuex'
 import { AppStatus } from '../store/Neo4jModule'
+import { default as Neo4jEntityCount } from '../components/Neo4jEntityCount.vue'
 import { default as Neo4jStatusBadge } from '../components/Neo4jStatusBadge.vue'
+import { default as Neo4jGraphImport } from '../components/Neo4jGraphImport.vue'
 import { default as polling } from '../core/mixin/polling'
 
 const SHOULD_START_APP_STATUSES = new Set([AppStatus.Error, AppStatus.Stopped].map(x => AppStatus[x]))
@@ -98,7 +104,9 @@ export default {
   },
   mixins: [polling],
   components: {
+    Neo4jEntityCount,
     Neo4jStatusBadge,
+    Neo4jGraphImport,
   },
   data() {
     return {
@@ -110,6 +118,7 @@ export default {
       dumpFormat: null,
       fileType: null,
       fileTypes: [],
+      initializedProject: false,
       selectedFileTypes: [],
       selectedPath: this.$config.get('mountedDataDir') || this.$config.get('dataDir'),
     }
@@ -125,12 +134,16 @@ export default {
   unmounted() {
     this.unregisteredPolls()
   },
+  watch: {
+    async neo4jAppIsRunning() {
+      if (this.neo4jAppIsRunning && !this.initializedProject) {
+        await this.initProject()
+      }
+    }
+  },
   computed: {
     locale() {
       return this.$i18n.locale
-    },
-    docFields() {
-      return this.getDBSchema()
     },
     dumpButtonToolTip() {
       if (this.neo4jAppStatus === AppStatus.Starting) {
@@ -147,7 +160,7 @@ export default {
       return this.dumpFormat === GRAPHML ? '.graphml' : '.dump'
     },
     project() {
-      return this.$store.state.search.index
+      return this.$store.state.insights.project
     },
     neo4jAppIsRunning() {
       return this.neo4jAppStatus === AppStatus.Running
@@ -219,28 +232,6 @@ export default {
         }
       }
     },
-    getDBSchema() {
-      return [
-        {
-          property: 'dirname',
-          type: 'text',
-          label: 'Directory',
-          placeholder: 'Ex: /some/directory'
-        },
-        {
-          property: 'contentType',
-          type: 'text',
-          label: 'Content type',
-          placeholder: 'comma separated list of extension: pdf,png'
-        },
-        {
-          property: 'maxExtractionDate',
-          type: 'date',
-          label: 'Content type',
-          placeholder: 'comma separated list of extension: pdf,png'
-        }
-      ]
-    },
     getDumpRequest() {
       return {
         format: this.dumpFormat,
@@ -258,6 +249,10 @@ export default {
         return { where: { and: where } }
       }
       return {}
+    },
+    async initProject() {
+      await this.$neo4jCore.request(`/api/neo4j/init?project=${this.project}`, { method: 'POST' })
+      await this.$store.commit('neo4j/projectInit', { project: this.project, initialized: true })
     },
     postDumpRequest(request) {
       const config = {
@@ -294,6 +289,7 @@ export default {
     },
     async resfreshNeo4jAppStatus() {
       await this.$store.dispatch('neo4j/refreshStatus')
+      return true
     },
     async treeView() {
       return this.$core.findComponent('TreeView')

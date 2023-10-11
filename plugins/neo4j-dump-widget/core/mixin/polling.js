@@ -30,6 +30,7 @@ export default {
       const id = this.schedulePoll({ fn, timeout, immediate })
       // And add it to the list to retrieve it later
       this.registeredPolls.push({ fn, id })
+      return id
     },
     registerPollOnce({ fn, ...rest } = {}) {
       // Find all matching poll functions

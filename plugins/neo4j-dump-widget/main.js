@@ -1,7 +1,7 @@
 import dumpWidgetFactory from './core/WidgetNeo4jDump'
 import { default as neo4jStoreBuilder } from './store/Neo4jModule'
 import { CoreExtension } from './core/CoreExtension'
-
+     
 document.addEventListener('datashare:ready', async ({ detail }) => {
   if (!detail.core.store.hasModule('neo4j')) {
     const extension = new CoreExtension(detail.core)
