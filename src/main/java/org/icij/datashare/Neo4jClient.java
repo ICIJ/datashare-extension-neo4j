@@ -99,7 +99,10 @@ public class Neo4jClient {
     protected String fullImport(String project, boolean force) {
         String url = buildNeo4jUrl("/tasks?project=" + project);
         TaskType taskType = TaskType.FULL_IMPORT;
-        String taskId = taskType.generateTaskId();
+        String taskId = null;
+        if (force) {
+            taskId = taskType.generateTaskId();
+        }
         TaskJob<?> body = new TaskJob<>(taskType, taskId, null, Date.from(Instant.now()));
         logger.debug("Starting full import for project: {}", project);
         return handleUnirestError(
