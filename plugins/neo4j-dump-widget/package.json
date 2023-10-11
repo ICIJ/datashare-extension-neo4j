@@ -4,10 +4,13 @@
   "version": "0.2.6",
   "main": "dist/index.umd.min.js",
   "dependencies": {
+    "@fortawesome/fontawesome": "^1.1.4",
+    "@fortawesome/fontawesome-svg-core": "^6.1.2",
+    "@fortawesome/free-solid-svg-icons": "^6.1.2",
+    "@fortawesome/vue-fontawesome": "^2.0.8",
     "@popperjs/core": "^2.11.8",
     "axios": "^1.4",
     "bodybuilder": "^2.5.1",
-    "v-calendar": "^2.4.1",
     "vuex": "^3.6.0"
   },
   "devDependencies": {
