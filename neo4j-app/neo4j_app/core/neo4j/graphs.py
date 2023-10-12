@@ -6,7 +6,6 @@ from neo4j_app.constants import (
     DOC_NODE,
     MIGRATION_NODE,
     NE_APPEARS_IN_DOC,
-    NE_IDS,
     NE_NODE,
 )
 from neo4j_app.core.neo4j.projects import project_db
@@ -100,9 +99,9 @@ async def count_graph_nodes(
 async def _count_graph_nodes_tx(tx: neo4j.AsyncTransaction) -> GraphNodesCount:
     doc_query = f"MATCH (doc:{DOC_NODE}) RETURN count(*) as nDocs"
     doc_res = await tx.run(doc_query)
-    entity_query = f"""MATCH (ne:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->(doc:{DOC_NODE})
-RETURN [l IN labels(ne) WHERE l <> '{NE_NODE}'] as neLabels,
-    sum(size(rel.{NE_IDS})) as nMentions"""
+    entity_query = f"""MATCH (ne:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->()
+WITH labels(ne) as neLabels, rel
+RETURN neLabels as neLabels, sum(size(rel.mentionIds)) as nMentions"""
     entity_res = await tx.run(entity_query)
     count = await GraphNodesCount.from_neo4j(doc_res=doc_res, entity_res=entity_res)
     return count
