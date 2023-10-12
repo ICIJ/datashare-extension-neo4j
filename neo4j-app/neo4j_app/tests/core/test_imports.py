@@ -53,7 +53,7 @@ def _make_email(doc_id: str, header_field: str) -> Dict:
             "category": "EMAIL",
             "mentionNorm": "dev@icij.org",
             "mention": "dev@icij.org",
-            "metadata": {"emailHeader": header_field},
+            "metadata": {"emailHeaderField": header_field},
         },
     }
 
