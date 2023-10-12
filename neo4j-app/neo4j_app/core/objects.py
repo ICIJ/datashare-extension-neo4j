@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 import neo4j
 from pydantic import Field
 
+from neo4j_app.constants import NE_NODE
 from neo4j_app.core.utils.pydantic import LowerCamelCaseModel, NoEnumModel
 from neo4j_app.icij_worker.task import Task, TaskStatus
 
@@ -45,23 +46,22 @@ class GraphNodesCount(LowerCamelCaseModel):
         *,
         doc_res: neo4j.AsyncResult,
         entity_res: neo4j.AsyncResult,
-        document_key="nDocs",
+        document_counts_key="nDocs",
         entity_labels_key="neLabels",
-        entity_count_key="nMentions",
+        entity_counts_key="nMentions",
     ) -> GraphNodesCount:
         doc_res = await doc_res.single()
-        n_docs = doc_res[document_key]
+        n_docs = doc_res[document_counts_key]
         n_ents = dict()
         async for rec in entity_res:
-            labels = rec[entity_labels_key]
-            # This might require to fix admin imports to create distinct nodes
+            labels = [l for l in rec[entity_labels_key] if l != NE_NODE]
             if len(labels) != 1:
                 msg = (
                     "Expected named entity to have exactly 2 labels."
                     " Refactor this function."
                 )
                 raise ValueError(msg)
-            n_ents[labels[0]] = rec[entity_count_key]
+            n_ents[labels[0]] = rec[entity_counts_key]
         return GraphNodesCount(documents=n_docs, named_entities=n_ents)
 
 
