@@ -32,7 +32,7 @@ PROJECT_NODE = "_Project"
 
 # TODO: check that it the name retained in https://github.com/ICIJ/datashare/pull/1180
 EMAIL_CATEGORY = "EMAIL"
-EMAIL_HEADER = "emailHeader"
+EMAIL_HEADER = "emailHeaderField"
 EMAIL_RECEIVED_TYPE = "RECEIVED"
 EMAIL_SENT_TYPE = "SENT"
 # TODO: check the naming here, we use "fields" here since the RFC specification
@@ -46,7 +46,7 @@ EMAIL_REL_COLS = {
 }
 
 # TODO: check that this list is exhaustive, we know it isn't !!!
-SENT_EMAIL_HEADERS = {"tika_metadata_message_from"}
+SENT_EMAIL_HEADERS = {"tika_metadata_message_from", "tika_metadata_dc_creator"}
 # TODO: check that this list is exhaustive, we know it isn't !!!
 RECEIVED_EMAIL_HEADERS = {
     "tika_metadata_message_bcc",

@@ -139,7 +139,7 @@ async def test_import_named_entity_rows_should_import_email_relationship(
             "mentionNorm": "dev@icij.org",
             "offsets": [0],
             "extractor": "fromNoWhere",
-            "metadata": {"emailHeader": header_field},
+            "metadata": {"emailHeaderField": header_field},
         }
     ]
     transaction_batch_size = 2
@@ -177,7 +177,7 @@ async def test_import_named_entity_rows_should_import_records_with_null_email_he
             "mentionNorm": "dev@icij.org",
             "offsets": [0],
             "extractor": "fromNoWhere",
-            "metadata": {"emailHeader": None},
+            "metadata": {"emailHeaderField": None},
         }
     ]
     transaction_batch_size = 2
@@ -220,7 +220,7 @@ CREATE (ne)-[:SENT { fields: ["someField"] }]->(doc)
             "mentionNorm": "dev@icij.org",
             "offsets": [0],
             "extractor": "fromNoWhere",
-            "metadata": {"emailHeader": header_field},
+            "metadata": {"emailHeaderField": header_field},
         }
     ]
 
