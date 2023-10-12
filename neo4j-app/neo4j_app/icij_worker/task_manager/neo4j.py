@@ -119,11 +119,13 @@ async def _get_tasks_tx(
     all_labels = list(itertools.product(*all_labels))
     if all_labels:
         query = "UNION\n".join(
-            f"MATCH (task:{':'.join(labels)}) {where} RETURN task"
+            f"""MATCH (task:{':'.join(labels)}) {where}
+            RETURN task
+            ORDER BY task.{TASK_CREATED_AT} DESC"""
             for labels in all_labels
         )
     else:
-        query = f"MATCH (task:{TASK_NODE}) RETURN task"
+        query = f"MATCH (task:{TASK_NODE}) ORDER BY task.{TASK_CREATED_AT} DESC"
     res = await tx.run(query, status=status, type=task_type)
     tasks = [Task.from_neo4j(t) async for t in res]
     return tasks
