@@ -293,7 +293,7 @@ public class Neo4jResource {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
             checkCheckLocal();
-            return runFullImport(project, true);
+            return new Payload(runFullImport(project, true)).withCode(201);
         });
     }
 

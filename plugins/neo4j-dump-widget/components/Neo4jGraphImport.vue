@@ -1,19 +1,42 @@
 <template>
-  <div>
-    <div v-if="runningTasks.length > 0" class="row">
-      {{ runningTasks.length }} running imports
+  <div class="d-flex flex-column py-2">
+    <h5 v-if="this.neo4jImportTasks?.length">Import tasks</h5>
+    <div v-if="this.neo4jImportTasks?.length" class="col">
+      <!-- TODO: use sass here rather than style -->
+      <div
+        style="height: 100px;overflow-y: scroll;"
+        class="card col py-2">
+        <div
+          v-for="t in this.neo4jImportTasks"
+          :key=t.id
+          class="row my-1">
+          <div class="col">
+            <ellipse-status :status="t.status" :progress="t.progress" horizontal />
+          </div>
+          <div class="col small">{{ displayTaskDate(t) }}</div>
+        </div>
+      </div>
     </div>
-    <div v-if="runningImportMetadata !== null">
-      Latest import:
-      <ellipse-status :status="runningImportMetadata.status" :progress="runningImportMetadata.progress" horizontal />
-    </div>
-    <div v-if="!isServer" class="row">
-      <b-form flex-column @submit.prevent="importGraph">
-        <span id="disabled-import-wrapper">
-          <b-button type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Update graph</b-button>
-        </span>
-        <b-tooltip target="disabled-import-wrapper">{{ importButtonToolTip }}</b-tooltip>
-      </b-form>
+    <div
+      class="col d-flex flex-row align-items-center pt-2"
+      :class="{ 'justify-content-center': !this.neo4jImportTasks?.length }">
+      <div v-if="!isServer" class="mr-2">
+        <b-form @submit.prevent="importGraph">
+          <span id="disabled-import-wrapper">
+            <b-button
+              v-if="neo4jImportTasks ?? false"
+              type="submit"
+              :disabled="!neo4jAppIsRunning"
+              variant="primary">
+              {{ importButton }}
+            </b-button>
+          </span>
+          <b-tooltip target="disabled-import-wrapper">{{ importButtonToolTip }}</b-tooltip>
+        </b-form>
+      </div>
+      <span v-if="latestDone" class="small">
+        Last updated on {{ localeDate(latestDone.completedAt) }}, {{ localeTime(latestDone.completedAt) }}
+      </span>
     </div>
   </div>
 </template>
@@ -23,6 +46,7 @@ import { random } from 'lodash'
 import { mapState } from 'vuex'
 import { AppStatus } from '../store/Neo4jModule'
 import { default as polling } from '../core/mixin/polling'
+import { humanShortDate, humanTime } from '../filters/humanDate'
 // TODO: this should be imported from the client rather than duplicated
 import EllipseStatus from '../components/EllipseStatus'
 
@@ -43,8 +67,7 @@ export default {
   name: 'Neo4jImport',
   data() {
     return {
-      runningImportMetadata: null,
-      runningImportMetadataPoll: null,
+      registeredPolls: []
     }
   },
   components: {
@@ -52,6 +75,9 @@ export default {
   },
   mixins: [polling],
   computed: {
+    importButton() {
+      return this.latestDone ? 'Update graph' : 'Create graph'
+    },
     importButtonToolTip() {
       if (this.neo4jAppStatus === AppStatus.Starting) {
         return 'neo4j extension is starting...'
@@ -59,16 +85,24 @@ export default {
       if (!this.neo4jAppIsRunning) {
         return 'neo4j extension is not running, refresh this page to start it or wait'
       }
-      return 'Graph import can be resource intensive, use it with care.'
+      var tooltip = 'Graph import can be resource intensive, use it with care.'
+      if (this.latestDone) {
+        tooltip += `
+Note that updating the graph will only add new documents and entities and update modified ones, it will not delete data.`
+      }
+      return tooltip
     },
     isServer() {
       return this.$core.mode === 'SERVER'
     },
-    project() {
-      return this.$store.state.insights.project
+    latestDone() {
+      return this.neo4jImportTasks?.find(t => t.status === TaskStatus.Done) ?? null
     },
     neo4jAppIsRunning() {
       return this.neo4jAppStatus === AppStatus.Running
+    },
+    project() {
+      return this.$store.state.insights.project
     },
     projectReady() {
       return this.neo4jAppIsRunning && this.neo4jInitializedProjects[this.project]
@@ -76,9 +110,9 @@ export default {
     runningTasks() {
       return this.neo4jImportTasks?.filter((t) => !TASK_READY_STATES.has(t.status)) ?? []
     },
-    ...mapState('neo4j', ['neo4jAppStatus', 'neo4jImportTasks', 'neo4jRunningImport', 'neo4jInitializedProjects'])
+    ...mapState('neo4j', ['neo4jAppStatus', 'neo4jImportTasks', 'neo4jInitializedProjects'])
   },
-  async created() {
+  async mounted() {
     const longTimeout = () => random(5000, 10000)
     const refreshTasks = this.refreshImportTasks
     this.registerPoll({ fn: refreshTasks, timeout: longTimeout, immediate: true })
@@ -88,55 +122,32 @@ export default {
   },
   watch: {
     async projectReady() {
-      await this.refreshRunningImportMetadata()
-      await this.$store.dispatch('neo4j/refreshRunningImport')
       await this.$store.dispatch('neo4j/refreshImportTasks')
     },
     async project() {
-      await this.refreshRunningImportMetadata()
-      await this.$store.dispatch('neo4j/refreshRunningImport')
       await this.$store.dispatch('neo4j/refreshImportTasks')
-    },
-    async neo4jRunningImport(newImport, oldImport) {
-      if (newImport !== null && newImport !== oldImport) {
-        if (this.runningImportMetadataPoll) {
-          this.unregisteredPoll({ id: this.runningImportMetadataPoll })
-        }
-        const shortTimeout = () => random(2000, 4000)
-        const refreshRunningTask = this.refreshRunningImportMetadata
-        this.runningImportMetadataPoll = this.registerPoll({ fn: refreshRunningTask, timeout: shortTimeout, immediate: true })
-        await this.$store.dispatch('neo4j/refreshImportTasks')
-      }
     }
   },
   methods: {
+    displayTaskDate(task) {
+      const date = task.status === TaskStatus.Running ? task.createdAt : task.createdCompletedAt ?? task.createdAt
+      return `${this.localeDate(date)}, ${this.localeTime(date)}`
+    },
+    localeDate(date) {
+      return humanShortDate(date, this.$i18n.locale)
+    },
+    localeTime(date) {
+      return humanTime(date, this.$i18n.locale)
+    },
     async importGraph() {
       const config = { method: 'POST', headers: { "Content-Type": "application/json" } }
-      const res = await this.$neo4jCore.request(`/api/neo4j/full-imports?project=${this.project}`, config)
-      this.$store.commit('neo4j/runningImport', await res.text())
-      return this.$store.dispatch('neo4j/refreshImportTasks', this.project)
+      await this.$neo4jCore.request(`/api/neo4j/full-imports?project=${this.project}`, config)
+      return this.$store.dispatch('neo4j/refreshImportTasks')
     },
     async refreshImportTasks() {
-      await this.$store.dispatch('neo4j/refreshImportTasks', this.project)
+      await this.$store.dispatch('neo4j/refreshImportTasks')
       return true
     },
-    async refreshRunningImportMetadata() {
-      if (this.projectReady && this.neo4jRunningImport !== null) {
-        const newImport = this.runningImportMetadata?.id !== this.neo4jRunningImport;
-        const trackProgress = !TASK_READY_STATES.has(this.runningImportMetadata?.status);
-        if (newImport || trackProgress) {
-          const res = await this.$neo4jCore.request(
-            `/api/neo4j/tasks/${this.neo4jRunningImport}?project=${this.project}`,
-            { method: 'GET' }
-          )
-          this.runningImportMetadata = await res.json()
-          if (TASK_READY_STATES.has(this.runningImportMetadata.status)) {
-            await this.$store.dispatch('neo4j/refreshGraphCounts')
-          }
-        }
-      }
-      return true
-    }
   },
 }
 </script>
@@ -146,20 +157,14 @@ export default {
   min-height: 100%;
   position: relative;
 
-  &__spinner {
-    text-align: center;
-    width: 100%;
-    // TODO: put this back (import bootstrap ???)
-    // padding: $spacer;
+  &__scrollable {
+    overflow-y: scroll;
   }
 
-  &__content {
-    &__count {
-      &--muted {
-        // TODO: put this back (import bootstrap ???)
-        // color: $text-muted;
-      }
-    }
+  // TODO: these don't seem to work
+  &__tasks-list {
+    height: 100px;
+    overflow-y: scroll;
   }
 }
 </style>
