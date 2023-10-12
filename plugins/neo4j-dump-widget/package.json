@@ -11,6 +11,7 @@
     "@popperjs/core": "^2.11.8",
     "axios": "^1.4",
     "bodybuilder": "^2.5.1",
+    "moment": "^2.29.4",
     "vuex": "^3.6.0"
   },
   "devDependencies": {

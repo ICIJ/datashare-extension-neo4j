@@ -1,15 +1,20 @@
 <template>
   <div>
     <div class="widget__header align-items-center card-header d-md-flex">
-      <h4 class="m-0 mr-2">Graph export</h4>
+      <h4 class="m-0 mr-2">neo4j</h4>
       <neo4j-status-badge :status="neo4jAppStatus"></neo4j-status-badge>
     </div>
     <b-form flex-column @submit.prevent="dumpGraph" @reset="clear">
-      <div class="project-view-insights card-body">
+      <div class="project-view-insights card-body pb-0">
         <div class="row">
+          <div class="d-flex flex-column col-12 col-md-6 justify-content-between">
+            <neo4j-entity-count></neo4j-entity-count>
+            <neo4j-graph-import></neo4j-graph-import>
+          </div>
           <div class="col-12 col-md-6 flex-column">
+            <h5 class="col-md-4">Export</h5>
             <b-form-group>
-              <label for="dump-format" class="col-md-4 col-form-label">Export format</label>
+              <label for="dump-format" class="col-md-4 col-form-label">Format</label>
               <b-form-select
                 class="col-md-8"
                 v-model="dumpFormat"
@@ -58,10 +63,6 @@
                 </div>
               </div>
             </b-form-group>
-          </div>
-          <div class="col-12 col-md-6 flex-column">
-            <neo4j-entity-count></neo4j-entity-count>
-            <neo4j-graph-import></neo4j-graph-import>
           </div>
         </div>
       </div>
@@ -123,7 +124,7 @@ export default {
       selectedPath: this.$config.get('mountedDataDir') || this.$config.get('dataDir'),
     }
   },
-  async created() {
+  async mounted() {
     this.getFileTypes()
     await this.resfreshNeo4jAppStatus()
     await this.startNeo4jAppIfNeed()

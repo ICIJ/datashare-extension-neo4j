@@ -1,30 +1,37 @@
 <template>
   <v-wait :for="loader" transition="fade">
-    <div slot="waiting" class="widget__spinner">
+    <div slot="waiting" class="flex-grow text-center widget__spinner">
       <fa icon="circle-notch" spin size="2x" />
     </div>
-    <div class="widget__content text-center">
-      <div v-if="documents > 0" class="row">
-        <fa icon="hdd" class="widget__icon" />
-        <strong :title="documents">
-          {{ $tc('widget.barometer.document', documents, { total: humanNumber(documents, $t('human.number')) }) }}
-        </strong>
-      </div>
-      <p v-else class="text-muted text-center mb-0 col-12">
-        No documents in neo4j
-      </p>
-      <div v-if="totalEntities > 0" class="row">
+    <h5>Graph statistics</h5>
+    <div class="widget__content">
+      <div v-if="documents > 0" class="d-flex flex-row flex-wrap">
+        <div class="col col-md-4 my-2">
+          <div
+            class="card py-2 bg-light widget__content__count align-items-center"
+            data-toggle="tooltip"
+            :title=documentTitle>
+            <fa icon="file" class="widget__icon" />
+            <span>
+              {{ humanNumber(documents, $t('human.number')) }}
+            </span>
+          </div>
+        </div>
         <div
           v-for="category in categories"
           :key="category"
-          class="widget__content__count col-3"
-          :class="{ 'widget__content__count--muted': !namedEntities[category] }">
-          <fa fixed-width :icon="category | namedEntityIcon" class="mr-1" />
-          <span v-html="humanEntities[category]" />
+          class="col col-md-4 my-2">
+          <div data-toggle="tooltip"
+            class="card py-2 bg-light widget__content__count align-items-center"
+            :class="{ 'widget__content__count--muted': !namedEntities[category] }"
+            :title=namedEntityTitles[category]>
+            <fa fixed-width :icon="category | namedEntityIcon" />
+            <span v-html="humanEntities[category]" />
+          </div>
         </div>
       </div>
       <p v-else class="text-muted text-center mb-0 col-12">
-        {{ $t('widget.noEntities') }}
+        graph is empty
       </p>
     </div>
   </v-wait>
@@ -60,6 +67,10 @@ export default {
     documents() {
       return this.projectCounts?.documents
     },
+    documentTitle() {
+      return `${this.$tc('widget.barometer.document', this.documents, { total: this.documents })}`
+    }
+    ,
     humanEntities() {
       return Object.entries(this.namedEntities).reduce((human, [key, value]) => {
         human[key] = this.humanNumber(value)
@@ -80,6 +91,12 @@ export default {
         organizations: entities.ORGANIZATION ?? 0,
         people: entities.PERSON ?? 0,
       }
+    },
+    namedEntityTitles() {
+      return Object.entries(this.namedEntities).reduce((titles, [category, count]) => {
+        titles[category] = `${count} ${category}`
+        return titles
+      }, {})
     },
     neo4jAppIsRunning() {
       return this.neo4jAppStatus === AppStatus.Running
@@ -129,20 +146,6 @@ export default {
       }
       this.$wait.end(this.loader)
     }
-    // ,
-    // namedEntityIcon(category) {
-    //   const icons = {
-    //     emails: faEnvelope,
-    //     email: faEnvelope,
-    //     locations: faMapMarkerAlt,
-    //     location: faMapMarkerAlt,
-    //     organizations: faBuilding,
-    //     organization: faBuilding,
-    //     people: faIdCardAlt,
-    //     person: faIdCardAlt
-    //   }
-    //   return icons[category.toLowerCase()]
-    // }
   }
 }
 </script>

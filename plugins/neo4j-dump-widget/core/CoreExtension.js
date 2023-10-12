@@ -1,3 +1,20 @@
+// Follow: https://datatracker.ietf.org/doc/html/rfc9457
+export class HTTPError extends Error {
+  constructor(status, title, detail) {
+    const message = `${title}
+Detail: ${detail}
+`
+    super(message);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, HTTPError);
+    }
+    this.name = "HTTPError";
+    this.status = status
+    this.title = title
+    this.detail = detail
+  }
+}
+
 export class CoreExtension {
   #core
 
@@ -18,28 +35,22 @@ export class CoreExtension {
 
   static async handleAppError(response) {
     if (!response.ok) {
-      var error = null;
+      var error;
       try {
-        const { title, detail, trace } = await response.json()
-        error = this.formatAppError(title, detail, trace)
+        const { title, detail } = await response.json()
+        error = new HTTPError(response.status, title, detail)
       } catch (e) {
         if (e instanceof TypeError) {
-          error = await response.text()
-        } else {
-          throw e;
+          const textError = await response.text()
+          throw new Error(textError)
         }
+        throw e;
       }
-      throw new Error(error)
+      throw error
     }
     return response
   }
 
-  static formatAppError(title, detail, trace) {
-    const formatted = `${title}
-Detail: ${detail}
-`
-    return trace ? `${formatted}\n${trace}` : formatted
-  }
 
   async request(url, config = {}) {
     const Api = this.#core.api.constructor

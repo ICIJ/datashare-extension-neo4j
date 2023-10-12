@@ -7,18 +7,13 @@ export const AppStatus = {
 
 function actionBuilder(extension) {
   return {
-    async refreshImportTasks({ commit, state }, project) {
+    async refreshImportTasks({ commit, state }) {
+      const project = this.state.insights.project
       if (state.neo4jAppStatus === AppStatus.Running && state.neo4jInitializedProjects[project]) {
         const project = this.state.insights.project
         const tasks = await extension.request(`/api/neo4j/full-imports?project=${project}`, { method: 'GET' })
         commit('importTasks', await tasks.json())
       }
-    },
-    async refreshRunningImport({ commit, }) {
-      const project = this.state.insights.project
-      const res = await extension.request(`/api/neo4j/full-imports/running?project=${project}`, { method: 'GET' })
-      const taskId = await res.text() || null
-      commit('runningImport', taskId)
     },
     async refreshStatus({ commit, state }) {
       const res = await extension.request('/api/neo4j/status', { method: 'GET' })
@@ -47,7 +42,6 @@ function initialState() {
     neo4jInitializedProjects: {},
     neo4jImportTasks: null,
     neo4jGraphCounts: {},
-    neo4jRunningImport: null,
   }
 }
 
@@ -62,15 +56,8 @@ const mutations = {
   status(state, newStatus) {
     state.neo4jAppStatus = newStatus
   },
-  runningImport(state, newTask) {
-    state.neo4jRunningImport = newTask
-  },
   projectInit(state, projectState) {
-    window.datashare.localVue.set(
-      state,
-      'neo4jInitializedProjects',
-      { ...state.neo4jInitializedProjects, [projectState.project]: projectState.initialized }
-    )
+    window.datashare.localVue.set(state.neo4jInitializedProjects, projectState.project, projectState.initialized)
   },
 }
 const getters = {
@@ -82,9 +69,6 @@ const getters = {
   },
   status(state) {
     return state.neo4jAppStatus
-  },
-  runningImport(state) {
-    return state.neo4jRunningImport
   },
   projectsInit(state) {
     return state.neo4jInitializedProjects

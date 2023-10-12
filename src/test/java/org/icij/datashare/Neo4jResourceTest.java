@@ -76,7 +76,6 @@ public class Neo4jResourceTest {
                 {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
                     put("neo4jSingleProject", SINGLE_PROJECT);
-                    put("mode", "LOCAL");
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
                     put("neo4jAppStartTimeoutS", "2");
                 }
@@ -627,9 +626,8 @@ public class Neo4jResourceTest {
         @Test
         public void test_post_admin_neo4j_csvs_should_return_403_when_not_in_local() {
             // When
-            Response response = post(
-                "/api/neo4j/admin/neo4j-csvs?project=foo-datashare").withPreemptiveAuthentication(
-                "foo", "null").response();
+            Response response = post("/api/neo4j/admin/neo4j-csvs?project=foo-datashare")
+                .withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(403);
         }
@@ -1034,6 +1032,55 @@ public class Neo4jResourceTest {
             // Then
             assertThat(response.code()).isEqualTo(401);
         }
+
+        @Test
+        public void test_post_full_import_should_return_201() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/tasks",
+                    context -> new Payload("application/json", "taskId", 201)
+                )
+            );
+            // When
+            Response response = post("/api/neo4j/full-imports?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(201);
+            assertThat(response.content()).isEqualTo("taskId");
+        }
+
+        @Test
+        public void test_post_full_import_should_return_401_for_unauthorized_user() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/tasks",
+                    context -> new Payload("application/json", "taskId", 201)
+                )
+            );
+            // When
+            Response response = post("/api/neo4j/full-imports?project=foo-datashare"
+            ).withPreemptiveAuthentication("unauthorized", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_full_import_should_return_403_for_forbidden_mask() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/tasks",
+                    context -> new Payload("application/json", "taskId", 201)
+                )
+            );
+            when(parentRepository.getProject("foo-datashare"))
+                .thenReturn(new Project("foo-datashare", "1.2.3.4"));
+            // When
+            Response response = post("/api/neo4j/full-imports?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(403);
+        }
+
     }
 
     @DisplayName("test admin import embedded")
@@ -1100,9 +1147,18 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_post_full_import_should_return_403() throws IOException {
+        public void test_post_full_import_should_return_403() {
             // Given
-            assert false;
+            neo4jApp.configure(
+                routes -> routes.post("/tasks",
+                    context -> new Payload("application/json", "taskId", 201)
+                )
+            );
+            // When
+            Response response = post("/api/neo4j/full-imports?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(403);
         }
 
     }
