@@ -7,7 +7,7 @@ def test_es_to_neo4j_named_entity_row_should_contain_metadata():
         "_id": "someId",
         "_source": {
             "mentionNorm": "dev@icij.org",
-            "metadata": {"emailHeader": "someHeader"},
+            "metadata": {"emailHeaderField": "someHeader"},
             "join": {"parent": "docId"},
         },
     }
