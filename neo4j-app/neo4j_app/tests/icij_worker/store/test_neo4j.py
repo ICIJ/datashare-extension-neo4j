@@ -49,10 +49,9 @@ RETURN error"""
 async def _populate_results(
     populate_tasks: List[Task], neo4j_app_driver: neo4j.AsyncDriver
 ) -> List[Tuple[Task, List[TaskResult]]]:
-    query_1 = """CREATE (task:_Task {
+    query_1 = """CREATE (task:_Task:DONE {
     id: 'task-2', 
     type: 'hello_world',
-    status: 'DONE',
     createdAt: $now,
     completedAt: $after,
     inputs: '{"greeted": "2"}'

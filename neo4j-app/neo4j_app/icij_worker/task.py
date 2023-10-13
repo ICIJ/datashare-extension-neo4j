@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 import neo4j
 from pydantic import Field, validator
 
+from neo4j_app.constants import TASK_NODE
 from neo4j_app.core.utils.pydantic import (
     LowerCamelCaseModel,
     NoEnumModel,
@@ -75,9 +76,6 @@ def status_precedence(state: TaskStatus) -> int:
     return PRECEDENCE_LOOKUP[state]
 
 
-_TASK_SCHEMA = None
-
-
 class Task(NoEnumModel, LowerCamelCaseModel):
     id: str
     type: str
@@ -123,10 +121,18 @@ class Task(NoEnumModel, LowerCamelCaseModel):
 
     @classmethod
     def from_neo4j(cls, record: neo4j.Record, key="task") -> Task:
-        task = dict(record.value(key))
-        if "completedAt" in task:
-            task["completedAt"] = task["completedAt"].to_native()
-        return cls(**task)
+        node = record[key]
+        labels = node.labels
+        node = dict(node)
+        if len(labels) != 2:
+            raise ValueError(f"Expected task to have exactly 2 labels found {labels}")
+        status = [label for label in labels if label != TASK_NODE]
+        if len(status) != 1:
+            raise ValueError(f"Invalid task labels {labels}")
+        status = status[0]
+        if "completedAt" in node:
+            node["completedAt"] = node["completedAt"].to_native()
+        return cls(status=status, **node)
 
     @classmethod
     def mandatory_fields(cls, event: TaskEvent | Task, keep_id: bool) -> Dict[str, Any]:
@@ -145,6 +151,8 @@ class Task(NoEnumModel, LowerCamelCaseModel):
     def resolve_event(self, event: TaskEvent) -> Optional[TaskEvent]:
         resolved = event.dict(exclude_unset=True, by_alias=False)
         resolved.pop("task_id")
+        resolved.pop("created_at", None)
+        resolved.pop("task_type", None)
         if self.status in READY_STATES:
             return None
         # Update the status to make it consistent in case of race condition
@@ -153,15 +161,13 @@ class Task(NoEnumModel, LowerCamelCaseModel):
                 stored=self.status, event_status=event.status
             )
         # We can't update the following once they are set
-        if self.type is not None:
-            resolved.pop("task_type", None)
-        if self.created_at is not None:
-            resolved.pop("created_at", None)
         if self.completed_at is not None:
             resolved.pop("completed_at", None)
+        # Copy the event a first time to unset non-updatable field
         if not resolved:
             return None
-        resolved = safe_copy(event, update=resolved)
+        base_resolved = TaskEvent(task_id=event.task_id)
+        resolved = safe_copy(base_resolved, update=resolved)
         return resolved
 
     @classmethod
