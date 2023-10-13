@@ -1,3 +1,4 @@
+import itertools
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, List, Optional, Union
 
@@ -11,7 +12,6 @@ from neo4j_app.constants import (
     TASK_ID,
     TASK_NODE,
     TASK_RESULT_NODE,
-    TASK_STATUS,
     TASK_TYPE,
 )
 from neo4j_app.core.neo4j.projects import project_db_session
@@ -81,15 +81,22 @@ async def _get_task_tx(tx: neo4j.AsyncTransaction, task_id: str) -> Task:
 async def _get_tasks_tx(
     tx: neo4j.AsyncTransaction, status: Optional[List[str]], task_type: Optional[str]
 ) -> List[Task]:
-    query = f"MATCH (task:{TASK_NODE})"
-    where = []
-    if status:
-        where.append(f"task.{TASK_STATUS} IN $status")
-    if task_type is not None:
-        where.append(f"task.{TASK_TYPE} = $type")
-    if where:
-        query += f"WHERE {' AND '.join(where)}"
-    query += "\nRETURN task"
+    where = ""
+    if task_type:
+        where = f"WHERE task.{TASK_TYPE} = $type"
+    all_labels = [(TASK_NODE,)]
+    if isinstance(status, str):
+        status = (status,)
+    if status is not None:
+        all_labels.append(tuple(status))
+    all_labels = list(itertools.product(*all_labels))
+    if all_labels:
+        query = "UNION\n".join(
+            f"MATCH (task:{':'.join(labels)}) {where} RETURN task"
+            for labels in all_labels
+        )
+    else:
+        query = f"MATCH (task:{TASK_NODE}) RETURN task"
     res = await tx.run(query, status=status, type=task_type)
     tasks = [Task.from_neo4j(t) async for t in res]
     return tasks

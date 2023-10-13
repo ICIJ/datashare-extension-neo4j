@@ -17,7 +17,6 @@ from neo4j_app.constants import (
     TASK_ERROR_OCCURRED_AT,
     TASK_ID,
     TASK_NODE,
-    TASK_STATUS,
     TASK_TYPE,
 )
 
@@ -89,10 +88,6 @@ IF NOT EXISTS
 FOR (task:{TASK_NODE})
 REQUIRE (task.{TASK_ID}) IS UNIQUE"""
     await tx.run(constraint_query)
-    status_query = f"""CREATE INDEX index_task_status IF NOT EXISTS
-FOR (task:{TASK_NODE})
-ON (task.{TASK_STATUS})"""
-    await tx.run(status_query)
     created_at_query = f"""CREATE INDEX index_task_created_at IF NOT EXISTS
 FOR (task:{TASK_NODE})
 ON (task.{TASK_CREATED_AT})"""

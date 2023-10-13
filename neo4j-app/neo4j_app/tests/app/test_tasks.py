@@ -94,7 +94,7 @@ def test_task_integration(test_client_type: str, request: FixtureRequest):
             project=TEST_PROJECT,
             expected_status=TaskStatus.DONE,
         ),
-        after_s=20,
+        after_s=2,
     )
     result_url = f"/tasks/{task_id}/result?project={TEST_PROJECT}"
     res = test_client.get(result_url)

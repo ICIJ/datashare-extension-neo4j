@@ -113,7 +113,6 @@ TASK_COMPLETED_AT = "completedAt"
 TASK_CREATED_AT = "createdAt"
 TASK_ID = "id"
 TASK_INPUTS = "inputs"
-TASK_STATUS = "status"
 TASK_TYPE = "type"
 
 TASK_ERROR_NODE = "_TaskError"

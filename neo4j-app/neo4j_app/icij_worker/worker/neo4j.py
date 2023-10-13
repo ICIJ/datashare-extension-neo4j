@@ -15,7 +15,6 @@ from neo4j_app.constants import (
     TASK_NODE,
     TASK_RESULT_NODE,
     TASK_RESULT_RESULT,
-    TASK_STATUS,
 )
 from neo4j_app.core.neo4j.projects import project_db_session
 from neo4j_app.icij_worker import (
@@ -62,6 +61,7 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
     async def _reserve_task(self, task: Task, project: str):
         task = task.dict(by_alias=True)
         task["inputs"] = json.dumps(task["inputs"])
+        task.pop("status")
         task_id = task.pop("id")
         async with self._project_session(project) as sess:
             await sess.execute_write(_reserve_task_tx, task_id=task_id, task_props=task)
@@ -80,6 +80,7 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
                 for k, v in task.dict(by_alias=True).items()
                 if k in _TASK_MANDATORY_FIELDS_BY_ALIAS
             }
+            task_props.pop("status")
             await sess.execute_write(
                 _save_error_tx,
                 task_id=task.id,
@@ -104,7 +105,6 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
 
 
 async def _reserve_task_tx(tx: neo4j.AsyncTransaction, task_id: str, task_props: Dict):
-    task_props[TASK_STATUS] = TaskStatus.RUNNING.value
     query = f"""MATCH (task:{TASK_NODE} {{{TASK_ID}: $taskId }})
 RETURN task"""
     res = await tx.run(query, taskId=task_id)
@@ -116,9 +116,12 @@ RETURN task"""
             raise TaskAlreadyReserved(task_id)
         task_props.pop("type")
         task_props.pop("createdAt")
-    query = f"""MERGE (task:{TASK_NODE} {{{TASK_ID}: $taskId }})
-SET task += $taskProps"""
-    await tx.run(query, taskId=task_id, taskProps=task_props)
+    query = f"""MERGE (t:{TASK_NODE} {{{TASK_ID}: $taskId }})
+SET t += $taskProps
+WITH t CALL apoc.create.setLabels(t, $labels) YIELD node AS task
+RETURN task"""
+    labels = [TASK_NODE, TaskStatus.RUNNING.value]
+    await tx.run(query, taskId=task_id, taskProps=task_props, labels=labels)
 
 
 async def _save_result_tx(tx: neo4j.AsyncTransaction, *, task_id: str, result: str):
@@ -139,14 +142,15 @@ RETURN task, result"""
 async def _save_error_tx(
     tx: neo4j.AsyncTransaction, task_id: str, *, task_props: Dict, error_props: Dict
 ):
-    query = f"""MERGE (task:{TASK_NODE} {{{TASK_ID}: $taskId }})
-ON CREATE
-    SET task += $taskProps
+    query = f"""MERGE (t:{TASK_NODE} {{{TASK_ID}: $taskId }})
+ON CREATE SET t += $taskProps, t:`{TaskStatus.ERROR.value}` 
 CREATE (error:{TASK_ERROR_NODE} $errorProps)-[:{TASK_ERROR_OCCURRED_TYPE}]->(task)
 RETURN task, error"""
-    task_props[TASK_STATUS] = TaskStatus.ERROR.value
     res = await tx.run(
-        query, taskId=task_id, taskProps=task_props, errorProps=error_props
+        query,
+        taskId=task_id,
+        taskProps=task_props,
+        errorProps=error_props,
     )
     records = [rec async for rec in res]
     if not records:

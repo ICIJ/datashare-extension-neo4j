@@ -36,20 +36,18 @@ from neo4j_app.typing_ import PercentProgress
 
 @pytest_asyncio.fixture(scope="function")
 async def populate_tasks(neo4j_app_driver: neo4j.AsyncDriver) -> List[Task]:
-    query_0 = """CREATE (task:_Task {
+    query_0 = """CREATE (task:_Task:CREATED {
     id: 'task-0', 
     type: 'hello_world',
-    status: 'CREATED',
     createdAt: $now,
     inputs: '{"greeted": "0"}'
  }) 
 RETURN task"""
     recs_0, _, _ = await neo4j_app_driver.execute_query(query_0, now=datetime.now())
     t_0 = Task.from_neo4j(recs_0[0])
-    query_1 = """CREATE (task:_Task {
+    query_1 = """CREATE (task:_Task:RUNNING {
     id: 'task-1', 
     type: 'hello_world',
-    status: 'RUNNING',
     progress: 66.6,
     createdAt: $now,
     retries: 1,
