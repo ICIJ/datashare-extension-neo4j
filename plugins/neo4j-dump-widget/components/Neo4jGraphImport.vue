@@ -130,7 +130,7 @@ Note that updating the graph will only add new documents and entities and update
   },
   methods: {
     displayTaskDate(task) {
-      const date = task.status === TaskStatus.Running ? task.createdAt : task.createdCompletedAt ?? task.createdAt
+      const date = task.status === TaskStatus.Running ? task.createdAt : task.completedAt ?? task.createdAt
       return `${this.localeDate(date)}, ${this.localeTime(date)}`
     },
     localeDate(date) {
