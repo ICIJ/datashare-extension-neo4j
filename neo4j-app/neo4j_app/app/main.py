@@ -5,9 +5,9 @@ from starlette.requests import Request
 
 from neo4j_app.app.dependencies import (
     lifespan_es_client,
-    lifespan_import_queue,
     lifespan_neo4j_driver,
     lifespan_task_store,
+    lifespan_worker_pool,
 )
 from neo4j_app.app.doc import OTHER_TAG
 from neo4j_app.core import AppConfig
@@ -21,8 +21,8 @@ def main_router() -> APIRouter:
         try:
             lifespan_neo4j_driver()
             lifespan_es_client()
-            lifespan_import_queue()
             lifespan_task_store()
+            lifespan_worker_pool()
         except Exception as e:  # pylint: disable=broad-except
             raise HTTPException(503, detail="Service Unavailable") from e
         return "pong"
