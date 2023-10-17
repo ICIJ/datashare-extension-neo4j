@@ -67,7 +67,8 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
             for p in projects:
                 async with self._project_session(p.name) as sess:
                     received = await sess.execute_read(_receive_task_tx)
-                    return received, p.name
+                    if received is not None:
+                        return received, p.name
             await asyncio.sleep(self._app.config.neo4j_app_task_queue_poll_interval_s)
 
     async def _lock(self, task: Task, project: str):
