@@ -327,7 +327,7 @@ function _helpers() {
     }
 
     function _pytest() {
-        poetry run python3 -m pytest --cache-clear --show-capture=all "${@}"
+        poetry run python3 -m pytest -vvv --cache-clear --show-capture=all -r A "${@}"
     }
 
     function _run_manifest_checksums() {
