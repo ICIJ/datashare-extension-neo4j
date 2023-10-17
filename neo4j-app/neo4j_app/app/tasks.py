@@ -46,6 +46,15 @@ def tasks_router() -> APIRouter:
         await event_publisher.publish_event(event, project)
         return Response(task.id, status_code=201)
 
+    @router.post("/tasks/{task_id}/cancel", response_model=Task)
+    async def _cancel_task(project: str, task_id: str) -> Task:
+        task_store = lifespan_task_store()
+        try:
+            cancelled = await task_store.cancel(task_id=task_id, project=project)
+        except UnknownTask as e:
+            raise HTTPException(status_code=404, detail=e.args[0]) from e
+        return cancelled
+
     @router.get("/tasks/{task_id}", response_model=Task)
     async def _get_task(task_id: str, project: str) -> Task:
         store = lifespan_task_store()

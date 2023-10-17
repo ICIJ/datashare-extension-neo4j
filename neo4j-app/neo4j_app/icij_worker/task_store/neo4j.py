@@ -70,9 +70,9 @@ class Neo4jTaskStore(TaskStore):
                 inputs=inputs,
             )
 
-    async def _cancel(self, task: Task, project: str) -> Task:
+    async def _cancel(self, *, task_id: str, project: str) -> Task:
         async with project_db_session(self._driver, project) as sess:
-            return await sess.execute_write(_cancel_task_tx, task_id=task.id)
+            return await sess.execute_write(_cancel_task_tx, task_id=task_id)
 
     @asynccontextmanager
     async def _project_session(
