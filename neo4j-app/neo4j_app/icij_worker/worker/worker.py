@@ -180,7 +180,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         # Once the result has been saved, we notify the event consumers, they are
         # responsible for reflecting the fact that task has completed wherever relevant.
         # The source of truth will be result storage
-        self.info('marking Task(id="%s") as %s', result.task_id, TaskStatus.DONE)
+        self.info('marking Task(id="%s") as %s', result.task_id, TaskStatus.DONE.value)
         event = TaskEvent(
             task_id=result.task_id,
             status=TaskStatus.DONE,

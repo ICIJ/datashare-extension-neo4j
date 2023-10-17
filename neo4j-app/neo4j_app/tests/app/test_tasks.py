@@ -11,6 +11,7 @@ from neo4j_app.app.utils import create_app
 from neo4j_app.core import AppConfig
 from neo4j_app.core.config import WorkerType
 from neo4j_app.core.objects import TaskJob
+from neo4j_app.core.utils.logging import DifferedLoggingMessage
 from neo4j_app.core.utils.pydantic import safe_copy
 from neo4j_app.icij_worker import ICIJApp, Task, TaskStatus
 from neo4j_app.tests.conftest import TEST_PROJECT, test_error_router, true_after
@@ -84,6 +85,7 @@ def test_task_integration(test_client_type: str, request: FixtureRequest):
     res = test_client.post(create_url, json=job.dict())
     assert res.status_code == 201, res.json()
     task_id = res.content.decode()
+    error_url = f"/tasks/{task_id}/errors?project={TEST_PROJECT}"
 
     # Then
     assert true_after(
@@ -95,7 +97,7 @@ def test_task_integration(test_client_type: str, request: FixtureRequest):
             expected_status=TaskStatus.DONE,
         ),
         after_s=5,
-    )
+    ), DifferedLoggingMessage(lambda: res.get(error_url).json())
     result_url = f"/tasks/{task_id}/result?project={TEST_PROJECT}"
     res = test_client.get(result_url)
     assert res.status_code == 200, res.json()
