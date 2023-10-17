@@ -14,12 +14,12 @@ class ProcessWorkerMixin(Worker, ABC):
         self._setup_signal_handlers()
 
     def _signal_handler(
-            self,
-            signal_name: int,
-            _,
-            __,  # pylint: disable=invalid-name
-            *,
-            graceful: bool,
+        self,
+        signal_name: int,
+        _,
+        __,  # pylint: disable=invalid-name
+        *,
+        graceful: bool,
     ):
         self.error("received %s", signal_name)
         self._graceful_shutdown = graceful

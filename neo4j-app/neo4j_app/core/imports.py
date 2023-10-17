@@ -216,25 +216,16 @@ async def import_named_entities(
 ) -> IncrementalImportResponse:
     neo4j_db = await project_db(neo4j_driver, project)
     es_index = project_index(project)
-    logger.debug("retrieving doc IDs from neo4j...")
     async with neo4j_driver.session(database=neo4j_db) as neo4j_session:
-        with log_elapsed_time_cm(
-            logger, logging.DEBUG, "retrieved doc IDs from neo4j in {elapsed_time} !"
-        ):
-            document_ids = await neo4j_session.execute_read(documents_ids_tx)
+        document_ids = await neo4j_session.execute_read(documents_ids_tx)
         # Because of this neo4j limitation (https://github.com/neo4j/neo4j/issues/13139)
         # we have to count the number of relation created manually
-        with log_elapsed_time_cm(
-            logger, logging.DEBUG, "counted named entities in {elapsed_time} !"
-        ):
-            initial_n_nodes, initial_n_rels = await neo4j_session.execute_read(
-                ne_creation_stats_tx
-            )
-        scaled = None
+        initial_n_nodes, initial_n_rels = await neo4j_session.execute_read(
+            ne_creation_stats_tx
+        )
         if progress is not None:
             await progress(5.0)
-            scaled = to_scaled_progress(progress, start=5.0)
-    logger.debug("polling named entities...")
+            progress = to_scaled_progress(progress, start=5.0)
     # Since this is an incremental import we consider it reasonable to use an ES join,
     # however for named entities bulk import join should be avoided and post filtering
     # on the documentId will probably be much more efficient !
@@ -266,15 +257,10 @@ async def import_named_entities(
             to_neo4j_row=es_to_neo4j_named_entity_row,
             max_records_in_memory=max_records_in_memory,
             imported_entity_label="named entity nodes",
-            progress=scaled,
+            progress=progress,
         )
     async with neo4j_driver.session(database=neo4j_db) as neo4j_session:
-        with log_elapsed_time_cm(
-            logger,
-            logging.DEBUG,
-            "computed named entities creation stats in {elapsed_time} !",
-        ):
-            n_nodes, n_rels = await neo4j_session.execute_read(ne_creation_stats_tx)
+        n_nodes, n_rels = await neo4j_session.execute_read(ne_creation_stats_tx)
     res = IncrementalImportResponse(
         imported=import_summary.imported,
         nodes_created=n_nodes - initial_n_nodes,
@@ -839,9 +825,9 @@ def _make_named_entity_with_parent_queries(
 ) -> List[Mapping[str, str]]:
     # document_ids // es_concurrency might still too large to send over the network, on
     # the other hand changing of document_ids at each query won't benefit from ES
-    # caching we hence arbitrarily choose perform the same query 5 times in a row to
-    # benefit from caching while 5 * page_size IDs will be OK to send over the network
-    batch_size = 5 * es_page_size
+    # caching we hence arbitrarily choose perform the same query 10 times in a row to
+    # benefit from caching while 10 * page_size IDs will be OK to send over the network
+    batch_size = 10 * es_page_size
     doc_typ_query = has_type(
         type_field=es_doc_type_field, type_value=ES_NAMED_ENTITY_TYPE
     )

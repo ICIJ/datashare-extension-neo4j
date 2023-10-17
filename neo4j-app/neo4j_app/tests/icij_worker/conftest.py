@@ -29,8 +29,7 @@ from neo4j_app.icij_worker import (
 )
 from neo4j_app.icij_worker.exceptions import (
     TaskAlreadyExists,
-    TaskAlreadyReserved,
-    TaskQueueIsFull,
+    TaskAlreadyReserved, TaskQueueIsFull,
     UnknownTask,
 )
 from neo4j_app.icij_worker.task_manager import TaskManager
@@ -254,18 +253,6 @@ class MockWorker(ProcessWorkerMixin, MockEventPublisher):
     @cached_property
     def logged_named(self) -> str:
         return super().logged_named
-
-    async def _reserve_task(self, task: Task, project: str):
-        key = self._task_key(task_id=task.id, project=project)
-        with self.db_lock:
-            db = self._read()
-            tasks = db[self._task_collection]
-            existing = tasks.get(key, None)
-            if existing and TaskStatus[existing["status"]] > TaskStatus.QUEUED:
-                raise TaskAlreadyReserved(task.id)
-            task = task.dict(exclude_unset=True, by_alias=True)
-            tasks[key] = task
-            self._write(db)
 
     async def _save_result(self, result: TaskResult, project: str):
         task_key = self._task_key(task_id=result.task_id, project=project)
