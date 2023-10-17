@@ -132,6 +132,8 @@ class Task(NoEnumModel, LowerCamelCaseModel):
         status = status[0]
         if "completedAt" in node:
             node["completedAt"] = node["completedAt"].to_native()
+        if "inputs" in node:
+            node["inputs"] = json.loads(node["inputs"])
         return cls(status=status, **node)
 
     @classmethod
@@ -149,20 +151,18 @@ class Task(NoEnumModel, LowerCamelCaseModel):
         return mandatory
 
     def resolve_event(self, event: TaskEvent) -> Optional[TaskEvent]:
+        if self.status in READY_STATES:
+            return None
         resolved = event.dict(exclude_unset=True, by_alias=False)
         resolved.pop("task_id")
         resolved.pop("created_at", None)
         resolved.pop("task_type", None)
-        if self.status in READY_STATES:
-            return None
+        resolved.pop("completed_at", None)
         # Update the status to make it consistent in case of race condition
         if event.status is not None:
             resolved["status"] = TaskStatus.resolve_event_status(
                 stored=self.status, event_status=event.status
             )
-        # We can't update the following once they are set
-        if self.completed_at is not None:
-            resolved.pop("completed_at", None)
         # Copy the event a first time to unset non-updatable field
         if not resolved:
             return None

@@ -115,6 +115,10 @@ TASK_ID = "id"
 TASK_INPUTS = "inputs"
 TASK_TYPE = "type"
 
+TASK_LOCK_NODE = "_TaskLock"
+TASK_LOCK_TASK_ID = "taskId"
+TASK_LOCK_WORKER_ID = "workerId"
+
 TASK_ERROR_NODE = "_TaskError"
 TASK_ERROR_DETAIL = "detail"
 TASK_ERROR_ID = "id"

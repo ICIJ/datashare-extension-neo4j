@@ -4,7 +4,9 @@ import asyncio
 import functools
 import inspect
 import sys
+import traceback
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from copy import deepcopy
 from datetime import datetime
@@ -13,6 +15,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    List,
     Optional,
     Tuple,
     Type,
@@ -21,9 +24,15 @@ from typing import (
 
 from neo4j_app.core import AppConfig
 from neo4j_app.core.utils.logging import LogWithNameMixin
+from neo4j_app.core.utils.progress import CheckCancelledProgress
 from neo4j_app.icij_worker.app import ICIJApp, RegisteredTask
 from neo4j_app.icij_worker.event_publisher import EventPublisher
-from neo4j_app.icij_worker.exceptions import MaxRetriesExceeded, UnregisteredTask
+from neo4j_app.icij_worker.exceptions import (
+    MaxRetriesExceeded,
+    TaskAlreadyReserved,
+    TaskCancelled,
+    UnregisteredTask,
+)
 from neo4j_app.icij_worker.task import (
     Task,
     TaskError,
@@ -31,16 +40,28 @@ from neo4j_app.icij_worker.task import (
     TaskResult,
     TaskStatus,
 )
+from neo4j_app.typing_ import PercentProgress
 
 PROGRESS_HANDLER_ARG = "progress"
 
 
 class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC):
     def __init__(self, app: ICIJApp, worker_id: str):
+        if app.config is None:
+            raise ValueError("worker requires a configured app, app config is missing")
         self._app = app
         self._id = worker_id
         self._graceful_shutdown = True
         self._config = app.config
+        self._cancelled_ = defaultdict(set)
+
+    @property
+    def _cancelled(self) -> List[str]:
+        return list(self._cancelled_)
+
+    @functools.cached_property
+    def id(self) -> str:
+        return self._id
 
     @classmethod
     def from_config(cls, config: AppConfig, worker_id: str, **kwargs) -> Worker:
@@ -50,13 +71,18 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     @classmethod
     @final
     def work_forever_from_config(cls, config: AppConfig, worker_id: str, **kwargs):
-        worker = cls.from_config(config, worker_id, **kwargs)
+        asyncio.run(cls.work_forever_from_config_async(config, worker_id, **kwargs))
 
-        asyncio.run(worker.work_forever())
+    @classmethod
+    @final
+    async def work_forever_from_config_async(
+        cls, config: AppConfig, worker_id: str, **kwargs
+    ):
+        worker = cls.from_config(config, worker_id, **kwargs)
+        await worker.work_forever()
 
     @final
     async def work_forever(self):
-        self._app.config.setup_loggers()
         async with self:
             self.info("started working...")
             exit_status = 0
@@ -81,8 +107,13 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
 
     @final
     @functools.cached_property
+    def config(self) -> AppConfig:
+        return self._config
+
+    @final
+    @functools.cached_property
     def logged_name(self) -> str:
-        return self._id
+        return self.id
 
     @property
     def graceful_shutdown(self) -> bool:
@@ -90,24 +121,43 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
 
     @final
     async def work_once(self):
-        task, project = await self.receive()
-        progress = functools.partial(self._publish_progress, task=task, project=project)
-        await task_wrapper(
-            task, project, self, config=self._app.config, progress=progress
-        )
-
-    @abstractmethod
-    async def receive(self) -> Tuple[Task, str]:
-        pass
+        await task_wrapper(self)
 
     @final
-    async def reserve_task(self, task: Task, project: str):
-        await self._reserve_task(task, project)
-        event = TaskEvent(task_id=task.id, progress=0, status=TaskStatus.RUNNING)
-        await self.publish_event(event, project)
+    async def receive(self) -> Tuple[Task, str]:
+        return await self._receive()
+
+    @final
+    @asynccontextmanager
+    async def lock(self, task: Task, project: str):
+        await self._lock(task, project)
+        self.info('locked Task(id="%s")', task.id)
+        try:
+            event = TaskEvent(task_id=task.id, progress=0, status=TaskStatus.RUNNING)
+            await self.publish_event(event, project)
+            yield
+        finally:
+            await self._unlock(task, project)
 
     @abstractmethod
-    async def _reserve_task(self, task: Task, project: str):
+    @asynccontextmanager
+    async def _lock(self, task: Task, project: str):
+        pass
+
+    @abstractmethod
+    async def _unlock(self, task: Task, project: str):
+        pass
+
+    @abstractmethod
+    async def acknowledge(self, task: Task, project: str, completed_at: datetime):
+        pass
+
+    @abstractmethod
+    async def _refresh_cancelled(self, project: str):
+        pass
+
+    @abstractmethod
+    async def _receive(self) -> Tuple[Task, str]:
         pass
 
     @abstractmethod
@@ -122,12 +172,12 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def save_result(
         self, result: TaskResult, project: str, completed_at: datetime
     ):
-        self.info("saving task id=%s", result.task_id)
+        self.info('saving Task(id="%s")', result.task_id)
         await self._save_result(result, project)
         # Once the result has been saved, we notify the event consumers, they are
         # responsible for reflecting the fact that task has completed wherever relevant.
         # The source of truth will be result storage
-        self.info("marking (id=%s) as %s", result.task_id, TaskStatus.DONE)
+        self.info('marking Task(id="%s") as %s', result.task_id, TaskStatus.DONE)
         event = TaskEvent(
             task_id=result.task_id,
             status=TaskStatus.DONE,
@@ -141,9 +191,9 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def save_error(
         self, error: TaskError, task: Task, project: str, retries: Optional[int] = None
     ):
-        self.error("(id=%s): %s\n%s", task.id, error.title, error.detail)
+        self.error('Task(id="%s"): %s\n%s', task.id, error.title, error.detail)
         # Save the error in the appropriate location
-        self.debug("(id=%s) saving error", task.id, error)
+        self.debug('Task(id="%s") saving error', task.id, error)
         await self._save_error(error, task, project)
         # Once the error has been saved, we notify the event consumers, they are
         # responsible for reflecting the fact that the error has occurred wherever
@@ -162,7 +212,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         retries: Optional[int] = None,
     ):
         # Tell the listeners that the task failed
-        self.debug("(id=%s) publish error event", task_id)
+        self.debug('Task(id="%s") publish error event', task_id)
         event = TaskEvent.from_error(error, task_id, retries)
         await self.publish_event(event, project)
 
@@ -170,6 +220,16 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def _publish_progress(self, progress: float, task: Task, project: str):
         event = TaskEvent(progress=progress, task_id=task.id)
         await self.publish_event(event, project)
+
+    @final
+    @asynccontextmanager
+    async def persist_error(self, task: Task, project: str):
+        try:
+            yield
+        except Exception as e:  # pylint: disable=broad-except
+            error = TaskError.from_exception(e)
+            await self.save_error(error=error, task=task, project=project)
+            raise e
 
     @final
     def parse_task(
@@ -183,22 +243,50 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             for param in signature(task_fn).parameters.values()
         )
         if supports_progress:
-            publish_progress = functools.partial(
-                self._publish_progress, project=project, task=task
-            )
+            publish_progress = self._make_progress(task, project)
             task_fn = functools.partial(task_fn, progress=publish_progress)
         return task_fn, recoverable
+
+    @final
+    @functools.cached_property
+    def _cancelled_task_refresh_interval_s(self) -> int:
+        return self._app.config.neo4j_app_cancelled_task_refresh_interval_s
+
+    @final
+    async def check_cancelled(
+        self, *, task_id: str, project: str, refresh: bool = False
+    ):
+        if refresh:
+            await self._refresh_cancelled(project)
+        if task_id in self._cancelled_[project]:
+            raise TaskCancelled(task_id)
 
     @final
     def check_retries(self, retries: int, task: Task):
         max_retries = self._app.registry[task.type].max_retries
         if max_retries is None:
             return
-        self.info("%s(id=%s): try %s/%s", task.type, task.id, retries, max_retries)
+        self.info(
+            '%sTask(id="%s"): try %s/%s', task.type, task.id, retries, max_retries
+        )
         if retries is not None and retries > max_retries:
             raise MaxRetriesExceeded(
                 f"{task.type}(id={task.id}): max retries exceeded > {max_retries}"
             )
+
+    @final
+    def _make_progress(self, task: Task, project: str) -> PercentProgress:
+        progress = functools.partial(self._publish_progress, task=task, project=project)
+        refresh = functools.partial(self._refresh_cancelled, project=project)
+        check = functools.partial(self.check_cancelled, project=project)
+        progress = CheckCancelledProgress(
+            task_id=task.id,
+            progress=progress,
+            check_cancelled=check,
+            refresh_cancelled=refresh,
+            refresh_interval_s=self._cancelled_task_refresh_interval_s,
+        )
+        return progress
 
     @final
     @property
@@ -215,8 +303,8 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def __aenter__(self):
         await self._deps_cm.__aenter__()
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        await self._deps_cm.__aexit__(exc_type, exc_value, traceback)
+    async def __aexit__(self, exc_type, exc_value, tb):
+        await self._deps_cm.__aexit__(exc_type, exc_value, tb)
 
 
 def _retrieve_registered_task(
@@ -230,46 +318,95 @@ def _retrieve_registered_task(
     return registered
 
 
-async def task_wrapper(task: Task, project: str, worker: Worker, **kwargs):
-    retries = 0
+async def task_wrapper(worker: Worker):
+    # Receive task
     try:
-        await worker.reserve_task(task, project)
-        task_fn, recoverable_errors = worker.parse_task(task, project)
-    except Exception as e:  # pylint: disable=broad-except
-        error = TaskError.from_exception(e)
-        await worker.save_error(error=error, task=task, project=project)
-        return
+        task, project = await worker.receive()
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        worker.error("error while receiving task: %s", _format_error(e))
+        raise e
 
-    while True:
-        try:
-            worker.check_retries(retries, task)
-            if retries:
-                # In the case of the retry, let's reset the progress
-                event = TaskEvent(task_id=task.id, progress=0.0)
-                await worker.publish_event(event, project)
+    try:
+        # Lock it and skips if already reserved
+        async with worker.lock(task, project):
+            # Skip it if already cancelled
             try:
-                all_inputs = add_missing_args(task_fn, task.inputs, **kwargs)
-                task_res = task_fn(**all_inputs)
-                if isawaitable(task_res):
-                    task_res = await task_res
-                completed_at = datetime.now()
-            except recoverable_errors as e:
-                retries += 1
-                error = TaskError.from_exception(e)
-                await worker.publish_error_event(
-                    error=error, task_id=task.id, project=project, retries=retries
+                await worker.check_cancelled(
+                    task_id=task.id, project=project, refresh=True
                 )
-                continue
-            result = TaskResult(task_id=task.id, result=task_res)
-            await worker.save_result(result, project, completed_at=completed_at)
-            worker.info("task %s successful !", task.id)
-        except Exception as e:  # pylint: disable=broad-except
+            except TaskCancelled:
+                worker.info('Task(id="%s") already cancelled skipping it !', task.id)
+                return
+
+            # Parse task to retrieve recoverable errors and max retries
+            try:
+                async with worker.persist_error(task, project):
+                    task_fn, recoverable_errors = worker.parse_task(task, project)
+                    task_inputs = add_missing_args(
+                        task_fn, task.inputs, config=worker.config
+                    )
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                worker.error(
+                    'Task(id="%s"), error while parsing task: %s',
+                    _format_error(e),
+                    task,
+                )
+                return
+            # Retry task until success, fatal error or max retry exceeded
+            try:
+                async with worker.persist_error(task, project):
+                    await _retry_task(
+                        worker, task, task_fn, task_inputs, project, recoverable_errors
+                    )
+                    worker.info('Task(id="%s") successful !', task.id)
+                    return
+            except Exception as e:  # pylint: disable=broad-except
+                if isinstance(e, MaxRetriesExceeded):
+                    worker.error(
+                        'Task(id="%s") exceeded max retries, exiting !', task.id
+                    )
+                else:
+                    worker.error('Task(id="%s") fatal error, exiting !', task.id)
+    except TaskAlreadyReserved:
+        worker.info('Task(id="%s") already reserved', task.id)
+
+
+async def _retry_task(
+    worker: Worker,
+    task: Task,
+    task_fn: Callable,
+    task_inputs: Dict,
+    project: str,
+    recoverable_errors: Tuple[Type[Exception]],
+):
+    retries = 0
+    while True:
+        worker.check_retries(retries, task)
+        if retries:
+            # In the case of the retry, let's reset the progress
+            event = TaskEvent(task_id=task.id, progress=0.0)
+            await worker.publish_event(event, project)
+        try:
+            task_res = task_fn(**task_inputs)
+            if isawaitable(task_res):
+                task_res = await task_res
+            completed_at = datetime.now()
+        except TaskCancelled:
+            worker.info('Task(id="%s") cancelled during execution')
+            return
+        except recoverable_errors as e:
+            retries += 1
             error = TaskError.from_exception(e)
-            await worker.save_error(error=error, task=task, project=project)
-            if isinstance(e, MaxRetriesExceeded):
-                worker.error("(id=%s) exceeded max retries, exiting !", task.id)
-            else:
-                worker.error("(id=%s) fatal error, exiting !", task.id)
+            await worker.publish_error_event(
+                error=error,
+                task_id=task.id,
+                project=project,
+                retries=retries,
+            )
+            continue
+        result = TaskResult(task_id=task.id, result=task_res)
+        await worker.save_result(result, project, completed_at=completed_at)
+        await worker.acknowledge(task, project, completed_at=completed_at)
         return
 
 
@@ -288,3 +425,7 @@ def add_missing_args(fn: Callable, inputs: Dict[str, Any], **kwargs) -> Dict[str
         inputs = deepcopy(inputs)
         inputs.update(from_kwargs)
     return inputs
+
+
+def _format_error(error: Exception) -> str:
+    return "".join(traceback.format_exception(None, error, error.__traceback__))

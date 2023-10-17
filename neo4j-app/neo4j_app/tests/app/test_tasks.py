@@ -20,8 +20,8 @@ from neo4j_app.tests.conftest import TEST_PROJECT, test_error_router, true_after
 def test_client_prod(
     test_config: AppConfig,
     test_async_app: ICIJApp,
-    # Wipe neo4j
-    neo4j_test_session: neo4j.AsyncSession,
+    # Wipe neo4j and init project
+    neo4j_app_driver: neo4j.AsyncSession,
 ) -> TestClient:
     # pylint: disable=unused-argument
     config = safe_copy(
@@ -107,7 +107,7 @@ def test_task_integration(test_client_type: str, request: FixtureRequest):
 def test_client_limited_queue(
     test_config: AppConfig, test_async_app: ICIJApp
 ) -> TestClient:
-    config = safe_copy(test_config, update={"neo4j_app_task_queue_size": 1})
+    config = safe_copy(test_config, update={"neo4j_app_task_queue_size": 0})
     new_async_app = ICIJApp(name=test_async_app.name, config=config)
     new_async_app._registry = (  # pylint: disable=protected-access
         test_async_app.registry

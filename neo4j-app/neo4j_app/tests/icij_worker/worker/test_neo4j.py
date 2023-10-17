@@ -1,5 +1,5 @@
 # pylint: disable=redefined-outer-name
-import multiprocessing
+import asyncio
 from datetime import datetime
 from typing import List, Optional
 
@@ -17,58 +17,48 @@ from neo4j_app.icij_worker import (
 from neo4j_app.icij_worker.exceptions import TaskAlreadyReserved, UnregisteredTask
 from neo4j_app.icij_worker.task_store.neo4j import Neo4jTaskStore
 from neo4j_app.icij_worker.worker.neo4j import Neo4jAsyncWorker
-from neo4j_app.tests.conftest import TEST_PROJECT
+from neo4j_app.tests.conftest import TEST_PROJECT, true_after
 
 
 @pytest.fixture(scope="function")
 def worker(test_app: ICIJApp, neo4j_app_driver: neo4j.AsyncDriver) -> Neo4jAsyncWorker:
-    queue = multiprocessing.Queue()
-    worker = Neo4jAsyncWorker(test_app, "test-worker", queue, neo4j_app_driver)
+    worker = Neo4jAsyncWorker(test_app, "test-worker", neo4j_app_driver)
     return worker
 
 
 @pytest.mark.asyncio
-async def test_worker_reserve_task(worker: Neo4jAsyncWorker):
+async def test_worker_receive_task(
+    worker: Neo4jAsyncWorker, populate_tasks: List[Task]
+):
+    # pylint: disable=unused-argument
     # Given
-    store = Neo4jTaskStore(worker.driver)
-    project = TEST_PROJECT
-    inputs = {"greeted": "everyone"}
-    task = Task(
-        id="task_id",
-        status=TaskStatus.CREATED,
-        type="hello_world",
-        created_at=datetime.now(),
-        inputs=inputs,
-    )
-    # When
-    await worker.reserve_task(task=task, project=project)
+    registry = set()
+    task = asyncio.create_task(worker.receive())
+    task.add_done_callback(registry.discard)
     # Then
-    update = {"status": TaskStatus.RUNNING, "progress": 0.0}
-    expected = safe_copy(task, update=update)
-    tasks = await store.get_task(project=project, task_id=task.id)
-    assert tasks == expected
+    true_after(task.done, after_s=1.0)
 
 
 @pytest.mark.asyncio
-async def test_worker_reserve_task_should_raise_for_existing_task(
+async def test_worker_lock_should_raise_when_task_already_locked(
     populate_tasks: List[Task], worker: Neo4jAsyncWorker
 ):
     # Given
-    project = TEST_PROJECT
-    task = populate_tasks[1]
-    # When/Then
-    expected_msg = 'task "task-1" is already reserved'
-    with pytest.raises(TaskAlreadyReserved, match=expected_msg):
-        await worker.reserve_task(task=task, project=project)
+    created = populate_tasks[0]
+    # When
+    async with worker.lock(created, TEST_PROJECT):
+        with pytest.raises(TaskAlreadyReserved):
+            async with worker.lock(created, TEST_PROJECT):
+                pass
 
 
 @pytest.mark.asyncio
 async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jAsyncWorker):
     # Given
-    store = Neo4jTaskStore(worker.driver)
+    store = Neo4jTaskStore(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
     task = populate_tasks[0]
-    assert task.status == TaskStatus.CREATED
+    assert task.status == TaskStatus.QUEUED
     result = "hello everyone"
     task_result = TaskResult(task_id=task.id, result=result)
     completed_at = datetime.now()
@@ -77,15 +67,11 @@ async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jAsync
     await worker.save_result(
         result=task_result, project=project, completed_at=completed_at
     )
-    saved_task = await store.get_task(project=project, task_id=task.id)
-    saved_result = await store.get_task_result(project=project, task_id=task.id)
+    saved_task = await store.get_task(task_id=task.id, project=project)
+    saved_result = await store.get_task_result(task_id=task.id, project=project)
 
     # Then
-    update = {
-        "status": TaskStatus.DONE,
-        "completed_at": completed_at,
-        "progress": 100.0,
-    }
+    update = {"status": TaskStatus.DONE, "progress": 100.0}
     expected_task = safe_copy(task, update=update)
     assert saved_task == expected_task
 
@@ -99,7 +85,7 @@ async def test_worker_should_raise_when_saving_existing_result(
     # Given
     project = TEST_PROJECT
     task = populate_tasks[0]
-    assert task.status == TaskStatus.CREATED
+    assert task.status == TaskStatus.QUEUED
     result = "hello everyone"
     task_result = TaskResult(task_id=task.id, result=result)
     completed_at = datetime.now()
@@ -129,7 +115,7 @@ async def test_worker_save_error(
     expected_retries: int,
 ):
     # Given
-    store = Neo4jTaskStore(worker.driver)
+    store = Neo4jTaskStore(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
     task = populate_tasks[0]
     error = TaskError(
@@ -141,8 +127,8 @@ async def test_worker_save_error(
 
     # When
     await worker.save_error(error=error, task=task, project=project, retries=retries)
-    saved_task = await store.get_task(project=project, task_id=task.id)
-    saved_errors = await store.get_task_errors(project=project, task_id=task.id)
+    saved_task = await store.get_task(task_id=task.id, project=project)
+    saved_errors = await store.get_task_errors(task_id=task.id, project=project)
 
     # Then
     update = {"status": expected_status, "retries": expected_retries}
@@ -158,7 +144,7 @@ async def test_worker_should_save_error_for_unknown_task(
     # This is useful when the error occurs before it's reserved by a worker, we want to
     # make sure the error is correctly saved even if the task is not valid
     # Given
-    store = Neo4jTaskStore(worker.driver)
+    store = Neo4jTaskStore(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     unregistered_task = Task(
@@ -178,9 +164,9 @@ async def test_worker_should_save_error_for_unknown_task(
 
     # When
     await worker.save_error(error, unregistered_task, project)
-    saved_task = await store.get_task(project=project, task_id=unregistered_task.id)
+    saved_task = await store.get_task(task_id=unregistered_task.id, project=project)
     saved_errors = await store.get_task_errors(
-        project=project, task_id=unregistered_task.id
+        task_id=unregistered_task.id, project=project
     )
 
     # Then
@@ -188,3 +174,30 @@ async def test_worker_should_save_error_for_unknown_task(
     expected_task = safe_copy(unregistered_task, update=update)
     assert saved_task == expected_task
     assert saved_errors == [error]
+
+
+@pytest.mark.asyncio
+async def test_worker_acknowledge(populate_tasks: List[Task], worker: Neo4jAsyncWorker):
+    # Given
+    created = populate_tasks[0]
+    store = Neo4jTaskStore(worker.driver, max_queue_size=10)
+    project = TEST_PROJECT
+    completed_at = datetime.now()
+
+    # When
+    async with worker.lock(created, project):
+        task = await store.get_task(task_id=created.id, project=TEST_PROJECT)
+        assert task.status is TaskStatus.RUNNING
+        await worker.acknowledge(created, project, completed_at=completed_at)
+
+    # Then
+    task = await store.get_task(task_id=created.id, project=TEST_PROJECT)
+    update = {
+        "progress": 100.0,
+        "status": TaskStatus.DONE,
+        "completed_at": completed_at,
+    }
+    expected_task = safe_copy(task, update=update).dict(by_alias=True)
+    assert task.completed_at is not None
+    task = task.dict(by_alias=True)
+    assert task == expected_task

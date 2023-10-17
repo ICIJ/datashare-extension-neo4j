@@ -27,9 +27,9 @@ from neo4j_app.core.neo4j.migrations import delete_all_migrations
 from neo4j_app.core.neo4j.projects import create_project_registry_db
 from neo4j_app.icij_worker import ICIJApp
 
+INTERNAL_SERVER_ERROR = "Internal Server Error"
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
 
-_INTERNAL_SERVER_ERROR = "Internal Server Error"
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 async def internal_exception_handler(request: Request, exc: Exception):
     # pylint: disable=unused-argument
-    title = _INTERNAL_SERVER_ERROR
+    title = INTERNAL_SERVER_ERROR
     detail = f"{type(exc).__name__}: {exc}"
     trace = "".join(traceback.format_exc())
     error = json_error(title=title, detail=detail, trace=trace)

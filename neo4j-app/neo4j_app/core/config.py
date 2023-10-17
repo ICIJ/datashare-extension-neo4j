@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import configparser
-import functools
 import importlib
 import logging
 import sys
@@ -72,10 +71,12 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_migration_timeout_s: float = 60 * 5
     neo4j_app_migration_throttle_s: float = 1
     neo4j_app_name: str = "neo4j app"
-    neo4j_app_n_workers: int = 1
+    neo4j_app_n_async_workers: int = 1
     neo4j_app_port: int = 8080
     neo4j_app_syslog_facility: Optional[str] = None
     neo4j_app_task_queue_size: int = 2
+    neo4j_app_task_queue_poll_interval_s: int = 1.0
+    neo4j_app_cancelled_task_refresh_interval_s: int = 2
     neo4j_app_uses_opensearch: bool = False
     neo4j_app_worker_type: WorkerType = WorkerType.NEO4J
     neo4j_concurrency: int = 2
@@ -138,13 +139,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         config_dict = _sanitize_values(config_dict)
         config = AppConfig.parse_obj(config_dict.items())
         return config
-
-    @classmethod
-    @functools.lru_cache
-    def get_global_config(cls) -> AppConfig:
-        if cls._global is None:
-            raise ValueError("Config was not set globally")
-        return cls._global
 
     @classmethod
     def set_config_globally(cls, value: AppConfig):
@@ -216,9 +210,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         except ImportError:
             pass
 
-        for handler in self._handlers:
-            handler.setLevel(self.neo4j_app_log_level)
-
         for logger in loggers:
             logger = logging.getLogger(logger)
             level = getattr(logging, self.neo4j_app_log_level)
@@ -226,10 +217,10 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
                 level = max(logging.INFO, level)
             logger.setLevel(level)
             logger.handlers = []
-            for handler in self._handlers:
+            for handler in self._handlers():
+                handler.setLevel(self.neo4j_app_log_level)
                 logger.addHandler(handler)
 
-    @functools.cached_property
     def _handlers(self) -> List[logging.Handler]:
         stream_handler = logging.StreamHandler(sys.stderr)
         stream_handler.setFormatter(logging.Formatter(STREAM_HANDLER_FMT, DATE_FMT))
@@ -242,7 +233,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             handlers.append(syslog_handler)
         return handlers
 
-    @functools.cached_property
+    @property
     def _neo4j_app_syslog_facility_int(self) -> int:
         try:
             return getattr(
@@ -265,6 +256,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         deps_path = self.neo4j_app_async_dependencies
         if deps_path is None:
             return []
+        deps_path = deps_path.split(".")
         module, app_name = deps_path[:-1], deps_path[-1]
         module = ".".join(module)
         module = importlib.import_module(module)

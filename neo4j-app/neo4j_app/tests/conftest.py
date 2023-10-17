@@ -5,11 +5,13 @@ import contextlib
 import os
 import random
 import traceback
+from datetime import datetime
 from pathlib import Path
 from time import monotonic, sleep
 from typing import (
     Any,
     AsyncGenerator,
+    Awaitable,
     Callable,
     Dict,
     Generator,
@@ -27,6 +29,10 @@ from neo4j import AsyncGraphDatabase
 from starlette.testclient import TestClient
 
 import neo4j_app
+from neo4j_app.app.dependencies import (
+    config_enter,
+    loggers_enter,
+)
 from neo4j_app.app.utils import create_app
 from neo4j_app.core import AppConfig
 from neo4j_app.core.config import WorkerType
@@ -82,6 +88,24 @@ def true_after(
             return False
 
 
+async def async_true_after(
+    state_statement: Callable[[], Awaitable[bool]],
+    *,
+    after_s: float,
+    sleep_s: float = 0.01,
+) -> bool:
+    start = monotonic()
+    while "waiting for the statement to be True":
+        try:
+            assert await state_statement()
+            return True
+        except AssertionError:
+            if monotonic() - start < after_s:
+                await asyncio.sleep(sleep_s)
+                continue
+            return False
+
+
 class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
     async def search(self, **kwargs) -> Dict[str, Any]:
         # pylint: disable=arguments-differ
@@ -128,9 +152,15 @@ def test_config() -> AppConfig:
         neo4j_app_worker_type=WorkerType.MOCK,
         test=True,
         neo4j_app_async_module=f"{__name__}.APP",
-        neo4j_app_async_dependencies=None,
+        neo4j_app_async_dependencies=f"{__name__}.TEST_WORKER_DEPS",
     )
     return config
+
+
+TEST_WORKER_DEPS = [
+    (config_enter, None),
+    (loggers_enter, None),
+]
 
 
 @pytest.fixture(scope="session")
@@ -596,6 +626,19 @@ def hello_world_sync(greeted: str) -> str:
     return greeting
 
 
+@APP.task
+async def sleep_for(
+    duration: float, s: float = 0.01, progress: Optional[PercentProgress] = None
+):
+    start = datetime.now()
+    elapsed = 0
+    while elapsed < duration:
+        elapsed = (datetime.now() - start).total_seconds()
+        await asyncio.sleep(s)
+        if progress is not None:
+            await progress(elapsed / duration * 100)
+
+
 @pytest.fixture(scope="session")
-def test_async_app() -> ICIJApp:
-    return APP
+def test_async_app(test_config: AppConfig) -> ICIJApp:
+    return test_config.to_async_app()
