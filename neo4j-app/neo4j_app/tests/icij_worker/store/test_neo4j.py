@@ -265,7 +265,7 @@ async def test_store_cancel(neo4j_app_driver: neo4j.AsyncDriver):
 
     # When
     task = await store.enqueue(task, project)
-    task = await store.cancel(task, project)
+    task = await store.cancel(task_id=task.id, project=project)
 
     # Then
     update = {"status": TaskStatus.CANCELLED}

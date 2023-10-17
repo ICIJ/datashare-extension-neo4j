@@ -103,6 +103,24 @@ def test_task_integration(test_client_type: str, request: FixtureRequest):
     assert result == "Hello everyone !"
 
 
+def test_cancel_task(test_client: TestClient):
+    # Given
+    inputs = {"greeted": "everyone"}
+    job = TaskJob(task_id=None, type="hello_world", inputs=inputs)
+
+    # When
+    create_url = f"/tasks?project={TEST_PROJECT}"
+    res = test_client.post(create_url, json=job.dict())
+    assert res.status_code == 201, res.json()
+    task_id = res.text
+
+    cancel_url = f"/tasks/{task_id}/cancel?project={TEST_PROJECT}"
+    res = test_client.post(cancel_url)
+    assert res.status_code == 200, res.json()
+    cancelled = Task.parse_obj(res.json())
+    assert cancelled.status is TaskStatus.CANCELLED
+
+
 @pytest.fixture(scope="function")
 def test_client_limited_queue(
     test_config: AppConfig, test_async_app: ICIJApp

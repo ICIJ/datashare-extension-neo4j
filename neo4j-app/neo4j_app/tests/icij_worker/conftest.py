@@ -129,16 +129,16 @@ class MockStore(TaskStore, DBMixin):
             self._write(db)
             return task
 
-    async def _cancel(self, task: Task, project: str) -> Task:
-        key = self._task_key(task_id=task.id, project=project)
-        task = await self.get_task(task_id=task.id, project=project)
+    async def _cancel(self, *, task_id: str, project: str) -> Task:
+        key = self._task_key(task_id=task_id, project=project)
+        task_id = await self.get_task(task_id=task_id, project=project)
         with self.db_lock:
             update = {"status": TaskStatus.CANCELLED}
-            task = safe_copy(task, update=update)
+            task_id = safe_copy(task_id, update=update)
             db = self._read()
-            db[self._task_collection][key] = task.dict()
+            db[self._task_collection][key] = task_id.dict()
             self._write(db)
-            return task
+            return task_id
 
     async def get_task(self, *, task_id: str, project: str) -> Task:
         key = self._task_key(task_id=task_id, project=project)

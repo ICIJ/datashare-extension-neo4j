@@ -17,19 +17,19 @@ class TaskStore(ABC):
         return task
 
     @final
-    async def cancel(self, task: Task, project: str) -> Task:
-        task = await self._cancel(task, project)
-        if task.status is not TaskStatus.CANCELLED:
-            msg = f"invalid status {task.status}, expected {TaskStatus.CANCELLED}"
+    async def cancel(self, *, task_id: str, project: str) -> Task:
+        task_id = await self._cancel(task_id=task_id, project=project)
+        if task_id.status is not TaskStatus.CANCELLED:
+            msg = f"invalid status {task_id.status}, expected {TaskStatus.CANCELLED}"
             raise ValueError(msg)
-        return task
+        return task_id
 
     @abstractmethod
     async def _enqueue(self, task: Task, project: str) -> Task:
         pass
 
     @abstractmethod
-    async def _cancel(self, task: Task, project: str) -> Task:
+    async def _cancel(self, *, task_id: str, project: str) -> Task:
         pass
 
     @abstractmethod

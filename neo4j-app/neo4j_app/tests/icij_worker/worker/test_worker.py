@@ -380,7 +380,7 @@ async def test_work_once_should_not_run_cancelled_task(mock_worker: MockWorker, 
 
     # When
     await store.enqueue(task, project)
-    await store.cancel(task, project)
+    await store.cancel(task_id=task.id, project=project)
     with pytest.raises(TaskCancelled):
         await worker.check_cancelled(task_id=task.id, project=project, refresh=True)
 
@@ -422,7 +422,7 @@ async def test_cancel_running_task(mock_worker: MockWorker):
 
     failure_msg = f"Failed to run task in less than {after_s}"
     assert await async_true_after(_assert_running, after_s=after_s), failure_msg
-    await store.cancel(task, project)
+    await store.cancel(task_id=task.id, project=project)
 
     async def _assert_cancelled() -> bool:
         saved = await store.get_task(task_id=task.id, project=project)
