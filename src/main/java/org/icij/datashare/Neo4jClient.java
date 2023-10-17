@@ -52,6 +52,7 @@ public class Neo4jClient {
     public Neo4jClient(int port) {
         this.port = port;
         this.httpClient = java.net.http.HttpClient.newHttpClient();
+        Unirest.config().reset();
         Unirest.config()
             .setObjectMapper(makeObjectMapper())
             .socketTimeout(HTTP_TIMEOUT)
