@@ -130,14 +130,17 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     @final
     @asynccontextmanager
     async def lock(self, task: Task, project: str):
-        await self._lock(task, project)
-        self.info('locked Task(id="%s")', task.id)
-        try:
-            event = TaskEvent(task_id=task.id, progress=0, status=TaskStatus.RUNNING)
-            await self.publish_event(event, project)
-            yield
-        finally:
-            await self._unlock(task, project)
+        with self._persist_error(task, project):
+            await self._lock(task, project)
+            self.info('Task(id="%s") locked', task.id)
+            try:
+                event = TaskEvent(
+                    task_id=task.id, progress=0, status=TaskStatus.RUNNING
+                )
+                await self.publish_event(event, project)
+                yield
+            finally:
+                await self._unlock(task, project)
 
     @abstractmethod
     @asynccontextmanager
@@ -223,13 +226,16 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
 
     @final
     @asynccontextmanager
-    async def persist_error(self, task: Task, project: str):
+    async def _persist_error(self, task: Task, project: str):
         try:
             yield
         except Exception as e:  # pylint: disable=broad-except
+            if isinstance(e, MaxRetriesExceeded):
+                self.error('Task(id="%s") exceeded max retries, exiting !', task.id)
+            else:
+                self.error('Task(id="%s") fatal error, exiting !', task.id)
             error = TaskError.from_exception(e)
             await self.save_error(error=error, task=task, project=project)
-            raise e
 
     @final
     def parse_task(
@@ -339,34 +345,13 @@ async def task_wrapper(worker: Worker):
                 return
 
             # Parse task to retrieve recoverable errors and max retries
-            try:
-                async with worker.persist_error(task, project):
-                    task_fn, recoverable_errors = worker.parse_task(task, project)
-                    task_inputs = add_missing_args(
-                        task_fn, task.inputs, config=worker.config
-                    )
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                worker.error(
-                    'Task(id="%s"), error while parsing task: %s',
-                    _format_error(e),
-                    task,
-                )
-                return
+            task_fn, recoverable_errors = worker.parse_task(task, project)
+            task_inputs = add_missing_args(task_fn, task.inputs, config=worker.config)
             # Retry task until success, fatal error or max retry exceeded
-            try:
-                async with worker.persist_error(task, project):
-                    await _retry_task(
-                        worker, task, task_fn, task_inputs, project, recoverable_errors
-                    )
-                    worker.info('Task(id="%s") successful !', task.id)
-                    return
-            except Exception as e:  # pylint: disable=broad-except
-                if isinstance(e, MaxRetriesExceeded):
-                    worker.error(
-                        'Task(id="%s") exceeded max retries, exiting !', task.id
-                    )
-                else:
-                    worker.error('Task(id="%s") fatal error, exiting !', task.id)
+            await _retry_task(
+                worker, task, task_fn, task_inputs, project, recoverable_errors
+            )
+            worker.info('Task(id="%s") successful !', task.id)
     except TaskAlreadyReserved:
         worker.info('Task(id="%s") already reserved', task.id)
 
