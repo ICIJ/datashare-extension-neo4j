@@ -3,6 +3,7 @@ package org.icij.datashare;
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.Objects.TaskStatus.DONE;
 import static org.icij.datashare.Objects.TaskType.FULL_IMPORT;
+import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
@@ -60,7 +61,9 @@ public class Neo4jClientTest {
             String body;
             String project = context.query().get("project");
             if (project != null && project.equals("myproject")) {
-                if (Objects.equals(context.request().content(), "{}")) {
+                IncrementalImportRequest req  = MAPPER.readValue(
+                    context.request().content(), IncrementalImportRequest.class);
+                if (req.query == null) {
                     body = "{\"imported\": 3,\"nodesCreated\": 3,\"relationshipsCreated\": 3}";
                 } else {
                     body = "{\"imported\": 3,\"nodesCreated\": 1,\"relationshipsCreated\": 1}";
@@ -226,7 +229,7 @@ public class Neo4jClientTest {
             assertThat(assertThrowsExactly(
                 Neo4jClient.Neo4jAppError.class,
                 () -> client.importDocuments("unknown", body)
-            ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid project unknown");
+            ).getMessage()).isEqualTo("Not Found\nDetail: Invalid project unknown");
         }
 
         @Test
@@ -316,7 +319,7 @@ public class Neo4jClientTest {
             assertThat(assertThrowsExactly(
                 Neo4jClient.Neo4jAppError.class,
                 () -> client.importNamedEntities("unknown", body)
-            ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid project unknown");
+            ).getMessage()).isEqualTo("Not Found\nDetail: Invalid project unknown");
         }
 
         @Test
@@ -385,7 +388,7 @@ public class Neo4jClientTest {
             assertThat(assertThrowsExactly(
                 Neo4jClient.Neo4jAppError.class,
                 () -> client.dumpGraph("unknown", body)
-            ).getMessage()).isEqualTo("Bad Request\nDetail: Invalid project unknown");
+            ).getMessage()).isEqualTo("Not Found\nDetail: Invalid project unknown");
         }
 
         @Test
