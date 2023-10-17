@@ -32,7 +32,7 @@ class ProcessWorkerMixin(Worker, ABC):
             handle_sigint = cast(Callable[[int], None], handle_sigint)
             signal.signal(signal.SIGINT, handle_sigint)
             handle_sigterm = functools.partial(
-                self._signal_handler, "SIGTERM", graceful=False
+                self._signal_handler, "SIGTERM", graceful=True
             )
             handle_sigterm = cast(Callable[[int], None], handle_sigterm)
             signal.signal(signal.SIGTERM, handle_sigterm)
