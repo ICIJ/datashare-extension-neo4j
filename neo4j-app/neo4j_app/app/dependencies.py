@@ -177,11 +177,11 @@ def worker_pool_enter(_: AppConfig):
 
 def worker_pool_exit(exc_type, exc_value, trace):
     # pylint: disable=unused-argument
-    pool = _lifespan_worker_pool()
+    pool = lifespan_worker_pool()
     pool.__exit__(exc_type, exc_value, trace)
 
 
-def _lifespan_worker_pool() -> multiprocessing.Pool:
+def lifespan_worker_pool() -> multiprocessing.Pool:
     if _WORKER_POOL is None:
         raise DependencyInjectionError("worker pool")
     return cast(multiprocessing.Pool, _WORKER_POOL)

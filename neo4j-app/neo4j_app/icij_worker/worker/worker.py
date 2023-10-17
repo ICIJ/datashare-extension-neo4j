@@ -33,7 +33,6 @@ from neo4j_app.icij_worker.exceptions import (
     TaskAlreadyReserved,
     TaskCancelled,
     UnregisteredTask,
-    WorkerCancelled,
 )
 from neo4j_app.icij_worker.task import (
     Task,
