@@ -22,46 +22,70 @@ async def test_worker_publish_event(
     populate_tasks: List[Task], publisher: Neo4jEventPublisher
 ):
     # Given
-    store = Neo4jTaskStore(publisher.driver)
+    store = Neo4jTaskStore(publisher.driver, max_queue_size=10)
     project = TEST_PROJECT
     task = populate_tasks[0]
-    assert task.status == TaskStatus.CREATED
+    assert task.status == TaskStatus.QUEUED
     assert task.progress is None
     assert task.retries == 0
     assert task.completed_at is None
     progress = 66.6
     status = TaskStatus.RETRY
     retries = 2
-    completed_at = datetime.now()
 
     event = TaskEvent(
-        task_id=task.id,
-        progress=progress,
-        retries=retries,
-        status=status,
-        completed_at=completed_at,
+        task_id=task.id, progress=progress, retries=retries, status=status
     )
 
     # When
     await publisher.publish_event(event=event, project=project)
-    saved_task = await store.get_task(project=project, task_id=task.id)
+    saved_task = await store.get_task(task_id=task.id, project=project)
 
     # Then
-    update = {
-        "status": status,
-        "progress": progress,
-        "retries": retries,
-        "completed_at": completed_at,
-    }
+    update = {"status": status, "progress": progress, "retries": retries}
     expected = safe_copy(task, update=update)
     assert saved_task == expected
+
+
+@pytest.mark.asyncio
+async def test_worker_publish_done_task_event_should_not_update_task(
+    publisher: Neo4jEventPublisher,
+):
+    # Given
+    project = TEST_PROJECT
+    query = """CREATE (task:_Task:DONE {
+        id: 'task-0', 
+        type: 'hello_world',
+        createdAt: $now,
+        completedAt: $now,
+        inputs: '{"greeted": "0"}'
+     }) 
+    RETURN task"""
+    async with publisher.driver.session() as sess:
+        res = await sess.run(query, now=datetime.now())
+        completed = await res.single()
+    completed = Task.from_neo4j(completed)
+    store = Neo4jTaskStore(publisher.driver, max_queue_size=10)
+    event = TaskEvent(
+        task_id=completed.id,
+        progress=0.99,
+        status=TaskStatus.RUNNING,
+        completed_at=datetime.now(),
+    )
+
+    # When
+    await publisher.publish_event(event=event, project=project)
+    saved_task = await store.get_task(task_id=completed.id, project=project)
+
+    # Then
+    assert saved_task == completed
 
 
 @pytest.mark.asyncio
 async def test_worker_publish_event_for_unknown_task(publisher: Neo4jEventPublisher):
     # This is useful when task is not reserved yet
     # Given
-    store = Neo4jTaskStore(publisher.driver)
+    store = Neo4jTaskStore(publisher.driver, max_queue_size=10)
     project = TEST_PROJECT
 
     task_id = "some-id"
@@ -76,7 +100,7 @@ async def test_worker_publish_event_for_unknown_task(publisher: Neo4jEventPublis
 
     # When
     await publisher.publish_event(event=event, project=project)
-    saved_task = await store.get_task(project=project, task_id=task_id)
+    saved_task = await store.get_task(task_id=task_id, project=project)
 
     # Then
     expected = Task(
@@ -90,7 +114,7 @@ async def test_worker_publish_event_should_use_status_resolution(
     populate_tasks: List[Task], publisher: Neo4jEventPublisher
 ):
     # Given
-    store = Neo4jTaskStore(publisher.driver)
+    store = Neo4jTaskStore(publisher.driver, max_queue_size=10)
     project = TEST_PROJECT
     task = populate_tasks[1]
     assert task.status is TaskStatus.RUNNING
@@ -99,7 +123,7 @@ async def test_worker_publish_event_should_use_status_resolution(
 
     # When
     await publisher.publish_event(event=event, project=project)
-    saved_task = await store.get_task(project=project, task_id=task.id)
+    saved_task = await store.get_task(task_id=task.id, project=project)
 
     # Then
     assert saved_task == task

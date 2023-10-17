@@ -1,10 +1,13 @@
 # # pylint: disable=redefined-outer-name
 from __future__ import annotations
 
+import asyncio
+import logging
 import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
+from unittest.mock import patch
 
 import pytest
 
@@ -16,26 +19,27 @@ from neo4j_app.icij_worker import (
     TaskResult,
     TaskStatus,
 )
+from neo4j_app.icij_worker.exceptions import TaskCancelled
 from neo4j_app.icij_worker.worker.worker import add_missing_args, task_wrapper
-from neo4j_app.tests.conftest import TEST_PROJECT
+from neo4j_app.tests.conftest import TEST_PROJECT, async_true_after
 from neo4j_app.tests.icij_worker.conftest import MockStore, MockWorker
 
 
 @pytest.fixture(scope="function")
 def mock_worker(test_async_app: ICIJApp, tmpdir: Path) -> MockWorker:
     db_path = Path(tmpdir) / "db.json"
-    fresh_db = MockWorker.fresh_db(db_path)
+    MockWorker.fresh_db(db_path)
     lock = threading.Lock()
-    worker = MockWorker(test_async_app, "test-worker", fresh_db, db_path, lock)
+    worker = MockWorker(test_async_app, "test-worker", db_path, lock)
     return worker
 
 
 @pytest.fixture(scope="function")
 def mock_failing_worker(test_failing_async_app: ICIJApp, tmpdir: Path) -> MockWorker:
     db_path = Path(tmpdir) / "db.json"
-    fresh_db = MockWorker.fresh_db(db_path)
+    MockWorker.fresh_db(db_path)
     lock = threading.Lock()
-    worker = MockWorker(test_failing_async_app, "test-worker", fresh_db, db_path, lock)
+    worker = MockWorker(test_failing_async_app, "test-worker", db_path, lock)
     return worker
 
 
@@ -46,7 +50,7 @@ _TASK_DB = dict()
 async def test_task_wrapper_run_asyncio_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
-    store = MockStore(worker.db_path, worker.lock)
+    store = MockStore(worker.db_path, worker.db_lock, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -58,12 +62,15 @@ async def test_task_wrapper_run_asyncio_task(mock_worker: MockWorker):
     )
 
     # When
-    await task_wrapper(task=task, project=project, worker=worker)
+    await store.enqueue(task, project)
+    await task_wrapper(worker)
     saved_task = await store.get_task(task_id=task.id, project=project)
-    saved_errors = await store.get_task_errors(project=project, task_id=task.id)
-    saved_result = await store.get_task_result(project=project, task_id=task.id)
+    saved_errors = await store.get_task_errors(task_id=task.id, project=project)
+    saved_result = await store.get_task_result(task_id=task.id, project=project)
 
     # Then
+    assert not saved_errors
+
     expected_task = Task(
         id="some-id",
         type="hello_world",
@@ -95,14 +102,12 @@ async def test_task_wrapper_run_asyncio_task(mock_worker: MockWorker):
     expected_result = TaskResult(task_id="some-id", result="Hello world !")
     assert saved_result == expected_result
 
-    assert not saved_errors
-
 
 @pytest.mark.asyncio
 async def test_task_wrapper_run_sync_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
-    store = MockStore(worker.db_path, worker.lock)
+    store = MockStore(worker.db_path, worker.db_lock, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -114,12 +119,15 @@ async def test_task_wrapper_run_sync_task(mock_worker: MockWorker):
     )
 
     # When
-    await task_wrapper(task=task, project=project, worker=worker)
+    await store.enqueue(task, project)
+    await task_wrapper(worker)
     saved_task = await store.get_task(task_id=task.id, project=project)
-    saved_result = await store.get_task_result(project=project, task_id=task.id)
-    saved_errors = await store.get_task_errors(project=project, task_id=task.id)
+    saved_result = await store.get_task_result(task_id=task.id, project=project)
+    saved_errors = await store.get_task_errors(task_id=task.id, project=project)
 
     # Then
+    assert not saved_errors
+
     expected_task = Task(
         id="some-id",
         type="hello_world_sync",
@@ -149,8 +157,6 @@ async def test_task_wrapper_run_sync_task(mock_worker: MockWorker):
     expected_result = TaskResult(task_id="some-id", result="Hello world !")
     assert saved_result == expected_result
 
-    assert not saved_errors
-
 
 @pytest.mark.asyncio
 async def test_task_wrapper_should_recover_from_recoverable_error(
@@ -158,7 +164,7 @@ async def test_task_wrapper_should_recover_from_recoverable_error(
 ):
     # Given
     worker = mock_failing_worker
-    store = MockStore(worker.db_path, worker.lock)
+    store = MockStore(worker.db_path, worker.db_lock, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -169,7 +175,8 @@ async def test_task_wrapper_should_recover_from_recoverable_error(
     )
 
     # When
-    await task_wrapper(task=task, project=project, worker=worker)
+    await store.enqueue(task, project)
+    await task_wrapper(worker)
     saved_task = await store.get_task(task_id=task.id, project=project)
     saved_result = await store.get_task_result(task_id=task.id, project=project)
     saved_errors = await store.get_task_errors(task_id=task.id, project=project)
@@ -236,7 +243,7 @@ async def test_task_wrapper_should_handle_non_recoverable_error(
 ):
     # Given
     worker = mock_failing_worker
-    store = MockStore(worker.db_path, worker.lock)
+    store = MockStore(worker.db_path, worker.db_lock, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -247,9 +254,10 @@ async def test_task_wrapper_should_handle_non_recoverable_error(
     )
 
     # When
-    await task_wrapper(task=task, project=project, worker=worker)
-    saved_task = await store.get_task(task_id="some-id", project=project)
+    await store.enqueue(task, project)
+    await task_wrapper(worker)
     saved_errors = await store.get_task_errors(task_id="some-id", project=project)
+    saved_task = await store.get_task(task_id="some-id", project=project)
 
     # Then
     expected_task = Task(
@@ -296,7 +304,7 @@ async def test_task_wrapper_should_handle_non_recoverable_error(
 async def test_task_wrapper_should_handle_unregistered_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
-    store = MockStore(worker.db_path, worker.lock)
+    store = MockStore(worker.db_path, worker.db_lock, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -307,7 +315,8 @@ async def test_task_wrapper_should_handle_unregistered_task(mock_worker: MockWor
     )
 
     # When
-    await task_wrapper(task=task, project=project, worker=worker)
+    await store.enqueue(task, project)
+    await task_wrapper(worker)
     saved_task = await store.get_task(task_id="some-id", project=project)
     saved_errors = await store.get_task_errors(task_id="some-id", project=project)
 
@@ -352,6 +361,75 @@ async def test_task_wrapper_should_handle_unregistered_task(mock_worker: MockWor
     expected_error_event = expected_error_event.dict(by_alias=True)
     expected_error_event.pop("error")
     assert error_event == expected_error_event
+
+
+@pytest.mark.asyncio
+async def test_work_once_should_not_run_cancelled_task(mock_worker: MockWorker, caplog):
+    # Given
+    worker = mock_worker
+    store = MockStore(worker.db_path, worker.db_lock, max_queue_size=10)
+    caplog.set_level(logging.INFO)
+    project = TEST_PROJECT
+    created_at = datetime.now()
+    task = Task(
+        id="some-id",
+        type="fatal_error_task",
+        created_at=created_at,
+        status=TaskStatus.CREATED,
+    )
+
+    # When
+    await store.enqueue(task, project)
+    await store.cancel(task, project)
+    with pytest.raises(TaskCancelled):
+        await worker.check_cancelled(task_id=task.id, project=project, refresh=True)
+
+    # Now we mock the fact the task is still received but cancelled right after
+    with patch.object(worker, "receive", return_value=(task, project)):
+        await task_wrapper(worker)
+    expected = f'Task(id="{task.id}") already cancelled skipping it !'
+    assert any(expected in m for m in caplog.messages)
+
+
+@pytest.mark.asyncio
+async def test_cancel_running_task(mock_worker: MockWorker):
+    # Given
+    worker = mock_worker
+    store = MockStore(worker.db_path, worker.db_lock, max_queue_size=10)
+    project = TEST_PROJECT
+    created_at = datetime.now()
+    duration = 10
+    task = Task(
+        id="some-id",
+        type="sleep_for",
+        created_at=created_at,
+        status=TaskStatus.CREATED,
+        inputs={"duration": duration},
+    )
+
+    # When
+    asyncio_tasks = set()
+    t = asyncio.create_task(task_wrapper(worker))
+    t.add_done_callback(asyncio_tasks.discard)
+    asyncio_tasks.add(t)
+
+    await store.enqueue(task, project)
+    after_s = 2.0
+
+    async def _assert_running() -> bool:
+        saved = await store.get_task(task_id=task.id, project=project)
+        return saved.status is TaskStatus.RUNNING
+
+    failure_msg = f"Failed to run task in less than {after_s}"
+    assert await async_true_after(_assert_running, after_s=after_s), failure_msg
+    await store.cancel(task, project)
+
+    async def _assert_cancelled() -> bool:
+        saved = await store.get_task(task_id=task.id, project=project)
+        return saved.status is TaskStatus.CANCELLED
+
+    failure_msg = f"Failed to cancel task in less than {after_s}"
+    assert await async_true_after(_assert_cancelled, after_s=after_s), failure_msg
 
 
 @pytest.mark.parametrize(

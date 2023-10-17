@@ -1,9 +1,11 @@
 import inspect
+import logging
 import multiprocessing
 import os
 import sys
 import tempfile
-from contextlib import asynccontextmanager
+import traceback
+from contextlib import asynccontextmanager, contextmanager
 from multiprocessing.managers import SyncManager
 from pathlib import Path
 from typing import AsyncGenerator, Optional, cast
@@ -13,6 +15,9 @@ from fastapi import FastAPI
 
 from neo4j_app.core import AppConfig
 from neo4j_app.core.elasticsearch import ESClientABC
+from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
+from neo4j_app.core.neo4j.migrations import delete_all_migrations
+from neo4j_app.core.neo4j.projects import create_project_registry_db
 from neo4j_app.icij_worker import (
     EventPublisher,
     Neo4jEventPublisher,
@@ -20,10 +25,11 @@ from neo4j_app.icij_worker import (
 from neo4j_app.icij_worker.task_store import TaskStore
 from neo4j_app.icij_worker.task_store.neo4j import Neo4jTaskStore
 
+logger = logging.getLogger(__name__)
+
 _CONFIG: Optional[AppConfig] = None
 _ES_CLIENT: Optional[ESClientABC] = None
 _EVENT_PUBLISHER: Optional[EventPublisher] = None
-_IMPORT_QUEUE: Optional[multiprocessing.Queue] = None
 _PROCESS_MANAGER: Optional[SyncManager] = None
 _NEO4J_DRIVER: Optional[neo4j.AsyncDriver] = None
 _TASK_STORE: Optional[TaskStore] = None
@@ -43,6 +49,12 @@ def config_enter(config: AppConfig):
     _CONFIG = config
 
 
+def loggers_enter(_: AppConfig):
+    config = lifespan_config()
+    config.setup_loggers()
+    logger.info("Loggers ready to log 💬")
+
+
 def lifespan_config() -> AppConfig:
     if _CONFIG is None:
         raise DependencyInjectionError("config")
@@ -50,13 +62,20 @@ def lifespan_config() -> AppConfig:
 
 
 async def neo4j_driver_enter(_: AppConfig):
+    from neo4j_app.core.neo4j.projects import registry_db_session
+
     global _NEO4J_DRIVER
     _NEO4J_DRIVER = lifespan_config().to_neo4j_driver()
     await _NEO4J_DRIVER.__aenter__()  # pylint: disable=unnecessary-dunder-call
 
+    logger.debug("pinging neo4j...")
+    async with registry_db_session(_NEO4J_DRIVER) as sess:
+        await sess.run("CALL db.ping()")
+    logger.debug("neo4j driver is ready")
 
-async def neo4j_driver_exit(exc_type, exc_value, traceback):
-    await _NEO4J_DRIVER.__aexit__(exc_type, exc_value, traceback)
+
+async def neo4j_driver_exit(exc_type, exc_value, trace):
+    await _NEO4J_DRIVER.__aexit__(exc_type, exc_value, trace)
 
 
 def lifespan_neo4j_driver() -> neo4j.AsyncDriver:
@@ -71,8 +90,8 @@ async def es_client_enter(_: AppConfig):
     await _ES_CLIENT.__aenter__()  # pylint: disable=unnecessary-dunder-call
 
 
-async def es_client_exit(exc_type, exc_value, traceback):
-    await _ES_CLIENT.__aexit__(exc_type, exc_value, traceback)
+async def es_client_exit(exc_type, exc_value, trace):
+    await _ES_CLIENT.__aexit__(exc_type, exc_value, trace)
 
 
 def lifespan_es_client() -> ESClientABC:
@@ -81,7 +100,7 @@ def lifespan_es_client() -> ESClientABC:
     return cast(ESClientABC, _ES_CLIENT)
 
 
-def _test_db_path_enter(_: AppConfig):
+def test_db_path_enter(_: AppConfig):
     config = lifespan_config()
     if config.test:
         # pylint: disable=consider-using-with
@@ -94,9 +113,9 @@ def _test_db_path_enter(_: AppConfig):
         _TEST_DB_FILE.__enter__()  # pylint: disable=unnecessary-dunder-call
 
 
-def _test_db_path_exit(exc_type, exc_value, traceback):
+def test_db_path_exit(exc_type, exc_value, trace):
     if _TEST_DB_FILE is not None:
-        _TEST_DB_FILE.__exit__(exc_type, exc_value, traceback)
+        _TEST_DB_FILE.__exit__(exc_type, exc_value, trace)
 
 
 def _lifespan_test_db_path() -> Path:
@@ -105,16 +124,16 @@ def _lifespan_test_db_path() -> Path:
     return Path(_TEST_DB_FILE.name)
 
 
-def _test_process_manager_enter(_: AppConfig):
+def test_process_manager_enter(_: AppConfig):
     global _PROCESS_MANAGER
     _PROCESS_MANAGER = multiprocessing.Manager()
 
 
-def _test_process_manager_exit(exc_type, exc_value, traceback):
-    _PROCESS_MANAGER.__exit__(exc_type, exc_value, traceback)
+def test_process_manager_exit(exc_type, exc_value, trace):
+    _PROCESS_MANAGER.__exit__(exc_type, exc_value, trace)
 
 
-def _lifespan_test_process_manager() -> SyncManager:
+def lifespan_test_process_manager() -> SyncManager:
     if _PROCESS_MANAGER is None:
         raise DependencyInjectionError("process manager")
     return _PROCESS_MANAGER
@@ -124,7 +143,7 @@ def _test_lock_enter(_: AppConfig):
     config = lifespan_config()
     if config.test:
         global _TEST_LOCK
-        _TEST_LOCK = _lifespan_test_process_manager().Lock()
+        _TEST_LOCK = lifespan_test_process_manager().Lock()
 
 
 def _lifespan_test_lock() -> multiprocessing.Lock:
@@ -133,17 +152,35 @@ def _lifespan_test_lock() -> multiprocessing.Lock:
     return cast(multiprocessing.Lock, _TEST_LOCK)
 
 
-def _worker_pool_enter(_: AppConfig):
+def worker_pool_enter(_: AppConfig):
     # pylint: disable=consider-using-with
     config = lifespan_config()
     global _WORKER_POOL
-    _WORKER_POOL = multiprocessing.Pool(processes=config.neo4j_app_n_workers)
+    _WORKER_POOL = multiprocessing.Pool(processes=config.neo4j_app_n_async_workers)
+    _WORKER_POOL.__enter__()  # pylint: disable=unnecessary-dunder-call
+    process_id = os.getpid()
+    config = lifespan_config()
+    n_workers = min(config.neo4j_app_n_async_workers, config.neo4j_app_task_queue_size)
+    worker_ids = [f"worker-{process_id}-{i}" for i in range(n_workers)]
+
+    kwargs = dict()
+    worker_cls = config.to_worker_cls()
+    if worker_cls.__name__ == "MockWorker":
+        kwargs = {"db_path": _lifespan_test_db_path(), "lock": _lifespan_test_lock()}
+
+    kwargs["config"] = config
+    for w_id in worker_ids:
+        kwargs.update({"worker_id": w_id})
+        logger.info("starting worker %s", w_id)
+        _WORKER_POOL.apply_async(worker_cls.work_forever_from_config, kwds=kwargs)
+
+    logger.info("worker pool ready !")
 
 
-def _worker_pool_exit(exc_type, exc_value, traceback):
+def worker_pool_exit(exc_type, exc_value, trace):
     # pylint: disable=unused-argument
     pool = _lifespan_worker_pool()
-    pool.terminate()
+    pool.__exit__(exc_type, exc_value, trace)
 
 
 def _lifespan_worker_pool() -> multiprocessing.Pool:
@@ -152,42 +189,21 @@ def _lifespan_worker_pool() -> multiprocessing.Pool:
     return cast(multiprocessing.Pool, _WORKER_POOL)
 
 
-async def import_queue_enter(_: AppConfig):
-    global _IMPORT_QUEUE
-    process_id = os.getpid()
-    config = lifespan_config()
-    n_workers = min(config.neo4j_app_n_workers, config.neo4j_app_task_queue_size)
-    worker_ids = [f"worker-{process_id}-{i}" for i in range(n_workers)]
-    process_manager = _lifespan_test_process_manager()
-    _IMPORT_QUEUE = process_manager.Queue(maxsize=config.neo4j_app_task_queue_size)
-    kwargs = dict()
-    worker_cls = config.to_worker_cls()
-    if worker_cls.__name__ == "MockWorker":
-        kwargs = {"db_path": _lifespan_test_db_path(), "lock": _lifespan_test_lock()}
-
-    kwargs.update({"config": config, "queue": _IMPORT_QUEUE})
-
-    pool = _lifespan_worker_pool()
-    for w_id in worker_ids:
-        kwargs.update({"worker_id": w_id})
-        pool.apply_async(worker_cls.work_forever_from_config, kwds=kwargs)
-
-
-def lifespan_import_queue() -> multiprocessing.Queue:
-    if _IMPORT_QUEUE is None:
-        raise DependencyInjectionError("import queue")
-    return cast(multiprocessing.Queue, _IMPORT_QUEUE)
-
-
 def task_store_enter(_: AppConfig):
     global _TASK_STORE
     config = lifespan_config()
     if config.test:
         from neo4j_app.tests.icij_worker.conftest import MockStore
 
-        _TASK_STORE = MockStore(_lifespan_test_db_path(), _lifespan_test_lock())
+        _TASK_STORE = MockStore(
+            _lifespan_test_db_path(),
+            _lifespan_test_lock(),
+            max_queue_size=config.neo4j_app_task_queue_size,
+        )
     else:
-        _TASK_STORE = Neo4jTaskStore(lifespan_neo4j_driver())
+        _TASK_STORE = Neo4jTaskStore(
+            lifespan_neo4j_driver(), max_queue_size=config.neo4j_app_task_queue_size
+        )
 
 
 def lifespan_task_store() -> TaskStore:
@@ -196,7 +212,7 @@ def lifespan_task_store() -> TaskStore:
     return cast(TaskStore, _TASK_STORE)
 
 
-def event_publisher_enter(_: AppConfig) -> EventPublisher:
+def event_publisher_enter(_: AppConfig):
     global _EVENT_PUBLISHER
     config = lifespan_config()
     if config.test:
@@ -209,6 +225,25 @@ def event_publisher_enter(_: AppConfig) -> EventPublisher:
         _EVENT_PUBLISHER = Neo4jEventPublisher(lifespan_neo4j_driver())
 
 
+async def create_project_registry_db_enter(_: AppConfig):
+    driver = lifespan_neo4j_driver()
+    await create_project_registry_db(driver)
+
+
+async def migrate_app_db_enter(config: AppConfig):
+    logger.info("Running schema migrations...")
+    driver = lifespan_neo4j_driver()
+    if config.force_migrations:
+        # TODO: improve this as is could lead to race conditions...
+        await delete_all_migrations(driver)
+    await migrate_db_schemas(
+        driver,
+        registry=MIGRATIONS,
+        timeout_s=config.neo4j_app_migration_timeout_s,
+        throttle_s=config.neo4j_app_migration_throttle_s,
+    )
+
+
 def lifespan_event_publisher() -> EventPublisher:
     if _EVENT_PUBLISHER is None:
         raise DependencyInjectionError("event publisher")
@@ -217,16 +252,33 @@ def lifespan_event_publisher() -> EventPublisher:
 
 FASTAPI_LIFESPAN_DEPS = [
     (config_enter, None),
+    (loggers_enter, None),
     (neo4j_driver_enter, neo4j_driver_exit),
     (es_client_enter, es_client_exit),
-    (_test_process_manager_enter, _test_process_manager_exit),
-    (_test_db_path_enter, _test_db_path_exit),
+    (test_process_manager_enter, test_process_manager_exit),
+    (test_db_path_enter, test_db_path_exit),
     (_test_lock_enter, None),
     (task_store_enter, None),
     (event_publisher_enter, None),
-    (_worker_pool_enter, _worker_pool_exit),
-    (import_queue_enter, None),
+    (worker_pool_enter, worker_pool_exit),
+    (create_project_registry_db_enter, None),
+    (migrate_app_db_enter, None),
 ]
+
+
+@contextmanager
+def _log_and_reraise():
+    try:
+        yield
+    except Exception as exc:
+        from neo4j_app.app.utils import INTERNAL_SERVER_ERROR
+
+        title = INTERNAL_SERVER_ERROR
+        detail = f"{type(exc).__name__}: {exc}"
+        trace = "".join(traceback.format_exc())
+        logger.error("%s\nDetail: %s\nTrace: %s", title, detail, trace)
+
+        raise exc
 
 
 @asynccontextmanager
@@ -238,27 +290,34 @@ async def run_app_deps(app: FastAPI, dependencies) -> AsyncGenerator[None, None]
 @asynccontextmanager
 async def run_deps(config: AppConfig, dependencies) -> AsyncGenerator[None, None]:
     to_close = []
+    original_ex = None
     try:
-        for enter_fn, exit_fn in dependencies:
-            if enter_fn is not None:
-                if inspect.iscoroutinefunction(enter_fn):
-                    await enter_fn(config)
-                else:
-                    enter_fn(config)
-            to_close.append(exit_fn)
+        with _log_and_reraise():
+            for enter_fn, exit_fn in dependencies:
+                if enter_fn is not None:
+                    if inspect.iscoroutinefunction(enter_fn):
+                        await enter_fn(config)
+                    else:
+                        enter_fn(config)
+                to_close.append(exit_fn)
         yield
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        original_ex = e
     finally:
-        to_raise = []
-        for exit_fn in to_close[::-1]:
-            if exit_fn is None:
-                continue
-            try:
-                exc_info = sys.exc_info()
-                if inspect.iscoroutinefunction(exit_fn):
-                    await exit_fn(*exc_info)
-                else:
-                    exit_fn(*exc_info)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                to_raise.append(e)
-        if to_raise:
-            raise RuntimeError(to_raise)
+        with _log_and_reraise():
+            to_raise = []
+            if original_ex is not None:
+                to_raise.append(original_ex)
+            for exit_fn in to_close[::-1]:
+                if exit_fn is None:
+                    continue
+                try:
+                    exc_info = sys.exc_info()
+                    if inspect.iscoroutinefunction(exit_fn):
+                        await exit_fn(*exc_info)
+                    else:
+                        exit_fn(*exc_info)
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    to_raise.append(e)
+            if to_raise:
+                raise RuntimeError(to_raise)

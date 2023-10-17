@@ -234,7 +234,7 @@ async def migrate_project_db_schema(
     timeout_s: float,
     throttle_s: float,
 ):
-    logger.info("Migrating project project %s", project)
+    logger.info("Migrating project %s", project)
     start = time.monotonic()
     if not registry:
         return

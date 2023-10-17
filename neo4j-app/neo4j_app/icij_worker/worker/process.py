@@ -2,22 +2,12 @@ import functools
 import signal
 import threading
 from abc import ABC
-from multiprocessing import Queue
-from typing import Callable, Tuple, cast
+from typing import Callable, cast
 
-from neo4j_app.icij_worker import ICIJApp, Task
 from neo4j_app.icij_worker.worker.worker import Worker
 
 
 class ProcessWorkerMixin(Worker, ABC):
-    def __init__(self, app: ICIJApp, worker_id: str, queue: Queue):
-        super().__init__(app, worker_id)
-        self._queue = queue
-
-    async def receive(self) -> Tuple[Task, str]:
-        task, project = self._queue.get(block=True, timeout=None)
-        return task, project
-
     async def __aenter__(self):
         await super().__aenter__()
         self._setup_signal_handlers()
