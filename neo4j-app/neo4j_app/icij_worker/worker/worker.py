@@ -130,7 +130,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     @final
     @asynccontextmanager
     async def lock(self, task: Task, project: str):
-        with self._persist_error(task, project):
+        async with self._persist_error(task, project):
             await self._lock(task, project)
             self.info('Task(id="%s") locked', task.id)
             try:
