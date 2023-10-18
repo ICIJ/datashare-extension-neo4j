@@ -38,6 +38,7 @@ redisAddress=redis\://redis\:6379
 sessionTtlSeconds=43200
 neo4jAppUsesOpensearch=false
 neo4jConcurrency=4
+neo4jConnectionTimeout=1.0
 neo4jAppMaxRecordsInMemory=1000000
 neo4jAppLogLevel=DEBUG
 neo4jImportBatchSize=100000

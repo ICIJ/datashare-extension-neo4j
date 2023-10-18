@@ -1,6 +1,7 @@
 package org.icij.datashare;
 
 import static java.lang.Math.min;
+import static java.util.UUID.randomUUID;
 import static org.icij.datashare.Neo4jUtils.DOC_NODE;
 import static org.icij.datashare.Neo4jUtils.DOC_PATH;
 
@@ -130,7 +131,6 @@ public class Objects {
             this.namedEntities = Optional.ofNullable(namedEntities).orElse(Map.of());
         }
     }
-
 
     protected static class IncrementalImportResponse {
         protected final long imported;
@@ -332,6 +332,11 @@ public class Objects {
         private String getType() {
             return this.toString().toLowerCase();
         }
+
+        protected String generateTaskId() {
+            return this.name().toLowerCase() + randomUUID();
+        }
+
     }
 
     protected enum TaskStatus {
@@ -400,6 +405,18 @@ public class Objects {
             this.title = java.util.Objects.requireNonNull(title);
             this.detail = detail;
             this.occurredAt = java.util.Objects.requireNonNull(occurredAt);
+        }
+    }
+
+    protected static class TaskSearch {
+        protected final TaskType type;
+        protected final List<TaskStatus> status;
+
+        @JsonCreator
+        TaskSearch(@JsonProperty("type") TaskType type,
+                   @JsonProperty("status") List<TaskStatus> status) {
+            this.type = type;
+            this.status = status;
         }
     }
 

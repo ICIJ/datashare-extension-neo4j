@@ -11,6 +11,7 @@ import static org.icij.datashare.Objects.Neo4jCSVResponse;
 import static org.icij.datashare.Objects.Task;
 import static org.icij.datashare.Objects.TaskError;
 import static org.icij.datashare.Objects.TaskJob;
+import static org.icij.datashare.Objects.TaskSearch;
 import static org.icij.datashare.Objects.TaskType;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
@@ -23,7 +24,10 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
+import java.time.Instant;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import kong.unirest.GenericType;
 import kong.unirest.HttpResponse;
 import kong.unirest.ObjectMapper;
@@ -85,18 +89,18 @@ public class Neo4jClient {
             })
         ).getBody();
     }
-
+    
     protected GraphNodesCount graphNodesCount(String project) {
         String url = buildNeo4jUrl("/graphs/nodes/count?project=" + project);
         logger.debug("Counting graph nodes");
-        return handleUnirestError(
-            Unirest.get(url).asObject(GraphNodesCount.class)
-        ).getBody();
+        return handleUnirestError(Unirest.get(url).asObject(GraphNodesCount.class)).getBody();
     }
 
-    protected String fullImport(String project) {
+    protected String fullImport(String project, boolean force) {
         String url = buildNeo4jUrl("/tasks?project=" + project);
-        TaskJob<?> body = new TaskJob<>(TaskType.FULL_IMPORT, null, null, null);
+        TaskType taskType = TaskType.FULL_IMPORT;
+        String taskId = taskType.generateTaskId();
+        TaskJob<?> body = new TaskJob<>(taskType, taskId, null, Date.from(Instant.now()));
         logger.debug("Starting full import for project: {}", project);
         return handleUnirestError(
             Unirest.post(url)
@@ -218,6 +222,18 @@ public class Neo4jClient {
             Unirest.get(url)
                 .header("Content-Type", "application/json")
                 .asObject(TaskError[].class)
+        ).getBody();
+    }
+
+    protected List<Task> taskSearch(String project, TaskSearch search) {
+        String url = buildNeo4jUrl("/tasks/search?project=" + project);
+        logger.debug("Searching tasks..");
+        return handleUnirestError(
+            Unirest.post(url)
+                .body(search)
+                .header("Content-Type", "application/json")
+                .asObject(new GenericType<List<Task>>() {
+                })
         ).getBody();
     }
 
