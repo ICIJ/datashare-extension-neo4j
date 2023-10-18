@@ -1,13 +1,12 @@
 package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
+import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.Objects.TaskStatus.DONE;
 import static org.icij.datashare.Objects.TaskType.FULL_IMPORT;
-import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +18,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TimeZone;
 import net.codestory.http.Configuration;
 import net.codestory.http.Context;
@@ -61,7 +59,7 @@ public class Neo4jClientTest {
             String body;
             String project = context.query().get("project");
             if (project != null && project.equals("myproject")) {
-                IncrementalImportRequest req  = MAPPER.readValue(
+                IncrementalImportRequest req = MAPPER.readValue(
                     context.request().content(), IncrementalImportRequest.class);
                 if (req.query == null) {
                     body = "{\"imported\": 3,\"nodesCreated\": 3,\"relationshipsCreated\": 3}";
@@ -461,8 +459,7 @@ public class Neo4jClientTest {
                 routes -> routes.get("/tasks/:taskId/result", this::mockGetResult)
             );
             // When
-            List<Map<String, String>> result = client.taskResult(
-                "taskId", "myproject", List.class);
+            List<?> result = client.taskResult("taskId", "myproject", List.class);
 
             // Then
             assertThat(result.size()).isEqualTo(1);
@@ -470,7 +467,7 @@ public class Neo4jClientTest {
         }
 
         @Test
-        public void test_get_task_error() throws ParseException, JsonProcessingException {
+        public void test_get_task_error() throws ParseException {
             // Given
             neo4jApp.configure(
                 routes -> routes.get("/tasks/:taskId/errors", this::mockGetTaskErrors)
