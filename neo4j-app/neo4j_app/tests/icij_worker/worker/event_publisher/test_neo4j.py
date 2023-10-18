@@ -42,7 +42,8 @@ async def test_worker_publish_event(
     saved_task = await store.get_task(task_id=task.id, project=project)
 
     # Then
-    update = {"status": status, "progress": progress, "retries": retries}
+    # Status is not updated by event
+    update = {"progress": progress, "retries": retries}
     expected = safe_copy(task, update=update)
     assert saved_task == expected
 

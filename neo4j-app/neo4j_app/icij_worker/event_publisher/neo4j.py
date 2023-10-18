@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Optional
 
 import neo4j
+from neo4j.exceptions import ResultNotSingleError
 
 from neo4j_app.constants import (
     TASK_ERROR_NODE,
@@ -66,36 +67,38 @@ ON CREATE SET task += $createProps"""
         else resolved
     )
     if resolved:
-        update_task = f"""MATCH (task:{TASK_NODE} {{{TASK_ID}: $taskId }})
-SET task += $updateProps"""
-        resolved_status = resolved.pop("status", None)
-        labels = [TASK_NODE]
-        if resolved_status:
-            labels.append(resolved_status.value)
-            update_task += (
-                "\nWITH task CALL apoc.create.setLabels(task, $labels) YIELD node as n"
-            )
-        update_task += "\nRETURN count(*) as numTasks"
         resolved.pop("taskId")
+        # Status can't be updated by event, only by ack, nack, enqueue and so on
+        resolved.pop("status", None)
+        update_task = f"""MATCH (task:{TASK_NODE} {{{TASK_ID}: $taskId }})
+SET task += $updateProps
+RETURN count(*) as numTasks"""
+        labels = [TASK_NODE]
         res = await tx.run(
             update_task, taskId=task_id, updateProps=resolved, labels=labels
         )
-        num_tasks = await res.single()
-        num_tasks = num_tasks["numTasks"]
-        if not num_tasks:
-            raise UnknownTask(task_id)
+        try:
+            await res.single(strict=True)
+        except ResultNotSingleError as e:
+            raise UnknownTask(task_id) from e
     if error is not None:
-        create_error = f"""MATCH (t:{TASK_NODE} {{{TASK_ID}: $taskId }})
-WITH t CALL apoc.create.setLabels(t, $labels) YIELD node AS task
+        create_error = f"""MATCH (task:{TASK_NODE} {{{TASK_ID}: $taskId }})
+WITH task
 MERGE (error:{TASK_ERROR_NODE} {{id: $errorId}})
 ON CREATE SET error = $errorProps
-MERGE (error)-[:{TASK_ERROR_OCCURRED_TYPE}]->(task)"""
+MERGE (error)-[:{TASK_ERROR_OCCURRED_TYPE}]->(task)
+RETURN task, error
+"""
         error_id = error.pop("id")
         labels = [TASK_NODE, TaskStatus[event["status"]].value]
-        await tx.run(
+        res = await tx.run(
             create_error,
             taskId=task_id,
             errorId=error_id,
             errorProps=error,
             labels=labels,
         )
+        try:
+            await res.single(strict=True)
+        except ResultNotSingleError as e:
+            raise UnknownTask(task_id) from e

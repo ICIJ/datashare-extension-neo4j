@@ -18,6 +18,7 @@ from neo4j_app.constants import (
     TASK_LOCK_TASK_ID,
     TASK_LOCK_WORKER_ID,
     TASK_NODE,
+    TASK_PROGRESS,
     TASK_RESULT_NODE,
     TASK_RESULT_RESULT,
 )
@@ -61,24 +62,28 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
     def logged_named(self) -> str:
         return super().logged_named
 
-    async def _receive(self) -> Tuple[Task, str]:
+    async def _consume(self) -> Tuple[Task, str]:
         projects = await retrieve_projects(self._driver)
         while "waiting for some task to be available for some project":
             for p in projects:
                 async with self._project_session(p.name) as sess:
-                    received = await sess.execute_read(_receive_task_tx)
+                    received = await sess.execute_write(
+                        _consume_task_tx, worker_id=self.id
+                    )
                     if received is not None:
                         return received, p.name
             await asyncio.sleep(self._app.config.neo4j_app_task_queue_poll_interval_s)
 
-    async def _lock(self, task: Task, project: str):
+    async def _negatively_acknowledge(
+        self, task: Task, project: str, *, requeue: bool
+    ) -> Task:
         async with self._project_session(project) as sess:
-            await sess.execute_write(_lock_task_tx, task_id=task.id, worker_id=self.id)
-
-    async def _unlock(self, task: Task, project: str):
-        async with self._project_session(project) as sess:
-            await sess.execute_write(
-                _unlock_task_tx, task_id=task.id, worker_id=self.id
+            if requeue:
+                return await sess.execute_write(
+                    _nack_and_requeue_task_tx, task_id=task.id, worker_id=self.id
+                )
+            return await sess.execute_write(
+                _nack_task_tx, task_id=task.id, worker_id=self.id
             )
 
     async def _save_result(self, result: TaskResult, project: str):
@@ -103,7 +108,7 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
                 error_props=error.dict(by_alias=True),
             )
 
-    async def acknowledge(self, task: Task, project: str, completed_at: datetime):
+    async def _acknowledge(self, task: Task, project: str, completed_at: datetime):
         async with self._project_session(project) as sess:
             await sess.execute_write(
                 _acknowledge_task_tx,
@@ -127,50 +132,46 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
     def _logger(self) -> logging.Logger:
         return self._logger_
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def _aexit__(self, exc_type, exc_val, exc_tb):
         if self._inherited_driver:
             await self._driver.__aexit__(exc_type, exc_val, exc_tb)
 
 
-async def _receive_task_tx(tx: neo4j.AsyncTransaction) -> Optional[Task]:
-    query = f"""MATCH (task:{TASK_NODE}:`{TaskStatus.QUEUED.value}`)
-RETURN task
-ORDER BY task.createdAt ASC 
-LIMIT 1"""
-    res = await tx.run(query)
+async def _consume_task_tx(
+    tx: neo4j.AsyncTransaction, worker_id: str
+) -> Optional[Task]:
+    query = f"""MATCH (t:{TASK_NODE}:`{TaskStatus.QUEUED.value}`)
+WITH t
+LIMIT 1
+CALL apoc.create.setLabels(t, $labels) YIELD node AS task
+WITH task
+CREATE (lock:{TASK_LOCK_NODE} {{
+    {TASK_LOCK_TASK_ID}: task.id,
+    {TASK_LOCK_WORKER_ID}: $workerId 
+}})
+RETURN task, lock"""
+    labels = [TASK_NODE, TaskStatus.RUNNING.value]
+    res = await tx.run(query, workerId=worker_id, labels=labels)
     try:
         task = await res.single(strict=True)
     except ResultNotSingleError:
         return None
-    return Task.from_neo4j(task)
-
-
-async def _lock_task_tx(tx: neo4j.AsyncTransaction, task_id: str, worker_id: str):
-    query = f"""CREATE (lock:{TASK_LOCK_NODE} {{
-    {TASK_LOCK_TASK_ID}: $taskId,
-    {TASK_LOCK_WORKER_ID}: $workerId 
-}})
-WITH lock
-MATCH (t:{TASK_NODE}:`{TaskStatus.QUEUED.value}` {{ {TASK_ID}: $taskId }})
-CALL apoc.create.setLabels(t, $labels) YIELD node AS task
-RETURN task, lock"""
-    labels = [TASK_NODE, TaskStatus.RUNNING.value]
-    res = await tx.run(query, taskId=task_id, workerId=worker_id, labels=labels)
-    try:
-        await res.single(strict=True)
-    except ResultNotSingleError as e:
-        raise UnknownTask(task_id=task_id) from e
     except ConstraintError as e:
-        raise TaskAlreadyReserved(task_id=task_id) from e
+        raise TaskAlreadyReserved() from e
+    return Task.from_neo4j(task)
 
 
 async def _acknowledge_task_tx(
     tx: neo4j.AsyncTransaction, *, task_id: str, worker_id: str, completed_at: datetime
 ):
-    query = f"""MATCH (t:{TASK_NODE} {{ {TASK_ID}: $taskId }})
+    query = f"""MATCH (lock:{TASK_LOCK_NODE} {{ {TASK_LOCK_TASK_ID}: $taskId }})
+WHERE lock.{TASK_LOCK_WORKER_ID} = $workerId
+WITH lock    
+MATCH (t:{TASK_NODE} {{ {TASK_ID}: lock.{TASK_LOCK_TASK_ID} }})
 SET t.progress = 100.0, t.completedAt = $completedAt
-WITH t 
-CALL apoc.create.setLabels(t, $labels) YIELD node as task
+WITH t , lock
+CALL apoc.create.setLabels(t, $labels) YIELD node AS task
+DELETE lock
 RETURN task"""
     labels = [TASK_NODE, TaskStatus.DONE.value]
     res = await tx.run(
@@ -186,16 +187,47 @@ RETURN task"""
         raise UnknownTask(task_id, worker_id) from e
 
 
-async def _unlock_task_tx(tx: neo4j.AsyncTransaction, *, task_id: str, worker_id: str):
+async def _nack_task_tx(tx: neo4j.AsyncTransaction, *, task_id: str, worker_id: str):
     query = f"""MATCH (lock:{TASK_LOCK_NODE} {{ {TASK_LOCK_TASK_ID}: $taskId }})
 WHERE lock.{TASK_LOCK_WORKER_ID} = $workerId
+WITH lock
+MATCH (t:{TASK_NODE} {{ {TASK_ID}: lock.{TASK_LOCK_TASK_ID} }})
+CALL apoc.create.setLabels(t, $labels) YIELD node AS task
+WITH task, lock
 DELETE lock
-RETURN lock"""
-    res = await tx.run(query, taskId=task_id, workerId=worker_id)
+RETURN task
+"""
+    labels = [TASK_NODE, TaskStatus.ERROR.value]
+    res = await tx.run(query, taskId=task_id, workerId=worker_id, labels=labels)
     try:
-        await res.single(strict=True)
+        res = await res.single(strict=True)
     except ResultNotSingleError as e:
         raise UnknownTask(task_id, worker_id) from e
+    task = Task.from_neo4j(res)
+    return task
+
+
+async def _nack_and_requeue_task_tx(
+    tx: neo4j.AsyncTransaction, *, task_id: str, worker_id: str
+):
+    query = f"""MATCH (lock:{TASK_LOCK_NODE} {{ {TASK_LOCK_TASK_ID}: $taskId }})
+WHERE lock.{TASK_LOCK_WORKER_ID} = $workerId
+WITH lock
+MATCH (t:{TASK_NODE} {{ {TASK_ID}: lock.{TASK_LOCK_TASK_ID} }})
+SET t.{TASK_PROGRESS} = 0.0
+WITH t, lock
+CALL apoc.create.setLabels(t, $labels) YIELD node AS task
+WITH task, lock
+DELETE lock
+RETURN task"""
+    labels = [TASK_NODE, TaskStatus.QUEUED.value]
+    res = await tx.run(query, taskId=task_id, workerId=worker_id, labels=labels)
+    try:
+        res = await res.single(strict=True)
+    except ResultNotSingleError as e:
+        raise UnknownTask(task_id, worker_id) from e
+    task = Task.from_neo4j(res)
+    return task
 
 
 async def _cancelled_task_tx(tx: neo4j.AsyncTransaction) -> List[str]:
@@ -223,8 +255,7 @@ RETURN task, result"""
 async def _save_error_tx(
     tx: neo4j.AsyncTransaction, task_id: str, *, task_props: Dict, error_props: Dict
 ):
-    query = f"""MERGE (t:{TASK_NODE} {{{TASK_ID}: $taskId }})
-ON CREATE SET t += $taskProps, t:`{TaskStatus.ERROR.value}` 
+    query = f"""MATCH (t:{TASK_NODE} {{{TASK_ID}: $taskId }})
 CREATE (error:{TASK_ERROR_NODE} $errorProps)-[:{TASK_ERROR_OCCURRED_TYPE}]->(task)
 RETURN task, error"""
     res = await tx.run(

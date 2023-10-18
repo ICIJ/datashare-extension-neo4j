@@ -307,26 +307,7 @@ class MockWorker(ProcessWorkerMixin, MockEventPublisher):
             except KeyError as e:
                 raise UnknownTask(task_id) from e
 
-    async def _lock(self, task: Task, project: str):
-        key = self._task_key(task.id, project)
-        with self.db_lock:
-            db = self._read()
-            tasks = db[self._task_collection]
-            try:
-                task = tasks[key]
-            except KeyError as e:
-                raise UnknownTask(task_id=task.id) from e
-            task = Task(**task)
-            update = {"status": TaskStatus.RUNNING}
-            task = safe_copy(task, update=update)
-            tasks[key] = task
-
-    async def _unlock(self, task: Task, project: str):
-        # Locking is not tested here, it's supposed to be tested in worker
-        # implementations
-        pass
-
-    async def acknowledge(self, task: Task, project: str, completed_at: datetime):
+    async def _acknowledge(self, task: Task, project: str, completed_at: datetime):
         key = self._task_key(task.id, project)
         with self.db_lock:
             db = self._read()
@@ -344,6 +325,27 @@ class MockWorker(ProcessWorkerMixin, MockEventPublisher):
             tasks[key] = safe_copy(saved_task, update=update)
             self._write(db)
 
+    async def _negatively_acknowledge(
+        self, task: Task, project: str, *, requeue: bool
+    ) -> Task:
+        key = self._task_key(task.id, project)
+        with self.db_lock:
+            db = self._read()
+            tasks = db[self._task_collection]
+            try:
+                task = tasks[key]
+            except KeyError as e:
+                raise UnknownTask(task_id=task.id) from e
+            task = Task(**task)
+            if requeue:
+                update = {"status": TaskStatus.QUEUED, "progress": 0.0}
+            else:
+                update = {"status": TaskStatus.ERROR}
+            task = safe_copy(task, update=update)
+            tasks[key] = task
+            self._write(db)
+            return task
+
     async def _refresh_cancelled(self, project: str):
         with self.db_lock:
             db = self._read()
@@ -352,7 +354,7 @@ class MockWorker(ProcessWorkerMixin, MockEventPublisher):
             cancelled = [t.id for t in tasks if t.status is TaskStatus.CANCELLED]
             self._cancelled_[project] = set(cancelled)
 
-    async def _receive(self) -> Tuple[Task, str]:
+    async def _consume(self) -> Tuple[Task, str]:
         while "waiting for some task to be available for some project":
             with self.db_lock:
                 db = self._read()

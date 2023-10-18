@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
-import sys
+import logging
 import traceback
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -42,6 +42,8 @@ from neo4j_app.icij_worker.task import (
 )
 from neo4j_app.typing_ import PercentProgress
 
+logger = logging.getLogger(__name__)
+
 PROGRESS_HANDLER_ARG = "progress"
 
 
@@ -54,6 +56,8 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         self._graceful_shutdown = True
         self._config = app.config
         self._cancelled_ = defaultdict(set)
+        self.__deps_cm = None
+        self._current = None
 
     @property
     def _cancelled(self) -> List[str]:
@@ -85,25 +89,15 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def work_forever(self):
         async with self:
             self.info("started working...")
-            exit_status = 0
             try:
                 while True:
                     await self.work_once()
-            except KeyboardInterrupt:
-                self.info("shutting down...")
             except Exception as e:
-                self.error("error occurred while consuming: %s", e)
+                self.error("error occurred while consuming: %s", _format_error(e))
                 self.info("will try to shutdown gracefully...")
-                exit_status = 1
                 raise e
             finally:
-                if self.graceful_shutdown:
-                    self.info("shutting down gracefully...")
-                    await self.__aexit__(*sys.exc_info())
-                else:
-                    self.info("shutting down the hard way...")
-                    sys.exit(exit_status)
-        sys.exit(exit_status)
+                await self.shutdown()
 
     @final
     @functools.cached_property
@@ -124,35 +118,63 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         await task_wrapper(self)
 
     @final
-    async def receive(self) -> Tuple[Task, str]:
-        return await self._receive()
+    async def consume(self) -> Tuple[Task, str]:
+        return await self._consume()
 
     @final
     @asynccontextmanager
-    async def lock(self, task: Task, project: str):
+    async def acknowledgment_cm(self, task: Task, project: str):
         async with self._persist_error(task, project):
-            await self._lock(task, project)
-            self.info('Task(id="%s") locked', task.id)
+            self._current = task, project
+            self.debug('Task(id="%s") locked', task.id)
             try:
                 event = TaskEvent(
                     task_id=task.id, progress=0, status=TaskStatus.RUNNING
                 )
                 await self.publish_event(event, project)
                 yield
-            finally:
-                await self._unlock(task, project)
+                await self.acknowledge(task, project)
+            except Exception as fatal_error:
+                await self.negatively_acknowledge(task, project, requeue=False)
+                raise fatal_error
+            self._current = None
+            self.info('Task(id="%s") successful !', task.id)
+
+    @final
+    async def acknowledge(self, task: Task, project: str):
+        completed_at = datetime.now()
+        self.info('Task(id="%s") acknowledging...', task.id)
+        await self._acknowledge(task, project, completed_at)
+        self.info('Task(id="%s") acknowledged', task.id)
+        self.debug('Task(id="%s") publishing acknowledgement event', task.id)
+        event = TaskEvent(
+            task_id=task.id,
+            status=TaskStatus.DONE,
+            progress=100,
+            completed_at=completed_at,
+        )
+        # Tell the listeners that the task succeeded
+        await self.publish_event(event, project)
 
     @abstractmethod
-    @asynccontextmanager
-    async def _lock(self, task: Task, project: str):
+    async def _acknowledge(
+        self, task: Task, project: str, completed_at: datetime
+    ) -> Task:
         pass
 
-    @abstractmethod
-    async def _unlock(self, task: Task, project: str):
-        pass
+    @final
+    async def negatively_acknowledge(
+        self, task: Task, project: str, *, requeue: bool
+    ) -> Task:
+        self.info("negatively acknowledging Task(id=%s)w with (requeue=%s)...", task.id)
+        nacked = await self._negatively_acknowledge(task, project, requeue=requeue)
+        self.info("Task(id=%s) negatively acknowledged (requeue=%s)!", task.id, requeue)
+        return nacked
 
     @abstractmethod
-    async def acknowledge(self, task: Task, project: str, completed_at: datetime):
+    async def _negatively_acknowledge(
+        self, task: Task, project: str, *, requeue: bool
+    ) -> Task:
         pass
 
     @abstractmethod
@@ -160,7 +182,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         pass
 
     @abstractmethod
-    async def _receive(self) -> Tuple[Task, str]:
+    async def _consume(self) -> Tuple[Task, str]:
         pass
 
     @abstractmethod
@@ -172,23 +194,10 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         """Save the error in a safe place"""
 
     @final
-    async def save_result(
-        self, result: TaskResult, project: str, completed_at: datetime
-    ):
-        self.info('saving Task(id="%s")', result.task_id)
+    async def save_result(self, result: TaskResult, project: str):
+        self.info('Task(id="%s") saving result...', result.task_id)
         await self._save_result(result, project)
-        # Once the result has been saved, we notify the event consumers, they are
-        # responsible for reflecting the fact that task has completed wherever relevant.
-        # The source of truth will be result storage
-        self.info('marking Task(id="%s") as %s', result.task_id, TaskStatus.DONE.value)
-        event = TaskEvent(
-            task_id=result.task_id,
-            status=TaskStatus.DONE,
-            progress=100,
-            completed_at=completed_at,
-        )
-        # Tell the listeners that the task succeeded
-        await self.publish_event(event, project)
+        self.info('Task(id="%s") result saved !', result.task_id)
 
     @final
     async def save_error(
@@ -295,7 +304,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         return progress
 
     @final
-    @property
     @asynccontextmanager
     async def _deps_cm(self):
         if self._config is not None:
@@ -306,11 +314,44 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         else:
             yield
 
+    @final
     async def __aenter__(self):
-        await self._deps_cm.__aenter__()
+        self.__deps_cm = self._deps_cm()
+        await self.__deps_cm.__aenter__()
+        await self._aenter__()
 
+    async def _aenter__(self):
+        pass
+
+    @final
     async def __aexit__(self, exc_type, exc_value, tb):
-        await self._deps_cm.__aexit__(exc_type, exc_value, tb)
+        await self._aexit__(exc_type, exc_value, tb)
+        await self._shutdown_gracefully()
+
+    async def _aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    @final
+    async def _shutdown_gracefully(self):
+        self.info("cancelling running task...")
+        await self._negatively_acknowledge_running_task(requeue=True)
+        self.info("closing dependencies...")
+        await self.__deps_cm.__aexit__(None, None, None)
+        self.info("work shut down complete !")
+
+    async def _negatively_acknowledge_running_task(self, requeue: bool):
+        if self._current:
+            task, project = self._current
+            await self.negatively_acknowledge(task, project, requeue=requeue)
+
+    @final
+    async def shutdown(self):
+        if self.graceful_shutdown:
+            self.info("shutting down gracefully")
+            await self._shutdown_gracefully()
+            self.info("graceful shut down complete")
+        else:
+            self.info("shutting down the hard way...")
 
 
 def _retrieve_registered_task(
@@ -327,33 +368,34 @@ def _retrieve_registered_task(
 async def task_wrapper(worker: Worker):
     # Receive task
     try:
-        task, project = await worker.receive()
+        task, project = await worker.consume()
+    except TaskAlreadyReserved:
+        # This part is won't happen with AMQP since it will take care to correctly
+        # forward one task to one worker
+        worker.info("tried to consume an already reserved task, exiting...")
+        return
     except Exception as e:  # pylint: disable=broad-exception-caught
         worker.error("error while receiving task: %s", _format_error(e))
         raise e
 
-    try:
-        # Lock it and skips if already reserved
-        async with worker.lock(task, project):
-            # Skip it if already cancelled
-            try:
-                await worker.check_cancelled(
-                    task_id=task.id, project=project, refresh=True
-                )
-            except TaskCancelled:
-                worker.info('Task(id="%s") already cancelled skipping it !', task.id)
-                return
+    # Lock it and skips if already reserved
+    async with worker.acknowledgment_cm(task, project):
+        # Skip it if already cancelled
+        try:
+            await worker.check_cancelled(task_id=task.id, project=project, refresh=True)
+        except TaskCancelled:
+            worker.info('Task(id="%s") already cancelled skipping it !', task.id)
+            return
 
-            # Parse task to retrieve recoverable errors and max retries
-            task_fn, recoverable_errors = worker.parse_task(task, project)
-            task_inputs = add_missing_args(task_fn, task.inputs, config=worker.config)
-            # Retry task until success, fatal error or max retry exceeded
-            await _retry_task(
-                worker, task, task_fn, task_inputs, project, recoverable_errors
-            )
-            worker.info('Task(id="%s") successful !', task.id)
-    except TaskAlreadyReserved:
-        worker.info('Task(id="%s") already reserved', task.id)
+        # Parse task to retrieve recoverable errors and max retries
+        task_fn, recoverable_errors = worker.parse_task(task, project)
+        task_inputs = add_missing_args(
+            task_fn, task.inputs, config=worker.config, project=project
+        )
+        # Retry task until success, fatal error or max retry exceeded
+        await _retry_task(
+            worker, task, task_fn, task_inputs, project, recoverable_errors
+        )
 
 
 async def _retry_task(
@@ -364,9 +406,8 @@ async def _retry_task(
     project: str,
     recoverable_errors: Tuple[Type[Exception]],
 ):
-    retries = 0
+    retries = task.retries or 0
     while True:
-        # TODO: ideally we would sleep here, this will be added later
         worker.check_retries(retries, task)
         if retries:
             # In the case of the retry, let's reset the progress
@@ -376,7 +417,6 @@ async def _retry_task(
             task_res = task_fn(**task_inputs)
             if isawaitable(task_res):
                 task_res = await task_res
-            completed_at = datetime.now()
         except TaskCancelled:
             worker.info('Task(id="%s") cancelled during execution')
             return
@@ -390,9 +430,9 @@ async def _retry_task(
                 retries=retries,
             )
             continue
+        worker.info('Task(id="%s") complete, saving result...', task.id)
         result = TaskResult(task_id=task.id, result=task_res)
-        await worker.save_result(result, project, completed_at=completed_at)
-        await worker.acknowledge(task, project, completed_at=completed_at)
+        await worker.save_result(result, project)
         return
 
 
