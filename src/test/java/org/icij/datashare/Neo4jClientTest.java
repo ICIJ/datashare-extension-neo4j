@@ -1,7 +1,13 @@
 package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
+import static org.icij.datashare.Objects.DumpFormat;
+import static org.icij.datashare.Objects.GraphNodesCount;
 import static org.icij.datashare.Objects.IncrementalImportRequest;
+import static org.icij.datashare.Objects.IncrementalImportResponse;
+import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
+import static org.icij.datashare.Objects.Task;
+import static org.icij.datashare.Objects.TaskError;
 import static org.icij.datashare.Objects.TaskStatus.DONE;
 import static org.icij.datashare.Objects.TaskType.FULL_IMPORT;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
@@ -22,6 +28,7 @@ import java.util.TimeZone;
 import net.codestory.http.Configuration;
 import net.codestory.http.Context;
 import net.codestory.http.payload.Payload;
+import org.icij.datashare.text.NamedEntity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -75,9 +82,8 @@ public class Neo4jClientTest {
         private Payload mockDump(Context context) throws IOException {
             String project = context.query().get("project");
             if (project != null && project.equals("myproject")) {
-                org.icij.datashare.Objects.Neo4jAppDumpRequest request =
-                    MAPPER.readValue(context.request().content(),
-                        org.icij.datashare.Objects.Neo4jAppDumpRequest.class);
+                Neo4jAppDumpRequest request = MAPPER.readValue(context.request().content(),
+                    Neo4jAppDumpRequest.class);
                 String dump;
                 if (request.query == null) {
                     switch (request.format) {
@@ -180,16 +186,24 @@ public class Neo4jClientTest {
             return new Payload("application/json", errors);
         }
 
+        private Payload mockGraphCounts(Context context) {
+            String project = context.query().get("project");
+            if (!project.equals("myproject")) {
+                return new Payload("application/json",
+                    TestUtils.makeJsonHttpError("Not Found", "Invalid project " + project), 404);
+            }
+            String counts = "{\"documents\": 1, \"namedEntities\": {\"EMAIL\": 1}}";
+            return new Payload("application/json", counts);
+        }
+
 
         @Test
         public void test_should_import_documents() {
             // Given
             neo4jApp.configure(routes -> routes.post("/documents", this::mockImport));
             // When
-            org.icij.datashare.Objects.IncrementalImportRequest body =
-                new org.icij.datashare.Objects.IncrementalImportRequest(null);
-            org.icij.datashare.Objects.IncrementalImportResponse res = client.importDocuments(
-                "myproject", body);
+            IncrementalImportRequest body = new IncrementalImportRequest(null);
+            IncrementalImportResponse res = client.importDocuments("myproject", body);
             // Then
             assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(3);
@@ -205,11 +219,9 @@ public class Neo4jClientTest {
                     put("key1", "value1");
                 }
             };
-            org.icij.datashare.Objects.IncrementalImportRequest body =
-                new org.icij.datashare.Objects.IncrementalImportRequest(query);
+            IncrementalImportRequest body = new IncrementalImportRequest(query);
             // When
-            org.icij.datashare.Objects.IncrementalImportResponse res =
-                client.importDocuments("myproject", body);
+            IncrementalImportResponse res = client.importDocuments("myproject", body);
             // Then
             assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(1);
@@ -221,11 +233,9 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(
                 routes -> routes.post("/documents", this::mockImport));
-            org.icij.datashare.Objects.IncrementalImportRequest body =
-                new org.icij.datashare.Objects.IncrementalImportRequest(null);
+            IncrementalImportRequest body = new IncrementalImportRequest(null);
             // When/Then
-            assertThat(assertThrowsExactly(
-                Neo4jClient.Neo4jAppError.class,
+            assertThat(assertThrowsExactly(Neo4jClient.Neo4jAppError.class,
                 () -> client.importDocuments("unknown", body)
             ).getMessage()).isEqualTo("Not Found\nDetail: Invalid project unknown");
         }
@@ -275,10 +285,8 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.post("/named-entities", this::mockImport));
             // When
-            org.icij.datashare.Objects.IncrementalImportRequest body =
-                new org.icij.datashare.Objects.IncrementalImportRequest(null);
-            org.icij.datashare.Objects.IncrementalImportResponse res =
-                client.importNamedEntities("myproject", body);
+            IncrementalImportRequest body = new IncrementalImportRequest(null);
+            IncrementalImportResponse res = client.importNamedEntities("myproject", body);
             // Then
             assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(3);
@@ -294,11 +302,9 @@ public class Neo4jClientTest {
                     put("key1", "value1");
                 }
             };
-            org.icij.datashare.Objects.IncrementalImportRequest body =
-                new org.icij.datashare.Objects.IncrementalImportRequest(query);
+            IncrementalImportRequest body = new IncrementalImportRequest(query);
             // When
-            org.icij.datashare.Objects.IncrementalImportResponse res =
-                client.importNamedEntities("myproject", body);
+            IncrementalImportResponse res = client.importNamedEntities("myproject", body);
             // Then
             assertThat(res.imported).isEqualTo(3);
             assertThat(res.nodesCreated).isEqualTo(1);
@@ -310,8 +316,7 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.post("/named-entities", this::mockImport));
 
-            org.icij.datashare.Objects.IncrementalImportRequest body =
-                new org.icij.datashare.Objects.IncrementalImportRequest(null);
+            IncrementalImportRequest body = new IncrementalImportRequest(null);
 
             // When/Then
             assertThat(assertThrowsExactly(
@@ -325,9 +330,7 @@ public class Neo4jClientTest {
             throws URISyntaxException, IOException, InterruptedException {
             // Given
             neo4jApp.configure(routes -> routes.post("/graphs/dump", this::mockDump));
-            org.icij.datashare.Objects.Neo4jAppDumpRequest body =
-                new org.icij.datashare.Objects.Neo4jAppDumpRequest(
-                    org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL, null);
+            Neo4jAppDumpRequest body = new Neo4jAppDumpRequest(DumpFormat.CYPHER_SHELL, null);
             // When
             try (InputStream res = client.dumpGraph("myproject", body)) {
                 String dump = new String(res.readAllBytes(), StandardCharsets.UTF_8);
@@ -343,9 +346,9 @@ public class Neo4jClientTest {
             throws URISyntaxException, IOException, InterruptedException {
             // Given
             neo4jApp.configure(routes -> routes.post("/graphs/dump", this::mockDump));
-            org.icij.datashare.Objects.Neo4jAppDumpRequest body =
-                new org.icij.datashare.Objects.Neo4jAppDumpRequest(
-                    org.icij.datashare.Objects.DumpFormat.GRAPHML, null);
+            Neo4jAppDumpRequest body =
+                new Neo4jAppDumpRequest(
+                    DumpFormat.GRAPHML, null);
             // When
             try (InputStream res = client.dumpGraph("myproject", body)) {
                 String dump = new String(res.readAllBytes(), StandardCharsets.UTF_8);
@@ -360,9 +363,9 @@ public class Neo4jClientTest {
             throws URISyntaxException, IOException, InterruptedException {
             // Given
             neo4jApp.configure(routes -> routes.post("/graphs/dump", this::mockDump));
-            org.icij.datashare.Objects.Neo4jAppDumpRequest body =
-                new org.icij.datashare.Objects.Neo4jAppDumpRequest(
-                    org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL,
+            Neo4jAppDumpRequest body =
+                new Neo4jAppDumpRequest(
+                    DumpFormat.CYPHER_SHELL,
                     "MATCH (something) RETURN something LIMIT 100");
             // When
             try (InputStream res = client.dumpGraph("myproject", body)) {
@@ -378,9 +381,7 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump", this::mockDump));
-            org.icij.datashare.Objects.Neo4jAppDumpRequest body =
-                new org.icij.datashare.Objects.Neo4jAppDumpRequest(
-                    org.icij.datashare.Objects.DumpFormat.CYPHER_SHELL, null);
+            Neo4jAppDumpRequest body = new Neo4jAppDumpRequest(DumpFormat.CYPHER_SHELL, null);
 
             // When/Then
             assertThat(assertThrowsExactly(
@@ -426,7 +427,7 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.post("/tasks", this::mockCreateFullImport));
             // When
-            String taskId = client.fullImport("myproject");
+            String taskId = client.fullImport("myproject", true);
             // Then•
             assertThat(taskId).isEqualTo("taskId");
         }
@@ -436,7 +437,7 @@ public class Neo4jClientTest {
             // Given
             neo4jApp.configure(routes -> routes.get("/tasks/:taskId", this::mockGetTask));
             // When
-            org.icij.datashare.Objects.Task task = client.task("taskId", "myproject");
+            Task task = client.task("taskId", "myproject");
             // Then
             SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
             isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
@@ -473,8 +474,7 @@ public class Neo4jClientTest {
                 routes -> routes.get("/tasks/:taskId/errors", this::mockGetTaskErrors)
             );
             // When
-            org.icij.datashare.Objects.TaskError[] errors = client.taskErrors(
-                "taskId", "myproject");
+            TaskError[] errors = client.taskErrors("taskId", "myproject");
             // Then
             SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
             isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
@@ -484,6 +484,20 @@ public class Neo4jClientTest {
             assertThat(errors[0].title).isEqualTo("someTitle");
             assertThat(errors[0].detail).isEqualTo("some details");
             assertThat(errors[0].occurredAt).isEqualTo(expectedDate);
+        }
+
+        @Test
+        public void test_get_graph_node_counts_error() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.get("/graphs/nodes/count", this::mockGraphCounts)
+            );
+            // When
+            GraphNodesCount nodeCounts = client.graphNodesCount("myproject");
+            // Then
+
+            assertThat(nodeCounts.documents).isEqualTo(1);
+            assertThat(nodeCounts.namedEntities).isEqualTo(Map.of(NamedEntity.Category.EMAIL, 1L));
         }
     }
 }
