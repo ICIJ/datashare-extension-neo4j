@@ -8,6 +8,7 @@ import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
 import static org.icij.datashare.Objects.DumpQuery;
 import static org.icij.datashare.Objects.DumpRequest;
+import static org.icij.datashare.Objects.GraphNodesCount;
 import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.Objects.IncrementalImportResponse;
 import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
@@ -17,6 +18,8 @@ import static org.icij.datashare.Objects.SortedDumpRequest;
 import static org.icij.datashare.Objects.StartNeo4jAppRequest;
 import static org.icij.datashare.Objects.Task;
 import static org.icij.datashare.Objects.TaskError;
+import static org.icij.datashare.Objects.TaskSearch;
+import static org.icij.datashare.Objects.TaskType;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.icij.datashare.text.Project.isAllowed;
 
@@ -95,6 +98,10 @@ public class Neo4jResource {
     };
 
     protected static final HashSet<String> projects = new HashSet<>();
+
+    private static final TaskSearch FULL_IMPORT_SEARCH = new TaskSearch(
+        TaskType.FULL_IMPORT, null);
+
     protected static Boolean supportNeo4jEnterprise;
 
     private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
@@ -277,7 +284,24 @@ public class Neo4jResource {
     public Payload getGraphNodesCount(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
-            return this.client.graphNodesCount(project);
+            return graphNodesCount(project);
+        });
+    }
+
+    @Post("/full-imports?project=:project")
+    public Payload postFullImport(String project, Context context) {
+        return wrapNeo4jAppCall(() -> {
+            checkProjectAccess(project, context);
+            checkCheckLocal();
+            return new Payload("application/json", runFullImport(project, true), 201);
+        });
+    }
+
+    @Get("/full-imports?project=:project")
+    public Payload getSearchFullImports(String project, Context context) {
+        return wrapNeo4jAppCall(() -> {
+            checkProjectAccess(project, context);
+            return searchFullImports(project);
         });
     }
 
@@ -517,6 +541,18 @@ public class Neo4jResource {
         return client.importNamedEntities(projectId, request);
     }
 
+    protected String runFullImport(String projectId, boolean force) {
+        checkProject(projectId);
+        checkNeo4jAppStarted();
+        return client.fullImport(projectId, force);
+    }
+
+    protected List<Task> searchFullImports(String projectId) {
+        checkProject(projectId);
+        checkNeo4jAppStarted();
+        return client.taskSearch(projectId, FULL_IMPORT_SEARCH);
+    }
+
     protected Task task(String taskId, String projectId) {
         checkProject(projectId);
         checkNeo4jAppStarted();
@@ -534,6 +570,13 @@ public class Neo4jResource {
         checkNeo4jAppStarted();
         return List.of(client.taskErrors(taskId, projectId));
     }
+
+    protected GraphNodesCount graphNodesCount(String projectId) {
+        checkProject(projectId);
+        checkNeo4jAppStarted();
+        return client.graphNodesCount(projectId);
+    }
+
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     protected InputStream exportNeo4jCSVs(String projectId, Neo4jAppNeo4jCSVRequest request) {

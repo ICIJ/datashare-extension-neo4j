@@ -76,7 +76,7 @@ public class Neo4jResourceTest {
                 {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
                     put("neo4jSingleProject", SINGLE_PROJECT);
-                    // TODO: fix this path ?
+                    put("mode", "LOCAL");
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
                     put("neo4jAppStartTimeoutS", "2");
                 }
@@ -123,6 +123,21 @@ public class Neo4jResourceTest {
                     put("neo4jAppPort", Integer.toString(neo4jAppPort));
                     put("neo4jSingleProject", SINGLE_PROJECT);
                     put("mode", "CLI");
+                    put("neo4jStartServerCmd", "src/test/resources/shell_mock");
+                }
+            });
+        }
+    }
+
+    public static class MockServerModeProperties extends MockProperties
+        implements BeforeAllCallback {
+        @Override
+        public void beforeAll(ExtensionContext extensionContext) {
+            propertyProvider = new PropertiesProvider(new HashMap<>() {
+                {
+                    put("neo4jAppPort", Integer.toString(neo4jAppPort));
+                    put("neo4jSingleProject", SINGLE_PROJECT);
+                    put("mode", "SERVER");
                     put("neo4jStartServerCmd", "src/test/resources/shell_mock");
                 }
             });
@@ -760,6 +775,132 @@ public class Neo4jResourceTest {
         }
 
         @Test
+        public void test_check_project_init() {
+            // Given
+            String project = "foo-datashare";
+
+            // When
+            try {
+                neo4jAppResource.checkProjectInitialized(project);
+            } catch (Neo4jResource.ProjectNotInitialized ignored) {
+                fail("expected " + project + " to be initialized");
+            }
+        }
+
+        @Test
+        public void test_check_project_init_should_throw() {
+            // Given
+            String project = "not-initialized";
+
+            // When
+            String expected = "Project Not Initialized\n"
+                + "Detail: Project \"not-initialized\" as not been initialized";
+            assertThat(assertThrows(Neo4jResource.ProjectNotInitialized.class,
+                () -> neo4jAppResource.checkProjectInitialized(project)
+            ).getMessage()).isEqualTo(expected);
+        }
+
+
+        @Test
+        public void test_get_graph_nodes_count_should_return_200() {
+            // Given
+            String counts = "{\"documents\":1,\"namedEntities\":{\"EMAIL\":1}}";
+            neo4jApp.configure(
+                routes -> routes.get("/graphs/nodes/count",
+                    context -> new Payload("application/json", counts.getBytes())
+                )
+            );
+            // When
+            Response response = get("/api/neo4j/graphs/nodes/count?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(response.content()).isEqualTo(counts);
+        }
+
+        @Test
+        public void test_get_graph_nodes_count_should_return_401_for_unauthorized_user() {
+            // Given
+            String counts = "{\"documents\": 1, \"namedEntities\": {\"EMAIL\": 1}}";
+            neo4jApp.configure(
+                routes -> routes.get("/graphs/nodes/count",
+                    context -> new Payload("application/json", counts.getBytes())
+                )
+            );
+            // When
+            Response response = get("/api/neo4j/graphs/nodes/count?project=foo-datashare"
+            ).withPreemptiveAuthentication("unauthorized", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_get_graph_nodes_count_should_return_403_for_forbidden_mask() {
+            // Given
+            String counts = "{\"documents\": 1, \"namedEntities\": {\"EMAIL\": 1}}";
+            neo4jApp.configure(
+                routes -> routes.get("/graphs/nodes/count",
+                    context -> new Payload("application/json", counts.getBytes())
+                )
+            );
+            // When
+            when(parentRepository.getProject("foo-datashare"))
+                .thenReturn(new Project("foo-datashare", "1.2.3.4"));
+            Response response = get("/api/neo4j/graphs/nodes/count?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(403);
+        }
+
+        @Test
+        public void test_post_full_import_should_return_201() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/tasks",
+                    context -> new Payload("application/json", "taskId", 201)
+                )
+            );
+            // When
+            Response response = post("/api/neo4j/full-imports?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(201);
+            assertThat(response.content()).isEqualTo("taskId");
+        }
+
+        @Test
+        public void test_post_full_import_should_return_401_for_unauthorized_user() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/tasks",
+                    context -> new Payload("application/json", "taskId", 201)
+                )
+            );
+            // When
+            Response response = post("/api/neo4j/full-imports?project=foo-datashare"
+            ).withPreemptiveAuthentication("unauthorized", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_post_full_import_should_return_403_for_forbidden_mask() {
+            // Given
+            neo4jApp.configure(
+                routes -> routes.post("/tasks",
+                    context -> new Payload("application/json", "taskId", 201)
+                )
+            );
+            when(parentRepository.getProject("foo-datashare"))
+                .thenReturn(new Project("foo-datashare", "1.2.3.4"));
+            // When
+            Response response = post("/api/neo4j/full-imports?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(403);
+        }
+
+        @Test
         public void test_get_task_should_return_401_for_authorized_user() {
             // Only available for CLI users for now
             // Given
@@ -943,6 +1084,25 @@ public class Neo4jResourceTest {
                     Files.deleteIfExists(exportPath);
                 }
             }
+        }
+
+    }
+
+    @DisplayName("test admin import server")
+    @ExtendWith(MockNeo4jApp.class)
+    @ExtendWith(MockServerModeProperties.class)
+    @ExtendWith(BindNeo4jResourceWithPid.class)
+    @Nested
+    class Neo4jResourceAdminImportServerTest implements FluentRestTest {
+        @Override
+        public int port() {
+            return port;
+        }
+
+        @Test
+        public void test_post_full_import_should_return_403() throws IOException {
+            // Given
+            assert false;
         }
 
     }
