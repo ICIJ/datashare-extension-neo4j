@@ -366,6 +366,7 @@ async def _retry_task(
 ):
     retries = 0
     while True:
+        # TODO: ideally we would sleep here, this will be added later
         worker.check_retries(retries, task)
         if retries:
             # In the case of the retry, let's reset the progress
