@@ -385,7 +385,7 @@ async def test_work_once_should_not_run_cancelled_task(mock_worker: MockWorker, 
         await worker.check_cancelled(task_id=task.id, project=project, refresh=True)
 
     # Now we mock the fact the task is still received but cancelled right after
-    with patch.object(worker, "receive", return_value=(task, project)):
+    with patch.object(worker, "consume", return_value=(task, project)):
         await task_wrapper(worker)
     expected = f'Task(id="{task.id}") already cancelled skipping it !'
     assert any(expected in m for m in caplog.messages)

@@ -18,6 +18,7 @@ from neo4j_app.constants import (
     TASK_ID,
     TASK_LOCK_NODE,
     TASK_LOCK_TASK_ID,
+    TASK_LOCK_WORKER_ID,
     TASK_NODE,
     TASK_TYPE,
 )
@@ -106,8 +107,12 @@ ON (task.{TASK_ERROR_OCCURRED_AT})"""
 FOR (task:{TASK_ERROR_NODE})
 REQUIRE (task.{TASK_ERROR_ID}) IS UNIQUE"""
     await tx.run(error_id_query)
-    task_lock_query = f"""CREATE CONSTRAINT constraint_task_lock_unique_task_id
+    task_lock_task_id_query = f"""CREATE CONSTRAINT constraint_task_lock_unique_task_id
 IF NOT EXISTS
 FOR (lock:{TASK_LOCK_NODE})
 REQUIRE (lock.{TASK_LOCK_TASK_ID}) IS UNIQUE"""
-    await tx.run(task_lock_query)
+    await tx.run(task_lock_task_id_query)
+    task_lock_worker_id_query = f"""CREATE INDEX index_task_lock_worker_id IF NOT EXISTS
+FOR (lock:{TASK_LOCK_NODE})
+ON (lock.{TASK_LOCK_WORKER_ID})"""
+    await tx.run(task_lock_worker_id_query)

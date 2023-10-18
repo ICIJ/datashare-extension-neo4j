@@ -8,8 +8,8 @@ from neo4j_app.icij_worker.worker.worker import Worker
 
 
 class ProcessWorkerMixin(Worker, ABC):
-    async def __aenter__(self):
-        await super().__aenter__()
+    async def _aenter__(self):
+        await super()._aenter__()
         self._setup_signal_handlers()
 
     def _signal_handler(

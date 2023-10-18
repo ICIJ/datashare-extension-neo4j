@@ -221,6 +221,14 @@ class TaskEvent(NoEnumModel, LowerCamelCaseModel):
     completed_at: Optional[datetime] = None
 
     @classmethod
+    def from_task(cls, task: Task):
+        as_event = task.dict()
+        as_event["task_id"] = as_event.pop("id")
+        as_event["task_type"] = as_event.pop("type")
+        as_event.pop("inputs")
+        return cls(**as_event)
+
+    @classmethod
     def from_error(
         cls, error: TaskError, task_id: str, retries: Optional[int] = None
     ) -> TaskEvent:
