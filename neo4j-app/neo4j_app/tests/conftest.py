@@ -151,7 +151,7 @@ def test_config() -> AppConfig:
         neo4j_password=NEO4J_TEST_PASSWORD,
         neo4j_app_worker_type=WorkerType.MOCK,
         test=True,
-        neo4j_app_async_module=f"{__name__}.APP",
+        neo4j_app_async_app=f"{__name__}.APP",
         neo4j_app_async_dependencies=f"{__name__}.TEST_WORKER_DEPS",
     )
     return config
