@@ -4,8 +4,8 @@ import contextlib
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from functools import wraps
-from typing import Optional, final
+from functools import cached_property, wraps
+from typing import Any, MutableMapping, Optional, final
 
 
 class DifferedLoggingMessage:
@@ -21,30 +21,37 @@ class DifferedLoggingMessage:
 class LogWithNameMixin(ABC):
     @property
     @abstractmethod
-    def logged_named(self) -> str:
+    def _logger(self) -> logging.Logger:
         pass
+
+    @cached_property
+    def _adapter(self) -> logging.LoggerAdapter:
+        extra = {"name": self.logged_named}
+        return _LogWithNameAdapter(self._logger, extra)
 
     @property
     @abstractmethod
-    def _logger(self) -> logging.Logger:
+    def logged_named(self) -> str:
         pass
 
     @final
     def info(self, msg, *args, **kwargs):
-        self._log(logging.INFO, msg, *args, **kwargs)
+        self._adapter.info(msg, *args, **kwargs)
 
     @final
     def debug(self, msg, *args, **kwargs):
-        self._log(logging.DEBUG, msg, *args, **kwargs)
+        self._adapter.debug(msg, *args, **kwargs)
 
     @final
     def error(self, msg, *args, **kwargs):
-        self._log(logging.ERROR, msg, *args, **kwargs)
+        self._adapter.error(msg, *args, **kwargs)
 
-    @final
-    def _log(self, level: int, msg, *args, **kwargs):
-        msg = f"{self.logged_name}: {msg}"
-        self._logger.log(level, msg, *args, **kwargs)
+
+class _LogWithNameAdapter(logging.LoggerAdapter):
+    def process(
+        self, msg: Any, kwargs: MutableMapping[str, Any]
+    ) -> tuple[Any, MutableMapping[str, Any]]:
+        return f"[{self.extra['name']}] {msg}", kwargs
 
 
 def log_elapsed_time(
