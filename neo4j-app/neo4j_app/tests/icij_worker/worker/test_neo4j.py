@@ -6,6 +6,7 @@ from typing import List, Optional
 import neo4j
 import pytest
 
+from neo4j_app.core.neo4j.projects import project_db_session
 from neo4j_app.core.utils.pydantic import safe_copy
 from neo4j_app.icij_worker import (
     ICIJApp,
@@ -54,8 +55,10 @@ async def test_worker_negatively_acknowledge(
     assert nacked == expected_nacked
     # Now let's check that no lock if left in the DB
     count_locks_query = "MATCH (lock:_TaskLock) RETURN count(*) as nLocks"
-    recs, _, _ = await worker.driver.execute_query(count_locks_query)
-    assert recs[0]["nLocks"] == 0
+    async with project_db_session(worker.driver, project) as sess:
+        recs = await sess.run(count_locks_query)
+        counts = await recs.single(strict=True)
+    assert counts["nLocks"] == 0
 
 
 @pytest.mark.asyncio
@@ -90,8 +93,10 @@ async def test_worker_negatively_acknowledge_and_requeue(
     assert nacked == expected_nacked
     # Now let's check that no lock if left in the DB
     count_locks_query = "MATCH (lock:_TaskLock) RETURN count(*) as nLocks"
-    recs, _, _ = await worker.driver.execute_query(count_locks_query)
-    assert recs[0]["nLocks"] == 0
+    async with project_db_session(worker.driver, project) as sess:
+        recs = await sess.run(count_locks_query)
+        counts = await recs.single(strict=True)
+    assert counts["nLocks"] == 0
 
 
 @pytest.mark.asyncio
