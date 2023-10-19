@@ -144,7 +144,6 @@ async def test_worker_save_error(
     # Given
     task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
-    task = populate_tasks[0]
     error = TaskError(
         id="error-id",
         title="someErrorTitle",
@@ -153,6 +152,7 @@ async def test_worker_save_error(
     )
 
     # When
+    task, _ = await worker.consume()
     await worker.save_error(error=error, task=task, project=project, retries=retries)
     saved_task = await task_manager.get_task(task_id=task.id, project=project)
     saved_errors = await task_manager.get_task_errors(task_id=task.id, project=project)
