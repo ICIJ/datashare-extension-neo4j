@@ -93,7 +93,7 @@ class Task(NoEnumModel, LowerCamelCaseModel, ISODatetime):
     completed_at: Optional[datetime] = None
     retries: Optional[int] = None
 
-    @validator("inputs")
+    @validator("inputs", pre=True, always=True)
     def inputs_as_dict(cls, v: Optional[Dict[str, Any]]):
         # pylint: disable=no-self-argument
         if v is None:
