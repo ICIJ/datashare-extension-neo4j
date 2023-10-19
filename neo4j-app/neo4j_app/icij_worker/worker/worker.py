@@ -166,7 +166,11 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def negatively_acknowledge(
         self, task: Task, project: str, *, requeue: bool
     ) -> Task:
-        self.info("negatively acknowledging Task(id=%s)w with (requeue=%s)...", task.id)
+        self.info(
+            "negatively acknowledging Task(id=%s)w with (requeue=%s)...",
+            task.id,
+            requeue,
+        )
         nacked = await self._negatively_acknowledge(task, project, requeue=requeue)
         self.info("Task(id=%s) negatively acknowledged (requeue=%s)!", task.id, requeue)
         return nacked
