@@ -223,6 +223,9 @@ class MockEventPublisher(DBMixin, EventPublisher):
                     update["type"] = update.pop("taskType")
                 if "error" in update:
                     update.pop("error")
+                # The nack is responsible for bumping the retries
+                if "retries" in update:
+                    update.pop("retries")
                 task.update(update)
                 db[self._task_collection][key] = task
                 self._write(db)
@@ -338,7 +341,11 @@ class MockWorker(ProcessWorkerMixin, MockEventPublisher):
                 raise UnknownTask(task_id=task.id) from e
             task = Task(**task)
             if requeue:
-                update = {"status": TaskStatus.QUEUED, "progress": 0.0}
+                update = {
+                    "status": TaskStatus.QUEUED,
+                    "progress": 0.0,
+                    "retries": task.retries or 0 + 1,
+                }
             else:
                 update = {"status": TaskStatus.ERROR}
             task = safe_copy(task, update=update)

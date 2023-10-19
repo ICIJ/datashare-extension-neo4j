@@ -21,6 +21,7 @@ from neo4j_app.constants import (
     TASK_PROGRESS,
     TASK_RESULT_NODE,
     TASK_RESULT_RESULT,
+    TASK_RETRIES,
 )
 from neo4j_app.core.neo4j.migrations.migrate import retrieve_projects
 from neo4j_app.core.neo4j.projects import project_db_session
@@ -214,7 +215,7 @@ async def _nack_and_requeue_task_tx(
 WHERE lock.{TASK_LOCK_WORKER_ID} = $workerId
 WITH lock
 MATCH (t:{TASK_NODE} {{ {TASK_ID}: lock.{TASK_LOCK_TASK_ID} }})
-SET t.{TASK_PROGRESS} = 0.0
+SET t.{TASK_PROGRESS} = 0.0, t.{TASK_RETRIES} = coalesce(t.{TASK_RETRIES}, 0) + 1
 WITH t, lock
 CALL apoc.create.setLabels(t, $labels) YIELD node AS task
 WITH task, lock

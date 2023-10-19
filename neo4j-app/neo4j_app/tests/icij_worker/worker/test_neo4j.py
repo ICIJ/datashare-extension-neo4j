@@ -1,7 +1,7 @@
 # pylint: disable=redefined-outer-name
 import asyncio
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 import neo4j
 import pytest
@@ -88,7 +88,7 @@ async def test_worker_negatively_acknowledge_and_requeue(
     nacked = await worker.negatively_acknowledge(task, project, requeue=True)
 
     # Then
-    update = {"status": TaskStatus.QUEUED, "progress": 0.0}
+    update = {"status": TaskStatus.QUEUED, "progress": 0.0, "retries": 1.0}
     expected_nacked = safe_copy(with_progress, update=update)
     assert nacked == expected_nacked
     # Now let's check that no lock if left in the DB
@@ -139,13 +139,7 @@ async def test_worker_should_raise_when_saving_existing_result(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("retries,expected_retries", [(None, 0), (3, 3)])
-async def test_worker_save_error(
-    populate_tasks: List[Task],
-    worker: Neo4jAsyncWorker,
-    retries: Optional[int],
-    expected_retries: int,
-):
+async def test_worker_save_error(populate_tasks: List[Task], worker: Neo4jAsyncWorker):
     # pylint: disable=unused-argument
     # Given
     task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
@@ -159,16 +153,14 @@ async def test_worker_save_error(
 
     # When
     task, _ = await worker.consume()
-    await worker.save_error(error=error, task=task, project=project, retries=retries)
+    await worker.save_error(error=error, task=task, project=project)
     saved_task = await task_manager.get_task(task_id=task.id, project=project)
     saved_errors = await task_manager.get_task_errors(task_id=task.id, project=project)
 
     # Then
     # We don't expect the task status to be updated by saving the error, the negative
     # acknowledgment will do it
-    update = {"retries": expected_retries}
-    expected = safe_copy(task, update=update)
-    assert saved_task == expected
+    assert saved_task == task
     assert saved_errors == [error]
 
 

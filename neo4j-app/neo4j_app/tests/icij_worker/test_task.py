@@ -71,16 +71,6 @@ def test_precedence_sanity_check():
             TaskEvent(task_id="task-id", status=TaskStatus.DONE),
             TaskEvent(task_id="task-id", status=TaskStatus.DONE),
         ),
-        (
-            Task(
-                id="task-id",
-                type="hello_world",
-                status=TaskStatus.RETRY,
-                created_at=_CREATED_AT,
-            ),
-            TaskEvent(task_id="task-id", status=TaskStatus.ERROR),
-            TaskEvent(task_id="task-id", status=TaskStatus.ERROR),
-        ),
         # Update the progress
         (
             Task(
@@ -256,13 +246,10 @@ _SHOULD_CANCEL_UNREADY = [
         # Store as queue, receiving a late creation event, the task stays queue
         (TaskStatus.QUEUED, TaskStatus.CREATED, TaskStatus.QUEUED),
         (TaskStatus.QUEUED, TaskStatus.RUNNING, TaskStatus.RUNNING),
-        (TaskStatus.RUNNING, TaskStatus.RETRY, TaskStatus.RETRY),
-        (TaskStatus.RETRY, TaskStatus.ERROR, TaskStatus.ERROR),
-        (TaskStatus.RETRY, TaskStatus.DONE, TaskStatus.DONE),
-        # Late running notice but the task is already retried
-        (TaskStatus.RETRY, TaskStatus.RUNNING, TaskStatus.RETRY),
+        (TaskStatus.QUEUED, TaskStatus.ERROR, TaskStatus.ERROR),
+        (TaskStatus.QUEUED, TaskStatus.DONE, TaskStatus.DONE),
         # Late retry notice but the task is already failed
-        (TaskStatus.ERROR, TaskStatus.RETRY, TaskStatus.ERROR),
+        (TaskStatus.ERROR, TaskStatus.QUEUED, TaskStatus.ERROR),
     ]
     + _DONE_IS_DONE
     + _SHOULD_CANCEL_UNREADY,
@@ -270,7 +257,42 @@ _SHOULD_CANCEL_UNREADY = [
 def test_resolve_status(
     stored: TaskStatus, event_status: TaskStatus, expected_resolved: TaskStatus
 ):
+    # Given
+    task = Task(
+        id="some_id", status=stored, type="some-type", created_at=datetime.now()
+    )
+    event = TaskEvent(task_id=task.id, status=event_status)
     # When
-    resolved = TaskStatus.resolve_event_status(stored=stored, event_status=event_status)
+    resolved = TaskStatus.resolve_event_status(task, event)
     # Then
     assert resolved == expected_resolved
+
+
+@pytest.mark.parametrize(
+    "task_retries,event_retries,expected",
+    [
+        # Delayed queued event
+        (None, None, TaskStatus.RUNNING),
+        (1, None, TaskStatus.RUNNING),
+        (2, 1, TaskStatus.RUNNING),
+        # The event is signaling a retry
+        (None, 1, TaskStatus.QUEUED),
+        (1, 2, TaskStatus.QUEUED),
+    ],
+)
+def test_resolve_running_queued_status(
+    task_retries: Optional[int], event_retries: Optional[int], expected: TaskStatus
+):
+    # Given
+    task = Task(
+        id="some_id",
+        status=TaskStatus.RUNNING,
+        type="some-type",
+        created_at=datetime.now(),
+        retries=task_retries,
+    )
+    event = TaskEvent(task_id=task.id, status=TaskStatus.QUEUED, retries=event_retries)
+    # When
+    resolved = TaskStatus.resolve_event_status(task, event)
+    # Then
+    assert resolved == expected

@@ -29,6 +29,7 @@ from neo4j_app.icij_worker.app import ICIJApp, RegisteredTask
 from neo4j_app.icij_worker.event_publisher import EventPublisher
 from neo4j_app.icij_worker.exceptions import (
     MaxRetriesExceeded,
+    RecoverableError,
     TaskAlreadyReserved,
     TaskCancelled,
     UnregisteredTask,
@@ -134,6 +135,9 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
                 await self.publish_event(event, project)
                 yield
                 await self.acknowledge(task, project)
+            except RecoverableError:
+                self.error('Task(id="%s") encountered error', task.id)
+                await self.negatively_acknowledge(task, project, requeue=True)
             except Exception as fatal_error:
                 await self.negatively_acknowledge(task, project, requeue=False)
                 raise fatal_error
@@ -204,9 +208,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         self.info('Task(id="%s") result saved !', result.task_id)
 
     @final
-    async def save_error(
-        self, error: TaskError, task: Task, project: str, retries: Optional[int] = None
-    ):
+    async def save_error(self, error: TaskError, task: Task, project: str):
         self.error('Task(id="%s"): %s\n%s', task.id, error.title, error.detail)
         # Save the error in the appropriate location
         self.debug('Task(id="%s") saving error', task.id, error)
@@ -214,9 +216,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         # Once the error has been saved, we notify the event consumers, they are
         # responsible for reflecting the fact that the error has occurred wherever
         # relevant. The source of truth will be error storage
-        await self.publish_error_event(
-            error=error, task_id=task.id, project=project, retries=retries
-        )
+        await self.publish_error_event(error=error, task_id=task.id, project=project)
 
     @final
     async def publish_error_event(
@@ -411,33 +411,32 @@ async def _retry_task(
     recoverable_errors: Tuple[Type[Exception]],
 ):
     retries = task.retries or 0
-    while True:
-        worker.check_retries(retries, task)
-        if retries:
-            # In the case of the retry, let's reset the progress
-            event = TaskEvent(task_id=task.id, progress=0.0)
-            await worker.publish_event(event, project)
-        try:
-            task_res = task_fn(**task_inputs)
-            if isawaitable(task_res):
-                task_res = await task_res
-        except TaskCancelled:
-            worker.info('Task(id="%s") cancelled during execution')
-            return
-        except recoverable_errors as e:
-            retries += 1
-            error = TaskError.from_exception(e)
-            await worker.publish_error_event(
-                error=error,
-                task_id=task.id,
-                project=project,
-                retries=retries,
-            )
-            continue
-        worker.info('Task(id="%s") complete, saving result...', task.id)
-        result = TaskResult(task_id=task.id, result=task_res)
-        await worker.save_result(result, project)
+    if retries:
+        # In the case of the retry, let's reset the progress
+        event = TaskEvent(task_id=task.id, progress=0.0)
+        await worker.publish_event(event, project)
+    try:
+        task_res = task_fn(**task_inputs)
+        if isawaitable(task_res):
+            task_res = await task_res
+    except TaskCancelled:
+        worker.info('Task(id="%s") cancelled during execution')
         return
+    except recoverable_errors as e:
+        # This will throw a MaxRetriesExceeded when necessary
+        worker.check_retries(retries, task)
+        error = TaskError.from_exception(e)
+        await worker.publish_error_event(
+            error=error,
+            task_id=task.id,
+            project=project,
+            retries=retries + 1,
+        )
+        raise RecoverableError() from e
+    worker.info('Task(id="%s") complete, saving result...', task.id)
+    result = TaskResult(task_id=task.id, result=task_res)
+    await worker.save_result(result, project)
+    return
 
 
 def add_missing_args(fn: Callable, inputs: Dict[str, Any], **kwargs) -> Dict[str, Any]:

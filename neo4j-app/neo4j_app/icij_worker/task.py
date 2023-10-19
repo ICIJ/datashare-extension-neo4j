@@ -26,24 +26,28 @@ class TaskStatus(Enum):
     CREATED = "CREATED"
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
-    RETRY = "RETRY"
     ERROR = "ERROR"
     DONE = "DONE"
     CANCELLED = "CANCELLED"
 
     @classmethod
-    def resolve_event_status(
-        cls, *, stored: TaskStatus, event_status: TaskStatus
-    ) -> TaskStatus:
+    def resolve_event_status(cls, stored: Task, event: TaskEvent) -> TaskStatus:
         # A done task is always done
-        if stored is TaskStatus.DONE:
-            return stored
+        if stored.status is TaskStatus.DONE:
+            return stored.status
         # A task store as ready can't be updated unless there's a new ready state
         # (for instance ERROR -> DONE)
-        if stored in READY_STATES and event_status not in READY_STATES:
-            return stored
+        if stored.status in READY_STATES and event.status not in READY_STATES:
+            return stored.status
+        if event.status is TaskStatus.QUEUED and stored.status is TaskStatus.RUNNING:
+            # We have to store the most recent status
+            if event.retries is None:
+                return stored.status
+            if stored.retries is None or event.retries > stored.retries:
+                return event.status
+            return stored.status
         # Otherwise the true status is the most advanced on in the state machine
-        return max(stored, event_status)
+        return max(stored.status, event.status)
 
     def __gt__(self, other: TaskStatus) -> bool:
         return status_precedence(self) < status_precedence(other)
@@ -64,7 +68,6 @@ PRECEDENCE = [
     TaskStatus.DONE,
     TaskStatus.ERROR,
     TaskStatus.CANCELLED,
-    TaskStatus.RETRY,
     TaskStatus.RUNNING,
     TaskStatus.QUEUED,
     TaskStatus.CREATED,
@@ -84,7 +87,7 @@ class Task(NoEnumModel, LowerCamelCaseModel):
     progress: Optional[float] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
-    retries: int = 0
+    retries: Optional[int] = None
 
     @classmethod
     def create(
@@ -160,9 +163,7 @@ class Task(NoEnumModel, LowerCamelCaseModel):
         resolved.pop("completed_at", None)
         # Update the status to make it consistent in case of race condition
         if event.status is not None:
-            resolved["status"] = TaskStatus.resolve_event_status(
-                stored=self.status, event_status=event.status
-            )
+            resolved["status"] = TaskStatus.resolve_event_status(self, event)
         # Copy the event a first time to unset non-updatable field
         if not resolved:
             return None
@@ -232,7 +233,7 @@ class TaskEvent(NoEnumModel, LowerCamelCaseModel):
     def from_error(
         cls, error: TaskError, task_id: str, retries: Optional[int] = None
     ) -> TaskEvent:
-        status = TaskStatus.RETRY if retries is not None else TaskStatus.ERROR
+        status = TaskStatus.QUEUED if retries is not None else TaskStatus.ERROR
         event = TaskEvent(task_id=task_id, status=status, retries=retries, error=error)
         return event
 

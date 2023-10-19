@@ -114,6 +114,7 @@ TASK_CREATED_AT = "createdAt"
 TASK_ID = "id"
 TASK_INPUTS = "inputs"
 TASK_PROGRESS = "progress"
+TASK_RETRIES = "retries"
 TASK_TYPE = "type"
 
 TASK_LOCK_NODE = "_TaskLock"

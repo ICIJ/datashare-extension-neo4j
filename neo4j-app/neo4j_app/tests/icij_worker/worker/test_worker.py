@@ -174,8 +174,15 @@ async def test_task_wrapper_should_recover_from_recoverable_error(
         status=TaskStatus.CREATED,
     )
 
-    # When
-    await task_manager.enqueue(task, project)
+    # When/Then
+    task = await task_manager.enqueue(task, project)
+    assert task.status is TaskStatus.QUEUED
+    await task_wrapper(worker)
+    retried_task = await task_manager.get_task(task_id=task.id, project=project)
+
+    assert retried_task.status is TaskStatus.QUEUED
+    assert retried_task.retries == 1
+
     await task_wrapper(worker)
     saved_task = await task_manager.get_task(task_id=task.id, project=project)
     saved_result = await task_manager.get_task_result(task_id=task.id, project=project)
@@ -208,13 +215,14 @@ async def test_task_wrapper_should_recover_from_recoverable_error(
         TaskEvent(task_id="some-id", status=TaskStatus.RUNNING, progress=0.0),
         TaskEvent(
             task_id="some-id",
-            status=TaskStatus.RETRY,
+            status=TaskStatus.QUEUED,
             retries=1,
             progress=None,  # The progress should be left as is waiting before retry
             error=TaskError(
-                id="", title="_Recoverable", detail="", occurred_at=datetime.now()
+                id="", title="Recoverable", detail="", occurred_at=datetime.now()
             ),
         ),
+        TaskEvent(task_id="some-id", status=TaskStatus.RUNNING, progress=0.0),
         TaskEvent(task_id="some-id", progress=0.0),
         TaskEvent(
             task_id="some-id",
@@ -226,11 +234,11 @@ async def test_task_wrapper_should_recover_from_recoverable_error(
     events = [e.dict(by_alias=True) for e in worker.published_events]
     event_errors = [e.pop("error") for e in events]
     event_error_titles = [e["title"] if e is not None else e for e in event_errors]
-    assert event_error_titles == [None, "Recoverable", None, None]
+    assert event_error_titles == [None, "Recoverable", None, None, None]
     event_error_occurred_at = [
         isinstance(e["occurredAt"], datetime) if e else e for e in event_errors
     ]
-    assert event_error_occurred_at == [None, True, None, None]
+    assert event_error_occurred_at == [None, True, None, None, None]
     expected_events = [e.dict(by_alias=True) for e in expected_events]
     for e in expected_events:
         e.pop("error")
