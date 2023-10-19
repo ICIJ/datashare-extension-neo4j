@@ -130,7 +130,7 @@ def test_task_integration(test_client_type: str, request: FixtureRequest):
 def test_cancel_task(test_client: TestClient):
     # Given
     inputs = {"greeted": "everyone"}
-    job = TaskJob(task_id=None, type="hello_world", inputs=inputs)
+    job = TaskJob(task_id=None, task_type="hello_world", inputs=inputs)
 
     # When
     create_url = f"/tasks?project={TEST_PROJECT}"

@@ -151,7 +151,7 @@ async def test_post_graph_dump_should_return_200(
         _mocked_run, lines=exported_lines, record_key=record_key
     )
     with patch(
-        "neo4j_app.core.neo4j.dumps.neo4j.AsyncSession.run",
+        "neo4j_app.core.neo4j.graphs.neo4j.AsyncSession.run",
         spec=True,
     ) as mocked_neo4j_run:
         mocked_neo4j_run.side_effect = mocked_session_run

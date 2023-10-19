@@ -1,12 +1,14 @@
 import importlib.metadata
 
 from fastapi import APIRouter, HTTPException, Response
+from neo4j.exceptions import DriverError
 from starlette.requests import Request
 
 from neo4j_app.app.dependencies import (
+    DependencyInjectionError,
     lifespan_es_client,
     lifespan_neo4j_driver,
-    lifespan_task_store,
+    lifespan_task_manager,
     lifespan_worker_pool,
 )
 from neo4j_app.app.doc import OTHER_TAG
@@ -22,9 +24,9 @@ def main_router() -> APIRouter:
             driver = lifespan_neo4j_driver()
             await driver.verify_connectivity()
             lifespan_es_client()
-            lifespan_task_store()
+            lifespan_task_manager()
             lifespan_worker_pool()
-        except Exception as e:  # pylint: disable=broad-except
+        except (DriverError, DependencyInjectionError) as e:
             raise HTTPException(503, detail="Service Unavailable") from e
         return "pong"
 
