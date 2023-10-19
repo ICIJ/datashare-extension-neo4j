@@ -63,7 +63,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_timeout_s: Union[int, float] = 60 * 5
     es_keep_alive: str = "1m"
     force_migrations: bool = False
-    neo4j_app_async_module: str = "neo4j_app.tasks.app"
+    neo4j_app_async_app: str = "neo4j_app.tasks.app"
     neo4j_app_async_dependencies: Optional[str] = "neo4j_app.tasks.WORKER_LIFESPAN_DEPS"
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
@@ -244,7 +244,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             raise ValueError(msg) from e
 
     def to_async_app(self):
-        app_path = self.neo4j_app_async_module.split(".")
+        app_path = self.neo4j_app_async_app.split(".")
         module, app_name = app_path[:-1], app_path[-1]
         module = ".".join(module)
         module = importlib.import_module(module)
