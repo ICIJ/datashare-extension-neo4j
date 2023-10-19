@@ -27,10 +27,10 @@ async def test_worker_publish_event(
     task = populate_tasks[0]
     assert task.status == TaskStatus.QUEUED
     assert task.progress is None
-    assert task.retries == 0
+    assert task.retries is None
     assert task.completed_at is None
     progress = 66.6
-    status = TaskStatus.RETRY
+    status = TaskStatus.RUNNING
     retries = 2
 
     event = TaskEvent(
