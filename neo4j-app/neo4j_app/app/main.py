@@ -17,9 +17,10 @@ def main_router() -> APIRouter:
     router = APIRouter(tags=[OTHER_TAG])
 
     @router.get("/ping")
-    def ping() -> str:
+    async def ping() -> str:
         try:
-            lifespan_neo4j_driver()
+            driver = lifespan_neo4j_driver()
+            await driver.verify_connectivity()
             lifespan_es_client()
             lifespan_task_store()
             lifespan_worker_pool()
