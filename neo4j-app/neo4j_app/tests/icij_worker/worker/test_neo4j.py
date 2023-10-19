@@ -18,7 +18,10 @@ from neo4j_app.icij_worker import (
 )
 from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
 from neo4j_app.icij_worker.worker.neo4j import Neo4jAsyncWorker
-from neo4j_app.tests.conftest import TEST_PROJECT, true_after
+from neo4j_app.tests.conftest import (
+    TEST_PROJECT,
+    fail_if_exception,
+)
 
 
 @pytest.fixture(scope="function")
@@ -27,17 +30,35 @@ def worker(test_app: ICIJApp, neo4j_app_driver: neo4j.AsyncDriver) -> Neo4jAsync
     return worker
 
 
+async def _count_locks(driver: neo4j.AsyncDriver, project: str) -> int:
+    # Now let's check that no lock if left in the DB
+    count_locks_query = "MATCH (lock:_TaskLock) RETURN count(*) as nLocks"
+    async with project_db_session(driver, project=project) as sess:
+        recs = await sess.run(count_locks_query)
+        counts = await recs.single(strict=True)
+    return counts["nLocks"]
+
+
 @pytest.mark.asyncio
 async def test_worker_consume_task(
-    worker: Neo4jAsyncWorker, populate_tasks: List[Task]
+    populate_tasks: List[Task], worker: Neo4jAsyncWorker
 ):
     # pylint: disable=unused-argument
     # Given
-    registry = set()
+    project = TEST_PROJECT
+    # When
     task = asyncio.create_task(worker.consume())
-    task.add_done_callback(registry.discard)
     # Then
-    true_after(task.done, after_s=1.0)
+    timeout = 2
+    with fail_if_exception(f"failed to consume task in less than {timeout}s"):
+        await asyncio.wait([task], timeout=timeout)
+
+    # Now let's check that no lock if left in the DB
+    count_locks_query = "MATCH (lock:_TaskLock) RETURN count(*) as nLocks"
+    async with project_db_session(worker.driver, project) as sess:
+        recs = await sess.run(count_locks_query)
+        counts = await recs.single(strict=True)
+    assert counts["nLocks"] == 1
 
 
 @pytest.mark.asyncio
@@ -47,18 +68,16 @@ async def test_worker_negatively_acknowledge(
     # pylint: disable=unused-argument
     # When
     task, project = await worker.consume()
+    n_locks = await _count_locks(worker.driver, project=project)
+    assert n_locks == 1
     nacked = await worker.negatively_acknowledge(task, project, requeue=False)
 
     # Then
     update = {"status": TaskStatus.ERROR}
     expected_nacked = safe_copy(task, update=update)
     assert nacked == expected_nacked
-    # Now let's check that no lock if left in the DB
-    count_locks_query = "MATCH (lock:_TaskLock) RETURN count(*) as nLocks"
-    async with project_db_session(worker.driver, project) as sess:
-        recs = await sess.run(count_locks_query)
-        counts = await recs.single(strict=True)
-    assert counts["nLocks"] == 0
+    n_locks = await _count_locks(worker.driver, project=project)
+    assert n_locks == 0
 
 
 @pytest.mark.asyncio
@@ -76,10 +95,14 @@ async def test_worker_negatively_acknowledge_and_requeue(
         created_at=created_at,
         status=TaskStatus.CREATED,
     )
+    n_locks = await _count_locks(worker.driver, project=project)
+    assert n_locks == 0
 
     # When
     await task_manager.enqueue(task, project)
     task, project = await worker.consume()
+    n_locks = await _count_locks(worker.driver, project=project)
+    assert n_locks == 1
     # Let's publish some event to increment the progress and check that it's reset
     # correctly to 0
     event = TaskEvent(task_id=task.id, progress=50.0)
@@ -91,12 +114,8 @@ async def test_worker_negatively_acknowledge_and_requeue(
     update = {"status": TaskStatus.QUEUED, "progress": 0.0, "retries": 1.0}
     expected_nacked = safe_copy(with_progress, update=update)
     assert nacked == expected_nacked
-    # Now let's check that no lock if left in the DB
-    count_locks_query = "MATCH (lock:_TaskLock) RETURN count(*) as nLocks"
-    async with project_db_session(worker.driver, project) as sess:
-        recs = await sess.run(count_locks_query)
-        counts = await recs.single(strict=True)
-    assert counts["nLocks"] == 0
+    n_locks = await _count_locks(worker.driver, project=project)
+    assert n_locks == 0
 
 
 @pytest.mark.asyncio

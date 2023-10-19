@@ -194,9 +194,8 @@ WHERE lock.{TASK_LOCK_WORKER_ID} = $workerId
 WITH lock
 MATCH (t:{TASK_NODE} {{ {TASK_ID}: lock.{TASK_LOCK_TASK_ID} }})
 CALL apoc.create.setLabels(t, $labels) YIELD node AS task
-WITH task, lock
 DELETE lock
-RETURN task
+RETURN task, lock
 """
     labels = [TASK_NODE, TaskStatus.ERROR.value]
     res = await tx.run(query, taskId=task_id, workerId=worker_id, labels=labels)
@@ -216,11 +215,10 @@ WHERE lock.{TASK_LOCK_WORKER_ID} = $workerId
 WITH lock
 MATCH (t:{TASK_NODE} {{ {TASK_ID}: lock.{TASK_LOCK_TASK_ID} }})
 SET t.{TASK_PROGRESS} = 0.0, t.{TASK_RETRIES} = coalesce(t.{TASK_RETRIES}, 0) + 1
+DELETE lock
 WITH t, lock
 CALL apoc.create.setLabels(t, $labels) YIELD node AS task
-WITH task, lock
-DELETE lock
-RETURN task"""
+RETURN task, lock"""
     labels = [TASK_NODE, TaskStatus.QUEUED.value]
     res = await tx.run(query, taskId=task_id, workerId=worker_id, labels=labels)
     try:
