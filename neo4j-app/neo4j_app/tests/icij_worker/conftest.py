@@ -29,7 +29,7 @@ from neo4j_app.icij_worker import (
 )
 from neo4j_app.icij_worker.exceptions import (
     TaskAlreadyExists,
-    TaskAlreadyReserved, TaskQueueIsFull,
+    TaskQueueIsFull,
     UnknownTask,
 )
 from neo4j_app.icij_worker.task_manager import TaskManager

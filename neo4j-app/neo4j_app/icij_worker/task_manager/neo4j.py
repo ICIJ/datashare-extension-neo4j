@@ -125,7 +125,9 @@ async def _get_tasks_tx(
             for labels in all_labels
         )
     else:
-        query = f"MATCH (task:{TASK_NODE}) ORDER BY task.{TASK_CREATED_AT} DESC"
+        query = f"""MATCH (task:{TASK_NODE})
+RETURN task
+ORDER BY task.{TASK_CREATED_AT} DESC"""
     res = await tx.run(query, status=status, type=task_type)
     tasks = [Task.from_neo4j(t) async for t in res]
     return tasks
