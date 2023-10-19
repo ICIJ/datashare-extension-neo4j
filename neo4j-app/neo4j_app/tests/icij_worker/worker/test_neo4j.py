@@ -15,7 +15,7 @@ from neo4j_app.icij_worker import (
     TaskResult,
     TaskStatus,
 )
-from neo4j_app.icij_worker.task_store.neo4j import Neo4jTaskStore
+from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
 from neo4j_app.icij_worker.worker.neo4j import Neo4jAsyncWorker
 from neo4j_app.tests.conftest import TEST_PROJECT, true_after
 
@@ -64,7 +64,7 @@ async def test_worker_negatively_acknowledge_and_requeue(
 ):
     # pylint: disable=unused-argument
     # Given
-    store = Neo4jTaskStore(worker.driver, max_queue_size=10)
+    task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -75,7 +75,7 @@ async def test_worker_negatively_acknowledge_and_requeue(
     )
 
     # When
-    await store.enqueue(task, project)
+    await task_manager.enqueue(task, project)
     task, project = await worker.consume()
     # Let's publish some event to increment the progress and check that it's reset
     # correctly to 0
@@ -97,7 +97,7 @@ async def test_worker_negatively_acknowledge_and_requeue(
 @pytest.mark.asyncio
 async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jAsyncWorker):
     # Given
-    store = Neo4jTaskStore(worker.driver, max_queue_size=10)
+    task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
     task = populate_tasks[0]
     assert task.status == TaskStatus.QUEUED
@@ -106,8 +106,8 @@ async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jAsync
 
     # When
     await worker.save_result(result=task_result, project=project)
-    saved_task = await store.get_task(task_id=task.id, project=project)
-    saved_result = await store.get_task_result(task_id=task.id, project=project)
+    saved_task = await task_manager.get_task(task_id=task.id, project=project)
+    saved_result = await task_manager.get_task_result(task_id=task.id, project=project)
 
     # Then
     assert saved_task == task
@@ -142,7 +142,7 @@ async def test_worker_save_error(
     expected_retries: int,
 ):
     # Given
-    store = Neo4jTaskStore(worker.driver, max_queue_size=10)
+    task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
     task = populate_tasks[0]
     error = TaskError(
@@ -154,8 +154,8 @@ async def test_worker_save_error(
 
     # When
     await worker.save_error(error=error, task=task, project=project, retries=retries)
-    saved_task = await store.get_task(task_id=task.id, project=project)
-    saved_errors = await store.get_task_errors(task_id=task.id, project=project)
+    saved_task = await task_manager.get_task(task_id=task.id, project=project)
+    saved_errors = await task_manager.get_task_errors(task_id=task.id, project=project)
 
     # Then
     # We don't expect the task status to be updated by saving the error, the negative
@@ -172,17 +172,17 @@ async def test_worker_acknowledgment_cm(
 ):
     # Given
     created = populate_tasks[0]
-    store = Neo4jTaskStore(worker.driver, max_queue_size=10)
+    task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
 
     # When
     async with worker.acknowledgment_cm(created, project):
         await worker.consume()
-        task = await store.get_task(task_id=created.id, project=TEST_PROJECT)
+        task = await task_manager.get_task(task_id=created.id, project=TEST_PROJECT)
         assert task.status is TaskStatus.RUNNING
 
     # Then
-    task = await store.get_task(task_id=created.id, project=TEST_PROJECT)
+    task = await task_manager.get_task(task_id=created.id, project=TEST_PROJECT)
     update = {"progress": 100.0, "status": TaskStatus.DONE}
     expected_task = safe_copy(task, update=update).dict(by_alias=True)
     expected_task.pop("completedAt")

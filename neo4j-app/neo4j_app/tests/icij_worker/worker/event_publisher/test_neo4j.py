@@ -7,7 +7,7 @@ import pytest
 
 from neo4j_app.core.utils.pydantic import safe_copy
 from neo4j_app.icij_worker import Neo4jEventPublisher, Task, TaskEvent, TaskStatus
-from neo4j_app.icij_worker.task_store.neo4j import Neo4jTaskStore
+from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
 from neo4j_app.tests.conftest import TEST_PROJECT
 
 
@@ -22,7 +22,7 @@ async def test_worker_publish_event(
     populate_tasks: List[Task], publisher: Neo4jEventPublisher
 ):
     # Given
-    store = Neo4jTaskStore(publisher.driver, max_queue_size=10)
+    task_manager = Neo4JTaskManager(publisher.driver, max_queue_size=10)
     project = TEST_PROJECT
     task = populate_tasks[0]
     assert task.status == TaskStatus.QUEUED
@@ -39,7 +39,7 @@ async def test_worker_publish_event(
 
     # When
     await publisher.publish_event(event=event, project=project)
-    saved_task = await store.get_task(task_id=task.id, project=project)
+    saved_task = await task_manager.get_task(task_id=task.id, project=project)
 
     # Then
     # Status is not updated by event
@@ -66,7 +66,7 @@ async def test_worker_publish_done_task_event_should_not_update_task(
         res = await sess.run(query, now=datetime.now())
         completed = await res.single()
     completed = Task.from_neo4j(completed)
-    store = Neo4jTaskStore(publisher.driver, max_queue_size=10)
+    task_manager = Neo4JTaskManager(publisher.driver, max_queue_size=10)
     event = TaskEvent(
         task_id=completed.id,
         progress=0.99,
@@ -76,7 +76,7 @@ async def test_worker_publish_done_task_event_should_not_update_task(
 
     # When
     await publisher.publish_event(event=event, project=project)
-    saved_task = await store.get_task(task_id=completed.id, project=project)
+    saved_task = await task_manager.get_task(task_id=completed.id, project=project)
 
     # Then
     assert saved_task == completed
@@ -86,7 +86,7 @@ async def test_worker_publish_done_task_event_should_not_update_task(
 async def test_worker_publish_event_for_unknown_task(publisher: Neo4jEventPublisher):
     # This is useful when task is not reserved yet
     # Given
-    store = Neo4jTaskStore(publisher.driver, max_queue_size=10)
+    task_manager = Neo4JTaskManager(publisher.driver, max_queue_size=10)
     project = TEST_PROJECT
 
     task_id = "some-id"
@@ -101,7 +101,7 @@ async def test_worker_publish_event_for_unknown_task(publisher: Neo4jEventPublis
 
     # When
     await publisher.publish_event(event=event, project=project)
-    saved_task = await store.get_task(task_id=task_id, project=project)
+    saved_task = await task_manager.get_task(task_id=task_id, project=project)
 
     # Then
     expected = Task(
@@ -115,7 +115,7 @@ async def test_worker_publish_event_should_use_status_resolution(
     populate_tasks: List[Task], publisher: Neo4jEventPublisher
 ):
     # Given
-    store = Neo4jTaskStore(publisher.driver, max_queue_size=10)
+    task_manager = Neo4JTaskManager(publisher.driver, max_queue_size=10)
     project = TEST_PROJECT
     task = populate_tasks[1]
     assert task.status is TaskStatus.RUNNING
@@ -124,7 +124,7 @@ async def test_worker_publish_event_should_use_status_resolution(
 
     # When
     await publisher.publish_event(event=event, project=project)
-    saved_task = await store.get_task(task_id=task.id, project=project)
+    saved_task = await task_manager.get_task(task_id=task.id, project=project)
 
     # Then
     assert saved_task == task

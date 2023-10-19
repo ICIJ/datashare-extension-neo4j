@@ -33,7 +33,7 @@ from neo4j_app.icij_worker.exceptions import (
     TaskQueueIsFull,
     UnknownTask,
 )
-from neo4j_app.icij_worker.task_store import TaskStore
+from neo4j_app.icij_worker.task_manager import TaskManager
 from neo4j_app.icij_worker.worker import ProcessWorkerMixin
 from neo4j_app.typing_ import PercentProgress
 
@@ -100,7 +100,7 @@ class DBMixin(ABC):
         db_path.write_text(json.dumps(db))
 
 
-class MockStore(TaskStore, DBMixin):
+class MockManager(TaskManager, DBMixin):
     def __init__(
         self,
         db_path: Path,

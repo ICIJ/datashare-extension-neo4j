@@ -4,7 +4,7 @@ from typing import List, Optional, Union, final
 from neo4j_app.icij_worker import Task, TaskError, TaskResult, TaskStatus
 
 
-class TaskStore(ABC):
+class TaskManager(ABC):
     @final
     async def enqueue(self, task: Task, project: str) -> Task:
         if task.status is not TaskStatus.CREATED:

@@ -25,10 +25,10 @@ from neo4j_app.icij_worker.exceptions import (
     UnknownTask,
 )
 from neo4j_app.icij_worker.task import Task, TaskError, TaskResult, TaskStatus
-from neo4j_app.icij_worker.task_store import TaskStore
+from neo4j_app.icij_worker.task_manager import TaskManager
 
 
-class Neo4jTaskStore(TaskStore):
+class Neo4JTaskManager(TaskManager):
     def __init__(self, driver: neo4j.AsyncDriver, max_queue_size: int):
         self._driver = driver
         self._max_queue_size = max_queue_size
