@@ -146,6 +146,7 @@ async def test_worker_save_error(
     retries: Optional[int],
     expected_retries: int,
 ):
+    # pylint: disable=unused-argument
     # Given
     task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
