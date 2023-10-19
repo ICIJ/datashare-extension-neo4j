@@ -22,8 +22,8 @@ from neo4j_app.icij_worker import (
     EventPublisher,
     Neo4jEventPublisher,
 )
-from neo4j_app.icij_worker.task_store import TaskStore
-from neo4j_app.icij_worker.task_store.neo4j import Neo4jTaskStore
+from neo4j_app.icij_worker.task_manager import TaskManager
+from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ _ES_CLIENT: Optional[ESClientABC] = None
 _EVENT_PUBLISHER: Optional[EventPublisher] = None
 _PROCESS_MANAGER: Optional[SyncManager] = None
 _NEO4J_DRIVER: Optional[neo4j.AsyncDriver] = None
-_TASK_STORE: Optional[TaskStore] = None
+_TASK_MANAGER: Optional[TaskManager] = None
 _TEST_DB_FILE: Optional[Path] = None
 _TEST_LOCK: Optional[multiprocessing.Lock] = None
 _WORKER_POOL: Optional[multiprocessing.Pool] = None
@@ -189,27 +189,27 @@ def _lifespan_worker_pool() -> multiprocessing.Pool:
     return cast(multiprocessing.Pool, _WORKER_POOL)
 
 
-def task_store_enter(_: AppConfig):
-    global _TASK_STORE
+def task_task_manager_enter(_: AppConfig):
+    global _TASK_MANAGER
     config = lifespan_config()
     if config.test:
-        from neo4j_app.tests.icij_worker.conftest import MockStore
+        from neo4j_app.tests.icij_worker.conftest import MockManager
 
-        _TASK_STORE = MockStore(
+        _TASK_MANAGER = MockManager(
             _lifespan_test_db_path(),
             _lifespan_test_lock(),
             max_queue_size=config.neo4j_app_task_queue_size,
         )
     else:
-        _TASK_STORE = Neo4jTaskStore(
+        _TASK_MANAGER = Neo4JTaskManager(
             lifespan_neo4j_driver(), max_queue_size=config.neo4j_app_task_queue_size
         )
 
 
-def lifespan_task_store() -> TaskStore:
-    if _TASK_STORE is None:
-        raise DependencyInjectionError("task store")
-    return cast(TaskStore, _TASK_STORE)
+def lifespan_task_manager() -> TaskManager:
+    if _TASK_MANAGER is None:
+        raise DependencyInjectionError("task manager")
+    return cast(TaskManager, _TASK_MANAGER)
 
 
 def event_publisher_enter(_: AppConfig):
@@ -258,7 +258,7 @@ FASTAPI_LIFESPAN_DEPS = [
     (test_process_manager_enter, test_process_manager_exit),
     (test_db_path_enter, test_db_path_exit),
     (_test_lock_enter, None),
-    (task_store_enter, None),
+    (task_task_manager_enter, None),
     (event_publisher_enter, None),
     (worker_pool_enter, worker_pool_exit),
     (create_project_registry_db_enter, None),
