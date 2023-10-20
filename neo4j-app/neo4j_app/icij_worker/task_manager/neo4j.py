@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import AsyncGenerator, List, Optional, Union
 
 import neo4j
+from neo4j.exceptions import ConstraintError
 
 from neo4j_app.constants import (
     TASK_CREATED_AT,
@@ -21,6 +22,7 @@ from neo4j_app.constants import (
 from neo4j_app.core.neo4j.projects import project_db_session
 from neo4j_app.icij_worker.exceptions import (
     MissingTaskResult,
+    TaskAlreadyExists,
     TaskQueueIsFull,
     UnknownTask,
 )
@@ -177,10 +179,17 @@ SET task:{TaskStatus.QUEUED.value},
     task.{TASK_CREATED_AT} = $createdAt 
 RETURN task
 """
-    res = await tx.run(
-        query, taskId=task_id, taskType=task_type, createdAt=created_at, inputs=inputs
-    )
-    task = await res.single(strict=True)
+    try:
+        res = await tx.run(
+            query,
+            taskId=task_id,
+            taskType=task_type,
+            createdAt=created_at,
+            inputs=inputs,
+        )
+        task = await res.single(strict=True)
+    except ConstraintError as e:
+        raise TaskAlreadyExists() from e
     return Task.from_neo4j(task)
 
 

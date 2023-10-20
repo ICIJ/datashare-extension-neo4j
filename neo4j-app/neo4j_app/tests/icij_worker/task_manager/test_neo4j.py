@@ -7,7 +7,11 @@ import pytest_asyncio
 
 from neo4j_app.core.utils.pydantic import safe_copy
 from neo4j_app.icij_worker import Task, TaskError, TaskResult, TaskStatus
-from neo4j_app.icij_worker.exceptions import MissingTaskResult, TaskQueueIsFull
+from neo4j_app.icij_worker.exceptions import (
+    MissingTaskResult,
+    TaskAlreadyExists,
+    TaskQueueIsFull,
+)
 from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
 from neo4j_app.tests.conftest import TEST_PROJECT
 
@@ -256,6 +260,27 @@ async def test_task_manager_enqueue(neo4j_app_driver: neo4j.AsyncDriver):
     update = {"status": TaskStatus.QUEUED}
     expected = safe_copy(task, update=update)
     assert queued == expected
+
+
+@pytest.mark.asyncio
+async def test_task_manager_enqueue_should_raise_for_existing_task(
+    neo4j_app_driver: neo4j.AsyncDriver,
+):
+    # Given
+    project = TEST_PROJECT
+    task_manager = Neo4JTaskManager(neo4j_app_driver, max_queue_size=10)
+    task = Task(
+        id="some-id",
+        type="hello_world",
+        status=TaskStatus.CREATED,
+        created_at=datetime.now(),
+        inputs={"greeted": "world"},
+    )
+    await task_manager.enqueue(task, project)
+
+    # When/Then
+    with pytest.raises(TaskAlreadyExists):
+        await task_manager.enqueue(task, project)
 
 
 @pytest.mark.asyncio
