@@ -16,7 +16,11 @@ from neo4j_app.icij_worker import (
     TaskEvent,
     TaskStatus,
 )
-from neo4j_app.icij_worker.exceptions import TaskQueueIsFull, UnknownTask
+from neo4j_app.icij_worker.exceptions import (
+    TaskAlreadyExists,
+    TaskQueueIsFull,
+    UnknownTask,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +38,8 @@ def tasks_router() -> APIRouter:
         task = job.to_task(task_id=task_id)
         try:
             await task_task_manager.enqueue(task, project)
+        except TaskAlreadyExists:
+            return Response(task.id, status_code=200)
         except TaskQueueIsFull as e:
             raise HTTPException(429, detail="Too Many Requests") from e
         logger.debug("Publishing task queuing event...")

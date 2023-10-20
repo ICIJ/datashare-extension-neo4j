@@ -114,18 +114,17 @@ class MockManager(TaskManager, DBMixin):
         key = self._task_key(task_id=task.id, project=project)
         with self.db_lock:
             db = self._read()
+            tasks = db[self._task_collection]
             n_queued = sum(
-                1
-                for t in db[self._task_collection].values()
-                if t["status"] == TaskStatus.QUEUED.value
+                1 for t in tasks.values() if t["status"] == TaskStatus.QUEUED.value
             )
             if n_queued > self._max_queue_size:
                 raise TaskQueueIsFull(self._max_queue_size)
-            if key in db:
+            if key in tasks:
                 raise TaskAlreadyExists(task.id)
             update = {"status": TaskStatus.QUEUED}
             task = safe_copy(task, update=update)
-            db[self._task_collection][key] = task.dict()
+            tasks[key] = task.dict()
             self._write(db)
             return task
 

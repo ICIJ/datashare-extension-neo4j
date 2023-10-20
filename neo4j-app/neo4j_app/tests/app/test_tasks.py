@@ -52,7 +52,9 @@ def _assert_task_has_status(
 
 
 @pytest.mark.parametrize("task_id", [None, "some-id"])
-def test_task(task_id: Optional[str], test_client_with_async: TestClient):
+def test_task_should_return_201_for_created_task(
+    task_id: Optional[str], test_client_with_async: TestClient
+):
     # Given
     test_client = test_client_with_async
     url = f"/tasks?project={TEST_PROJECT}"
@@ -64,10 +66,30 @@ def test_task(task_id: Optional[str], test_client_with_async: TestClient):
 
     # Then
     assert res.status_code == 201, res.json()
-    created_task_id = res.content.decode()
+    created_task_id = res.text
     assert isinstance(created_task_id, str)
     if task_id is not None:
         assert created_task_id == task_id
+
+
+@pytest.mark.parametrize("task_id", [None, "some-id"])
+def test_task_should_return_200_for_existing_task(
+    task_id: Optional[str], test_client_with_async: TestClient
+):
+    # Given
+    test_client = test_client_with_async
+    url = f"/tasks?project={TEST_PROJECT}"
+    inputs = {"greeted": "everyone"}
+    job = TaskJob(task_id=task_id, type="hello_world", inputs=inputs)
+
+    # When
+    first = test_client.post(url, json=job.dict())
+    second = test_client.post(url, json=job.dict())
+
+    # Then
+    assert first.status_code == 201, first.json()
+    assert second.status_code == 200, second.json()
+    assert first.text == second.text
 
 
 @pytest.mark.parametrize(
