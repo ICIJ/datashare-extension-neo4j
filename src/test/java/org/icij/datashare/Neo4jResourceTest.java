@@ -1193,7 +1193,8 @@ public class Neo4jResourceTest {
             String result = "hello world";
             neo4jApp.configure(routes -> routes.get("/tasks/:id/result",
                 (id, context) -> new Payload(
-                    "application/json", MAPPER.writeValueAsString("hello world"))));
+                    "application/json", MAPPER.writeValueAsString(result)))
+            );
             // When
             String response = neo4jAppResource.taskResult("taskId", "foo-datashare", String.class);
             // Then

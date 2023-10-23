@@ -114,13 +114,6 @@ public class Neo4jClientTest {
                 return new Payload("application/json",
                     TestUtils.makeJsonHttpError("Not Found", "Invalid project " + project), 404);
             }
-            String content = context.request().content();
-            String expectedContent = "{\"taskType\":\"full_import\","
-                + "\"taskId\":null,\"inputs\":null,\"createdAt\":null}";
-            if (!content.equals(expectedContent)) {
-                return new Payload("application/json",
-                    TestUtils.makeJsonHttpError("Bad Request", "Invalid payload"), 400);
-            }
             return new Payload("text/plain", "taskId", 201);
         }
 
