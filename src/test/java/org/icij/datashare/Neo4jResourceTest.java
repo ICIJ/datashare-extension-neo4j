@@ -12,7 +12,10 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import net.codestory.http.annotations.Prefix;
 import net.codestory.http.filters.basic.BasicAuthFilter;
 import net.codestory.http.payload.Payload;
@@ -22,6 +25,7 @@ import org.icij.datashare.text.Project;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -109,6 +113,21 @@ public class Neo4jResourceTest {
         }
     }
 
+    public static class MockCliModeProperties extends MockProperties
+        implements BeforeAllCallback {
+        @Override
+        public void beforeAll(ExtensionContext extensionContext) {
+            propertyProvider = new PropertiesProvider(new HashMap<>() {
+                {
+                    put("neo4jAppPort", Integer.toString(neo4jAppPort));
+                    put("neo4jSingleProject", SINGLE_PROJECT);
+                    put("mode", "CLI");
+                    put("neo4jStartServerCmd", "src/test/resources/shell_mock");
+                }
+            });
+        }
+    }
+
     public static class PythonAppProperties extends MockProperties implements BeforeAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
@@ -186,12 +205,18 @@ public class Neo4jResourceTest {
 
 
     public static class MockNeo4jApp extends ProdWebServerRuleExtension
-        implements BeforeAllCallback {
+        implements BeforeAllCallback, AfterAllCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
             neo4jAppPort = this.port();
             neo4jApp = this;
             this.configure(routes -> routes.get("/ping", "pong"));
+            Neo4jResource.projects.add(SINGLE_PROJECT);
+        }
+
+        @Override
+        public void afterAll(ExtensionContext extensionContext) {
+            Neo4jResource.projects.remove(SINGLE_PROJECT);
         }
     }
 
@@ -733,7 +758,52 @@ public class Neo4jResourceTest {
             ).getMessage()).isEqualTo(expected);
         }
 
+        @Test
+        public void test_get_task_should_return_401_for_authorized_user() {
+            // Only available for CLI users for now
+            // Given
+            Objects.Task running = new Objects.Task(
+                "taskId", Objects.TaskType.FULL_IMPORT, Objects.TaskStatus.RUNNING,
+                null, 50.0f, 0, Date.from(Instant.now()), null);
+            neo4jApp.configure(routes -> routes.get("/tasks/:id", (id, context) -> running));
+            // When
+            Response response = get("/api/neo4j/tasks/taskId?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_get_task_should_return_401_for_unauthorized_user() {
+            // Given
+            Objects.Task running = new Objects.Task(
+                "taskId", Objects.TaskType.FULL_IMPORT, Objects.TaskStatus.RUNNING,
+                null, 50.0f, 0, Date.from(Instant.now()), null);
+            neo4jApp.configure(routes -> routes.post("/tasks", context -> List.of(running)));
+            // When
+            Response response = get("/api/neo4j/tasks/taskId?project=foo-datashare"
+            ).withPreemptiveAuthentication("unauthorized", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(401);
+        }
+
+        @Test
+        public void test_get_task_should_return_403_for_forbidden_mask() {
+            // Given
+            Objects.Task running = new Objects.Task(
+                "taskId", Objects.TaskType.FULL_IMPORT, Objects.TaskStatus.RUNNING,
+                null, 50.0f, 0, Date.from(Instant.now()), null);
+            neo4jApp.configure(routes -> routes.post("/tasks", context -> List.of(running)));
+            when(parentRepository.getProject("foo-datashare"))
+                .thenReturn(new Project("foo-datashare", "1.2.3.4"));
+            // When
+            Response response = get("/api/neo4j/tasks/taskId?project=foo-datashare"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(403);
+        }
     }
+
 
     @DisplayName("test with mocked app and enterprise support")
     @ExtendWith(MockNeo4jApp.class)
@@ -874,6 +944,57 @@ public class Neo4jResourceTest {
             }
         }
 
+    }
+
+    @DisplayName("test admin import CLI")
+    @ExtendWith(MockNeo4jApp.class)
+    @ExtendWith(MockCliModeProperties.class)
+    @ExtendWith(BindNeo4jResourceWithPid.class)
+    @Nested
+    class Neo4jResourceCliTest implements FluentRestTest {
+        @Override
+        public int port() {
+            return port;
+        }
+
+        @Test
+        public void test_get_task_on_cli_mode() {
+            // Given
+            Objects.Task running = new Objects.Task(
+                "taskId", Objects.TaskType.FULL_IMPORT, Objects.TaskStatus.RUNNING,
+                null, 50.0f, 0, Date.from(Instant.now()), null);
+            neo4jApp.configure(routes -> routes.get("/tasks/:id", (id, context) -> running));
+            // When
+            Objects.Task response = neo4jAppResource.task("taskId", "foo-datashare");
+            // Then
+            assertThat(response.id).isEqualTo(running.id);
+        }
+
+        @Test
+        public void test_get_task_result_on_cli_mode() {
+            // Given
+            String result = "hello world";
+            neo4jApp.configure(routes -> routes.get("/tasks/:id/result", (id, context) -> result));
+            // When
+            String response = neo4jAppResource.taskResult("taskId", "foo-datashare", String.class);
+            // Then
+            assertThat(response).isEqualTo(result);
+        }
+
+        @Test
+        public void test_get_task_errors_on_cli_mode() {
+            // Given
+            Objects.TaskError someError = new Objects.TaskError(
+                "error-id", "Some Error", "some details", Date.from(Instant.now()));
+            List<Objects.TaskError> expectedErrors = List.of(someError);
+            neo4jApp.configure(
+                routes -> routes.get("/tasks/:id/errors", (id, context) -> expectedErrors));
+            // When
+            List<Objects.TaskError> errors = neo4jAppResource.taskErrors("taskId", "foo-datashare");
+            // Then
+            assertThat(errors.size()).isEqualTo(1);
+            assertThat(errors.get(0).id).isEqualTo(someError.id);
+        }
     }
 
     @ExtendWith(MockNotReadyNeo4jApp.class)
