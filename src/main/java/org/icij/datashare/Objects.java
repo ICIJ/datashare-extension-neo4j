@@ -334,7 +334,7 @@ public class Objects {
         }
 
         protected String generateTaskId() {
-            return this.name().toLowerCase() + randomUUID();
+            return this.name().toLowerCase() + "-" + randomUUID();
         }
 
     }
