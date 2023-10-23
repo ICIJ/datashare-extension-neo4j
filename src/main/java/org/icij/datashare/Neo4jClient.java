@@ -234,9 +234,10 @@ public class Neo4jClient {
     }
 
     static class Neo4jAppError extends RuntimeException {
-        protected String title;
-        protected String detail;
-        protected String trace;
+        protected final String title;
+        protected final String detail;
+        protected final String trace;
+        protected Integer status;
 
         @JsonCreator
         protected Neo4jAppError(
@@ -247,6 +248,7 @@ public class Neo4jClient {
             this.title = title;
             this.detail = detail;
             this.trace = trace;
+            this.status = null;
         }
 
         protected Neo4jAppError(String title, String detail) {
@@ -257,8 +259,13 @@ public class Neo4jClient {
             this(error.title, error.detail, error.trace);
         }
 
-        HttpUtils.HttpError toHttp() {
+        protected HttpUtils.HttpError toHttp() {
             return new HttpUtils.HttpError(this.title, this.detail, this.trace);
+        }
+
+        protected Neo4jAppError withStatus(int status) {
+            this.status = status;
+            return this;
         }
 
         @Override
@@ -309,7 +316,7 @@ public class Neo4jClient {
 
     private static <T> HttpResponse<T> handleUnirestError(HttpResponse<T> response) {
         response.ifFailure(Neo4jAppError.class, r -> {
-            throw r.getBody();
+            throw r.getBody().withStatus(r.getStatus());
         });
         response.getParsingError().ifPresent(e -> {
             throw new Neo4jAppError(fromException(e));

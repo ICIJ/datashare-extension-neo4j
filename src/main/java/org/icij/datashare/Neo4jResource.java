@@ -15,6 +15,8 @@ import static org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest;
 import static org.icij.datashare.Objects.Neo4jCSVResponse;
 import static org.icij.datashare.Objects.SortedDumpRequest;
 import static org.icij.datashare.Objects.StartNeo4jAppRequest;
+import static org.icij.datashare.Objects.Task;
+import static org.icij.datashare.Objects.TaskError;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.icij.datashare.text.Project.isAllowed;
 
@@ -56,6 +58,8 @@ import net.codestory.http.annotations.Get;
 import net.codestory.http.annotations.Post;
 import net.codestory.http.annotations.Prefix;
 import net.codestory.http.errors.ForbiddenException;
+import net.codestory.http.errors.HttpException;
+import net.codestory.http.errors.UnauthorizedException;
 import net.codestory.http.payload.Payload;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.icij.datashare.user.User;
@@ -257,6 +261,15 @@ public class Neo4jResource {
             checkProjectAccess(project, context);
             SortedDumpRequest request = parseContext(context, SortedDumpRequest.class);
             return this.sortedDumpGraph(project, request);
+        });
+    }
+
+    @Get("/tasks/:taskId?project=:project")
+    public Payload getTask(String taskId, String project, Context context) {
+        return wrapNeo4jAppCall(() -> {
+            checkProjectAccess(project, context);
+            checkTaskAccess(taskId, project, context);
+            return task(taskId, project);
         });
     }
 
@@ -482,7 +495,7 @@ public class Neo4jResource {
     protected IncrementalImportResponse importDocuments(
         String projectId, IncrementalImportRequest request
     ) {
-        checkExtensionProject(projectId);
+        checkProject(projectId);
         checkNeo4jAppStarted();
         return client.importDocuments(projectId, request);
     }
@@ -490,16 +503,34 @@ public class Neo4jResource {
     protected IncrementalImportResponse importNamedEntities(
         String projectId, IncrementalImportRequest request
     ) {
-        checkExtensionProject(projectId);
+        checkProject(projectId);
         checkNeo4jAppStarted();
         return client.importNamedEntities(projectId, request);
+    }
+
+    protected Task task(String taskId, String projectId) {
+        checkProject(projectId);
+        checkNeo4jAppStarted();
+        return client.task(taskId, projectId);
+    }
+
+    protected <T> T taskResult(String taskId, String projectId, Class<T> clazz) {
+        checkProject(projectId);
+        checkNeo4jAppStarted();
+        return client.taskResult(taskId, projectId, clazz);
+    }
+
+    protected List<TaskError> taskErrors(String taskId, String projectId) {
+        checkProject(projectId);
+        checkNeo4jAppStarted();
+        return List.of(client.taskErrors(taskId, projectId));
     }
 
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
     protected InputStream exportNeo4jCSVs(String projectId, Neo4jAppNeo4jCSVRequest request) {
         // TODO: the database should be chosen dynamically with the Mode (local vs. server) and
         //  the project
-        checkExtensionProject(projectId);
+        checkProject(projectId);
         checkNeo4jAppStarted();
         // Define a temp dir
         Path exportDir = null;
@@ -532,7 +563,7 @@ public class Neo4jResource {
     ) throws URISyntaxException, IOException, InterruptedException {
         Neo4jAppDumpRequest neo4jAppRequest = validateDumpRequest(
             request);
-        checkExtensionProject(projectId);
+        checkProject(projectId);
         checkNeo4jAppStarted();
         return client.dumpGraph(projectId, neo4jAppRequest);
     }
@@ -540,7 +571,7 @@ public class Neo4jResource {
     protected InputStream sortedDumpGraph(
         String projectId, SortedDumpRequest request
     ) throws URISyntaxException, IOException, InterruptedException {
-        checkExtensionProject(projectId);
+        checkProject(projectId);
         checkNeo4jAppStarted();
         Statement statement = request.query.defaultQueryStatement(getDocumentNodesLimit());
         Neo4jAppDumpRequest neo4jAppRequest = new Neo4jAppDumpRequest(
@@ -560,9 +591,12 @@ public class Neo4jResource {
             logger.error(
                 "internal error on the python app side {}", returned.getMessageWithTrace()
             );
-            return new Payload("application/problem+json", returned).withCode(500);
-        } catch (ForbiddenException e) {
-            return new Payload("application/problem+json", fromException(e)).withCode(403);
+            return new Payload("application/problem+json", returned).withCode(e.status);
+        } catch (HttpException e) {
+            return new Payload("application/problem+json", fromException(e))
+                .withCode(e.code());
+        } catch (ProjectNotInitialized e) {
+            return new Payload("application/problem+json", fromException(e)).withCode(503);
         } catch (HttpUtils.JacksonParseError e) {
             HttpUtils.HttpError returned = fromException(e);
             logger.error(returned.getMessageWithTrace());
@@ -584,22 +618,43 @@ public class Neo4jResource {
         }
     }
 
+    protected void checkTaskAccess(String taskId, String project, Context context)
+        throws UnauthorizedException {
+        if (!isServer()) {
+            return;
+        }
+        // TODO: in the future, check that the context user is that task user
+        throw new UnauthorizedException();
+    }
+
+
     protected void checkCheckLocal() {
         if (!isLocal()) {
             throw new ForbiddenException();
         }
     }
 
-    protected void checkExtensionProject(String candidateProject) {
+    protected void checkProject(String project) {
+        checkExtensionProject(project);
+        checkProjectInitialized(project);
+    }
+
+    protected void checkExtensionProject(String project) {
         if (!supportsNeo4jEnterprise()) {
             if (this.neo4jSingleProjectId != null) {
-                if (!Objects.equals(this.neo4jSingleProjectId, candidateProject)) {
-                    InvalidProjectError error = new InvalidProjectError(
-                        this.neo4jSingleProjectId, candidateProject);
+                if (!Objects.equals(this.neo4jSingleProjectId, project)) {
+                    InvalidProjectError error =
+                        new InvalidProjectError(this.neo4jSingleProjectId, project);
                     logger.error(error.getMessage());
                     throw error;
                 }
             }
+        }
+    }
+
+    protected void checkProjectInitialized(String project) {
+        if (!projects.contains(project)) {
+            throw new ProjectNotInitialized(project);
         }
     }
 
@@ -623,8 +678,17 @@ public class Neo4jResource {
     }
 
     private boolean isLocal() {
-        String mode = propertiesProvider.get("mode").orElse("SERVER");
+        String mode = getMode();
         return mode.equals("LOCAL") || mode.equals("EMBEDDED");
+    }
+
+    private boolean isServer() {
+        return getMode().equals("SERVER");
+    }
+
+
+    private String getMode() {
+        return propertiesProvider.get("mode").orElse("SERVER");
     }
 
     private long getDocumentNodesLimit() {
@@ -709,6 +773,14 @@ public class Neo4jResource {
                     + "' extension is setup to support project '"
                     + project
                     + "'");
+        }
+    }
+
+    static class ProjectNotInitialized extends HttpUtils.HttpError {
+        public static final String title = "Project Not Initialized";
+
+        public ProjectNotInitialized(String project) {
+            super(title, "Project \"" + project + "\" as not been initialized");
         }
     }
 
