@@ -79,6 +79,7 @@ public class Neo4jResource implements AutoCloseable {
         FileSystems.getDefault().getSeparator(), "tmp");
     private static final long NEO4J_DEFAULT_DUMPED_DOCUMENTS = 1000;
     private static final String SYSLOG_SPLIT_CHAR = "@";
+    protected static final String TASK_POLL_INTERVAL_S = "neo4jCliTaskPollIntervalS";
 
     private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
     // All these properties have to start with "neo4j" in order to be properly filtered
@@ -94,6 +95,7 @@ public class Neo4jResource implements AutoCloseable {
             put("neo4jSingleProject", "local-datashare");
             put("neo4jUriScheme", "neo4j");
             put("neo4jUser", "");
+            put(TASK_POLL_INTERVAL_S, "2");
         }
     };
 
