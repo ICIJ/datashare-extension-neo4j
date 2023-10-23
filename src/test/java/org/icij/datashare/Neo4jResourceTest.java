@@ -9,7 +9,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
@@ -973,11 +972,12 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_task_result_on_cli_mode() throws JsonProcessingException {
+        public void test_get_task_result_on_cli_mode() {
             // Given
             String result = "hello world";
             neo4jApp.configure(routes -> routes.get("/tasks/:id/result",
-                (id, context) -> new Payload("application/json", MAPPER.writeValueAsString("hello world"))));
+                (id, context) -> new Payload(
+                    "application/json", MAPPER.writeValueAsString("hello world"))));
             // When
             String response = neo4jAppResource.taskResult("taskId", "foo-datashare", String.class);
             // Then
