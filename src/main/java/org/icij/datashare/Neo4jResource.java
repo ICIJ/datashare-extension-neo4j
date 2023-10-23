@@ -264,6 +264,15 @@ public class Neo4jResource {
         });
     }
 
+    @Get("/tasks/:taskId?project=:project")
+    public Payload getTask(String taskId, String project, Context context) {
+        return wrapNeo4jAppCall(() -> {
+            checkProjectAccess(project, context);
+            checkTaskAccess(taskId, project, context);
+            return task(taskId, project);
+        });
+    }
+
     protected void checkNeo4jAppStarted() {
         if (neo4jAppPid() == null) {
             throw new Neo4jNotRunningError();
