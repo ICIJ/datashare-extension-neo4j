@@ -11,9 +11,11 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.icij.datashare.text.NamedEntity;
 import org.neo4j.cypherdsl.core.Cypher;
 import org.neo4j.cypherdsl.core.Node;
@@ -129,6 +131,20 @@ public class Objects {
         ) {
             this.documents = Optional.ofNullable(documents).orElse(0L);
             this.namedEntities = Optional.ofNullable(namedEntities).orElse(Map.of());
+        }
+    }
+
+    protected static class FullImportResponse {
+        protected final IncrementalImportResponse documents;
+        protected final IncrementalImportResponse namedEntities;
+
+        @JsonCreator
+        FullImportResponse(
+            @JsonProperty("documents") IncrementalImportResponse documents,
+            @JsonProperty("namedEntities") IncrementalImportResponse namedEntities
+        ) {
+            this.documents = documents;
+            this.namedEntities = namedEntities;
         }
     }
 
@@ -333,7 +349,7 @@ public class Objects {
             return this.toString().toLowerCase();
         }
 
-        protected String generateTaskId() {
+        String generateTaskId() {
             return this.name().toLowerCase() + "-" + randomUUID();
         }
 
@@ -341,9 +357,11 @@ public class Objects {
 
     protected enum TaskStatus {
         CREATED, QUEUED, RUNNING, RETRY, ERROR, DONE, CANCELLED;
+
+        static final Set<TaskStatus> READY_STATES = Set.of(DONE, ERROR, CANCELLED);
     }
 
-    protected static class Task {
+    public static class Task {
         protected final TaskType type;
         protected final String id;
         protected final TaskStatus status;

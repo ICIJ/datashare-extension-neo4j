@@ -43,7 +43,7 @@ public class Neo4jClientTest {
 
     private static ProdWebServerRuleExtension neo4jApp;
 
-    public static class Neo4jAppMock extends ProdWebServerRuleExtension
+    private static class Neo4jAppMock extends ProdWebServerRuleExtension
         implements BeforeAllCallback, AfterEachCallback {
         @Override
         public void beforeAll(ExtensionContext extensionContext) {
