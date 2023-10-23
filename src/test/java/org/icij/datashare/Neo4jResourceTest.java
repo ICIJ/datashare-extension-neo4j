@@ -2,12 +2,14 @@ package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.TestUtils.assertJson;
+import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
@@ -48,7 +50,7 @@ public class Neo4jResourceTest {
 
         @Override
         protected void checkNeo4jAppStarted() {
-            logger.info(Neo4jResourceWithApp.class.getName() + " is always running");
+            logger.debug(Neo4jResourceWithApp.class.getName() + " is always running");
         }
 
     }
@@ -971,10 +973,11 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_task_result_on_cli_mode() {
+        public void test_get_task_result_on_cli_mode() throws JsonProcessingException {
             // Given
             String result = "hello world";
-            neo4jApp.configure(routes -> routes.get("/tasks/:id/result", (id, context) -> result));
+            neo4jApp.configure(routes -> routes.get("/tasks/:id/result",
+                (id, context) -> new Payload("application/json", MAPPER.writeValueAsString("hello world"))));
             // When
             String response = neo4jAppResource.taskResult("taskId", "foo-datashare", String.class);
             // Then
