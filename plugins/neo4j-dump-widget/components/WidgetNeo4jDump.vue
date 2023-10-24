@@ -8,7 +8,7 @@
       <div class="project-view-insights card-body pb-0">
         <div class="row">
           <div class="d-flex flex-column col-12 col-md-6 justify-content-between">
-            <neo4j-entity-count></neo4j-entity-count>
+            <neo4j-graph-count></neo4j-graph-count>
             <neo4j-graph-import></neo4j-graph-import>
           </div>
           <div class="col-12 col-md-6 flex-column">
@@ -87,7 +87,7 @@ import bodybuilder from 'bodybuilder'
 import { concat, get, map, random } from 'lodash'
 import { mapState } from 'vuex'
 import { AppStatus } from '../store/Neo4jModule'
-import { default as Neo4jEntityCount } from '../components/Neo4jEntityCount.vue'
+import { default as Neo4jGraphCount } from '../components/Neo4jGraphCount.vue'
 import { default as Neo4jStatusBadge } from '../components/Neo4jStatusBadge.vue'
 import { default as Neo4jGraphImport } from '../components/Neo4jGraphImport.vue'
 import { default as polling } from '../core/mixin/polling'
@@ -105,7 +105,7 @@ export default {
   },
   mixins: [polling],
   components: {
-    Neo4jEntityCount,
+    Neo4jGraphCount,
     Neo4jStatusBadge,
     Neo4jGraphImport,
   },
