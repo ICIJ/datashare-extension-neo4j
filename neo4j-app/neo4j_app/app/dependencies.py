@@ -62,6 +62,8 @@ def lifespan_config() -> AppConfig:
 
 
 async def neo4j_driver_enter(**__):
+    from neo4j_app.core.neo4j.projects import registry_db_session
+
     global _NEO4J_DRIVER
     _NEO4J_DRIVER = lifespan_config().to_neo4j_driver()
     await _NEO4J_DRIVER.__aenter__()  # pylint: disable=unnecessary-dunder-call
