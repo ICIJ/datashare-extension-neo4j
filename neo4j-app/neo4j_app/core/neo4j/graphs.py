@@ -96,7 +96,9 @@ async def count_documents_and_named_entities(
         return count
 
 
-async def _count_documents_and_named_entities_tx(tx: neo4j.AsyncTransaction) -> GraphCounts:
+async def _count_documents_and_named_entities_tx(
+    tx: neo4j.AsyncTransaction,
+) -> GraphCounts:
     doc_query = f"MATCH (doc:{DOC_NODE}) RETURN count(*) as nDocs"
     doc_res = await tx.run(doc_query)
     entity_query = f"""MATCH (ne:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->()

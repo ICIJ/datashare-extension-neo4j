@@ -15,7 +15,12 @@ from pydantic import Field, validator
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.client import ESClient, OSClient
 from neo4j_app.core.neo4j.projects import is_enterprise
-from neo4j_app.core.utils.logging import DATE_FMT, STREAM_HANDLER_FMT
+from neo4j_app.core.utils.logging import (
+    DATE_FMT,
+    STREAM_HANDLER_FMT,
+    STREAM_HANDLER_FMT_WITH_WORKER_ID,
+    WorkerIdFilter,
+)
 from neo4j_app.core.utils.pydantic import (
     BaseICIJModel,
     IgnoreExtraModel,
@@ -190,7 +195,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         copied = safe_copy(self, update={"supports_neo4j_enterprise": support})
         return copied
 
-    def setup_loggers(self):
+    def setup_loggers(self, worker_id: Optional[str] = None):
         import neo4j_app
         import uvicorn
         import elasticsearch
@@ -204,7 +209,10 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             force_info.add(opensearchpy.__name__)
         except ImportError:
             pass
-
+        worker_id_filter = None
+        if worker_id is not None:
+            worker_id_filter = WorkerIdFilter(worker_id)
+        handlers = self._handlers(worker_id_filter)
         for logger in loggers:
             logger = logging.getLogger(logger)
             level = getattr(logging, self.neo4j_app_log_level)
@@ -212,13 +220,18 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
                 level = max(logging.INFO, level)
             logger.setLevel(level)
             logger.handlers = []
-            for handler in self._handlers():
-                handler.setLevel(self.neo4j_app_log_level)
+            for handler in handlers:
                 logger.addHandler(handler)
 
-    def _handlers(self) -> List[logging.Handler]:
+    def _handlers(
+        self, worker_id_filter: Optional[logging.Filter]
+    ) -> List[logging.Handler]:
         stream_handler = logging.StreamHandler(sys.stderr)
-        stream_handler.setFormatter(logging.Formatter(STREAM_HANDLER_FMT, DATE_FMT))
+        if worker_id_filter is not None:
+            fmt = STREAM_HANDLER_FMT_WITH_WORKER_ID
+        else:
+            fmt = STREAM_HANDLER_FMT
+        stream_handler.setFormatter(logging.Formatter(fmt, DATE_FMT))
         handlers = [stream_handler]
         if self.neo4j_app_syslog_facility is not None:
             syslog_handler = SysLogHandler(
@@ -226,6 +239,10 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             )
             syslog_handler.setFormatter(logging.Formatter(_SYSLOG_FMT))
             handlers.append(syslog_handler)
+        for handler in handlers:
+            if worker_id_filter is not None:
+                handler.addFilter(worker_id_filter)
+            handler.setLevel(self.neo4j_app_log_level)
         return handlers
 
     @property

@@ -8,7 +8,7 @@ import traceback
 from contextlib import asynccontextmanager, contextmanager
 from multiprocessing.managers import SyncManager
 from pathlib import Path
-from typing import AsyncGenerator, Optional, cast
+from typing import AsyncGenerator, List, Optional, cast
 
 import neo4j
 from fastapi import FastAPI
@@ -44,12 +44,12 @@ class DependencyInjectionError(RuntimeError):
         super().__init__(msg)
 
 
-def config_enter(config: AppConfig):
+def config_enter(config: AppConfig, **_):
     global _CONFIG
     _CONFIG = config
 
 
-def loggers_enter(_: AppConfig):
+def loggers_enter(**_):
     config = lifespan_config()
     config.setup_loggers()
     logger.info("Loggers ready to log 💬")
@@ -61,7 +61,7 @@ def lifespan_config() -> AppConfig:
     return cast(AppConfig, _CONFIG)
 
 
-async def neo4j_driver_enter(_: AppConfig):
+async def neo4j_driver_enter(**__):
     global _NEO4J_DRIVER
     _NEO4J_DRIVER = lifespan_config().to_neo4j_driver()
     await _NEO4J_DRIVER.__aenter__()  # pylint: disable=unnecessary-dunder-call
@@ -82,7 +82,7 @@ def lifespan_neo4j_driver() -> neo4j.AsyncDriver:
     return cast(neo4j.AsyncDriver, _NEO4J_DRIVER)
 
 
-async def es_client_enter(_: AppConfig):
+async def es_client_enter(**_):
     global _ES_CLIENT
     _ES_CLIENT = lifespan_config().to_es_client()
     await _ES_CLIENT.__aenter__()  # pylint: disable=unnecessary-dunder-call
@@ -98,7 +98,7 @@ def lifespan_es_client() -> ESClientABC:
     return cast(ESClientABC, _ES_CLIENT)
 
 
-def test_db_path_enter(_: AppConfig):
+def test_db_path_enter(**_):
     config = lifespan_config()
     if config.test:
         # pylint: disable=consider-using-with
@@ -122,7 +122,7 @@ def _lifespan_test_db_path() -> Path:
     return Path(_TEST_DB_FILE.name)
 
 
-def test_process_manager_enter(_: AppConfig):
+def test_process_manager_enter(**_):
     global _PROCESS_MANAGER
     _PROCESS_MANAGER = multiprocessing.Manager()
 
@@ -137,7 +137,7 @@ def lifespan_test_process_manager() -> SyncManager:
     return _PROCESS_MANAGER
 
 
-def _test_lock_enter(_: AppConfig):
+def _test_lock_enter(**_):
     config = lifespan_config()
     if config.test:
         global _TEST_LOCK
@@ -150,7 +150,7 @@ def _lifespan_test_lock() -> multiprocessing.Lock:
     return cast(multiprocessing.Lock, _TEST_LOCK)
 
 
-def worker_pool_enter(_: AppConfig):
+def worker_pool_enter(**_):
     # pylint: disable=consider-using-with
     config = lifespan_config()
     global _WORKER_POOL
@@ -187,7 +187,7 @@ def lifespan_worker_pool() -> multiprocessing.Pool:
     return cast(multiprocessing.Pool, _WORKER_POOL)
 
 
-def task_task_manager_enter(_: AppConfig):
+def task_task_manager_enter(**_):
     global _TASK_MANAGER
     config = lifespan_config()
     if config.test:
@@ -210,7 +210,7 @@ def lifespan_task_manager() -> TaskManager:
     return cast(TaskManager, _TASK_MANAGER)
 
 
-def event_publisher_enter(_: AppConfig):
+def event_publisher_enter(**_):
     global _EVENT_PUBLISHER
     config = lifespan_config()
     if config.test:
@@ -223,7 +223,7 @@ def event_publisher_enter(_: AppConfig):
         _EVENT_PUBLISHER = Neo4jEventPublisher(lifespan_neo4j_driver())
 
 
-async def create_project_registry_db_enter(_: AppConfig):
+async def create_project_registry_db_enter(**_):
     driver = lifespan_neo4j_driver()
     await create_project_registry_db(driver)
 
@@ -281,13 +281,13 @@ def _log_and_reraise():
 
 
 @asynccontextmanager
-async def run_app_deps(app: FastAPI, dependencies) -> AsyncGenerator[None, None]:
-    async with run_deps(app.state.config, dependencies):
+async def run_app_deps(app: FastAPI, dependencies: List) -> AsyncGenerator[None, None]:
+    async with run_deps(dependencies, config=app.state.config):
         yield
 
 
 @asynccontextmanager
-async def run_deps(config: AppConfig, dependencies) -> AsyncGenerator[None, None]:
+async def run_deps(dependencies: List, **kwargs) -> AsyncGenerator[None, None]:
     to_close = []
     original_ex = None
     try:
@@ -295,9 +295,9 @@ async def run_deps(config: AppConfig, dependencies) -> AsyncGenerator[None, None
             for enter_fn, exit_fn in dependencies:
                 if enter_fn is not None:
                     if inspect.iscoroutinefunction(enter_fn):
-                        await enter_fn(config)
+                        await enter_fn(**kwargs)
                     else:
-                        enter_fn(config)
+                        enter_fn(**kwargs)
                 to_close.append(exit_fn)
         yield
     except Exception as e:  # pylint: disable=broad-exception-caught

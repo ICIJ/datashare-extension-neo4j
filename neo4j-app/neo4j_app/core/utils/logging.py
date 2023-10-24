@@ -4,8 +4,8 @@ import contextlib
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from functools import cached_property, wraps
-from typing import Any, MutableMapping, Optional, final
+from functools import wraps
+from typing import Optional, final
 
 
 class DifferedLoggingMessage:
@@ -24,11 +24,6 @@ class LogWithNameMixin(ABC):
     def _logger(self) -> logging.Logger:
         pass
 
-    @cached_property
-    def _adapter(self) -> logging.LoggerAdapter:
-        extra = {"name": self.logged_named}
-        return _LogWithNameAdapter(self._logger, extra)
-
     @property
     @abstractmethod
     def logged_named(self) -> str:
@@ -36,22 +31,25 @@ class LogWithNameMixin(ABC):
 
     @final
     def info(self, msg, *args, **kwargs):
-        self._adapter.info(msg, *args, **kwargs)
+        self._logger.info(msg, *args, **kwargs)
 
     @final
     def debug(self, msg, *args, **kwargs):
-        self._adapter.debug(msg, *args, **kwargs)
+        self._logger.debug(msg, *args, **kwargs)
 
     @final
     def error(self, msg, *args, **kwargs):
-        self._adapter.error(msg, *args, **kwargs)
+        self._logger.error(msg, *args, **kwargs)
 
 
-class _LogWithNameAdapter(logging.LoggerAdapter):
-    def process(
-        self, msg: Any, kwargs: MutableMapping[str, Any]
-    ) -> tuple[Any, MutableMapping[str, Any]]:
-        return f"[{self.extra['name']}] {msg}", kwargs
+class WorkerIdFilter(logging.Filter):
+    def __init__(self, worker_id: str):
+        super().__init__()
+        self._worker_id = worker_id
+
+    def filter(self, record):
+        record.workerid = self._worker_id
+        return True
 
 
 def log_elapsed_time(
@@ -92,4 +90,7 @@ def log_elapsed_time_cm(
 
 
 STREAM_HANDLER_FMT = "[%(levelname)s][%(asctime)s.%(msecs)03d][%(name)s]: %(message)s"
+STREAM_HANDLER_FMT_WITH_WORKER_ID = (
+    "[%(levelname)s][%(asctime)s.%(msecs)03d][%(workerid)s][%(name)s]: %(message)s"
+)
 DATE_FMT = "%H:%M:%S"
