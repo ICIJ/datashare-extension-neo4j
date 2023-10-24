@@ -76,7 +76,7 @@ export default {
   mixins: [polling],
   computed: {
     importButton() {
-      return this.latestDone ? 'Update graph' : 'Create graph'
+      return this.neo4jImportTasks?.length ? 'Update graph' : 'Create graph'
     },
     importButtonToolTip() {
       if (this.neo4jAppStatus === AppStatus.Starting) {
@@ -110,7 +110,7 @@ Note that updating the graph will only add new documents and entities and update
     runningTasks() {
       return this.neo4jImportTasks?.filter((t) => !TASK_READY_STATES.has(t.status)) ?? []
     },
-    ...mapState('neo4j', ['neo4jAppStatus', 'neo4jImportTasks', 'neo4jInitializedProjects'])
+    ...mapState('neo4j', ['neo4jAppStatus', 'neo4jImportTasks', 'neo4jInitializedProjects', 'neo4jGraphCounts'])
   },
   async mounted() {
     const longTimeout = () => random(5000, 10000)
