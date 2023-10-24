@@ -9,7 +9,7 @@ from neo4j_app.constants import (
     NE_NODE,
 )
 from neo4j_app.core.neo4j.projects import project_db
-from neo4j_app.core.objects import DumpFormat, GraphNodesCount
+from neo4j_app.core.objects import DumpFormat, GraphCounts
 
 _GRAPHML_DUMP_CONFIG = {
     "format": "gephi",
@@ -87,21 +87,21 @@ RETURN cypherStatements;
             yield rec["cypherStatements"]
 
 
-async def count_graph_nodes(
+async def count_documents_and_named_entities(
     neo4j_driver: neo4j.AsyncDriver, project: str
-) -> GraphNodesCount:
+) -> GraphCounts:
     neo4j_db = await project_db(neo4j_driver, project)
     async with neo4j_driver.session(database=neo4j_db) as sess:
-        count = await sess.execute_read(_count_graph_nodes_tx)
+        count = await sess.execute_read(_count_documents_and_named_entities_tx)
         return count
 
 
-async def _count_graph_nodes_tx(tx: neo4j.AsyncTransaction) -> GraphNodesCount:
+async def _count_documents_and_named_entities_tx(tx: neo4j.AsyncTransaction) -> GraphCounts:
     doc_query = f"MATCH (doc:{DOC_NODE}) RETURN count(*) as nDocs"
     doc_res = await tx.run(doc_query)
     entity_query = f"""MATCH (ne:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->()
 WITH labels(ne) as neLabels, rel
 RETURN neLabels as neLabels, sum(size(rel.mentionIds)) as nMentions"""
     entity_res = await tx.run(entity_query)
-    count = await GraphNodesCount.from_neo4j(doc_res=doc_res, entity_res=entity_res)
+    count = await GraphCounts.from_neo4j(doc_res=doc_res, entity_res=entity_res)
     return count

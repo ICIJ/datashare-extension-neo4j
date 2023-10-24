@@ -28,7 +28,7 @@ function actionBuilder(extension) {
     },
     async refreshGraphCounts({ commit, state }, project) {
       if (state.neo4jAppStatus === AppStatus.Running && state.neo4jInitializedProjects[project]) {
-        const res = await extension.request(`/api/neo4j/graphs/nodes/count?project=${project}`, { method: 'GET' })
+        const res = await extension.request(`/api/neo4j/graphs/counts?project=${project}`, { method: 'GET' })
         const projectCounts = await res.json()
         commit('graphCounts', { project: project, counts: projectCounts })
       }
