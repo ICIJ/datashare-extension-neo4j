@@ -5,8 +5,8 @@ from starlette.responses import StreamingResponse
 
 from neo4j_app.app.dependencies import lifespan_neo4j_driver
 from neo4j_app.app.doc import DOC_GRAPH_DUMP, DOC_GRAPH_DUMP_DESC, GRAPH_TAG
-from neo4j_app.core.neo4j.graphs import count_graph_nodes, dump_graph
-from neo4j_app.core.objects import DumpRequest, GraphNodesCount
+from neo4j_app.core.neo4j.graphs import count_documents_and_named_entities, dump_graph
+from neo4j_app.core.objects import DumpRequest, GraphCounts
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
 logger = logging.getLogger(__name__)
@@ -39,12 +39,14 @@ def graphs_router() -> APIRouter:
             )
         return res
 
-    @router.get("/nodes/count", response_model=GraphNodesCount)
-    async def _count_graph_nodes(project: str) -> GraphNodesCount:
+    @router.get("/counts", response_model=GraphCounts)
+    async def _count_documents_and_named_entities(project: str) -> GraphCounts:
         with log_elapsed_time_cm(
-            logger, logging.INFO, "Counted graph nodes in {elapsed_time} !"
+            logger,
+            logging.INFO,
+            "Counted documents and named entities in {elapsed_time} !",
         ):
-            count = await count_graph_nodes(
+            count = await count_documents_and_named_entities(
                 project=project, neo4j_driver=lifespan_neo4j_driver()
             )
         return count

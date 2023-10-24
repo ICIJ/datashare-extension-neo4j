@@ -36,7 +36,7 @@ class IncrementalImportResponse(LowerCamelCaseModel):
     relationships_created: int = 0
 
 
-class GraphNodesCount(LowerCamelCaseModel):
+class GraphCounts(LowerCamelCaseModel):
     documents: int = 0
     named_entities: Dict[str, int] = Field(default_factory=dict)
 
@@ -49,7 +49,7 @@ class GraphNodesCount(LowerCamelCaseModel):
         document_counts_key="nDocs",
         entity_labels_key="neLabels",
         entity_counts_key="nMentions",
-    ) -> GraphNodesCount:
+    ) -> GraphCounts:
         doc_res = await doc_res.single()
         n_docs = doc_res[document_counts_key]
         n_ents = dict()
@@ -62,7 +62,7 @@ class GraphNodesCount(LowerCamelCaseModel):
                 )
                 raise ValueError(msg)
             n_ents[labels[0]] = rec[entity_counts_key]
-        return GraphNodesCount(documents=n_docs, named_entities=n_ents)
+        return GraphCounts(documents=n_docs, named_entities=n_ents)
 
 
 class Neo4jCSVRequest(LowerCamelCaseModel):

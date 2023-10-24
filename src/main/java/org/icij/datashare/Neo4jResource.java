@@ -8,7 +8,7 @@ import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
 import static org.icij.datashare.Objects.DumpQuery;
 import static org.icij.datashare.Objects.DumpRequest;
-import static org.icij.datashare.Objects.GraphNodesCount;
+import static org.icij.datashare.Objects.GraphCount;
 import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.Objects.IncrementalImportResponse;
 import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
@@ -280,11 +280,11 @@ public class Neo4jResource {
         });
     }
 
-    @Get("/graphs/nodes/count?project=:project")
-    public Payload getGraphNodesCount(String project, Context context) {
+    @Get("/graphs/counts?project=:project")
+    public Payload getGraphCounts(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
-            return graphNodesCount(project);
+            return graphCounts(project);
         });
     }
 
@@ -575,10 +575,10 @@ public class Neo4jResource {
         return List.of(client.taskErrors(taskId, projectId));
     }
 
-    protected GraphNodesCount graphNodesCount(String projectId) {
+    protected GraphCount graphCounts(String projectId) {
         checkProject(projectId);
         checkNeo4jAppStarted();
-        return client.graphNodesCount(projectId);
+        return client.graphCounts(projectId);
     }
 
 
