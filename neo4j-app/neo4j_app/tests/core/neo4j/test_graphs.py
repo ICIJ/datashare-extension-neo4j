@@ -217,9 +217,9 @@ async def test_should_raise_for_invalid_dump_format(
         (0, dict(), GraphCounts()),
         (1, dict(), GraphCounts(documents=1)),
         (
-                1,
-                {"CAT_0": 1, "CAT_1": 2},
-                GraphCounts(documents=1, named_entities={"CAT_0": 1, "CAT_1": 1 + 2}),
+            1,
+            {"CAT_0": 1, "CAT_1": 2},
+            GraphCounts(documents=1, named_entities={"CAT_0": 1, "CAT_1": 1 + 2}),
         ),
     ],
 )

@@ -7,8 +7,8 @@ from functools import cached_property
 from typing import AsyncGenerator, Dict, List, Optional, Tuple
 
 import neo4j
-from neo4j.exceptions import ConstraintError, ResultNotSingleError
 from fastapi.encoders import jsonable_encoder
+from neo4j.exceptions import ConstraintError, ResultNotSingleError
 
 from neo4j_app.constants import (
     TASK_ERROR_NODE,
@@ -59,10 +59,6 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
         if logger is None:
             logger = logging.getLogger(__name__)
         self._logger_ = logger
-
-    @cached_property
-    def logged_named(self) -> str:
-        return super().logged_named
 
     async def _consume(self) -> Tuple[Task, str]:
         projects = await retrieve_projects(self._driver)
@@ -129,6 +125,12 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
     ) -> AsyncGenerator[neo4j.AsyncSession, None]:
         async with project_db_session(self._driver, project) as sess:
             yield sess
+
+    @cached_property
+    def logged_named(self) -> str:
+        from neo4j_app.icij_worker import Worker
+
+        return Worker.logged_name(self)
 
     @property
     def _logger(self) -> logging.Logger:
