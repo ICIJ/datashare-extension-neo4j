@@ -6,8 +6,8 @@ import neo4j
 import pytest
 import pytest_asyncio
 
-from neo4j_app.core.neo4j.graphs import count_graph_nodes, dump_graph
-from neo4j_app.core.objects import DumpFormat, GraphNodesCount
+from neo4j_app.core.neo4j.graphs import count_documents_and_named_entities, dump_graph
+from neo4j_app.core.objects import DumpFormat, GraphCounts
 from neo4j_app.tests.conftest import TEST_PROJECT, xml_elements_equal
 
 
@@ -214,12 +214,12 @@ async def test_should_raise_for_invalid_dump_format(
 @pytest.mark.parametrize(
     "n_docs,n_ents,expected_count",
     [
-        (0, dict(), GraphNodesCount()),
-        (1, dict(), GraphNodesCount(documents=1)),
+        (0, dict(), GraphCounts()),
+        (1, dict(), GraphCounts(documents=1)),
         (
-            1,
-            {"CAT_0": 1, "CAT_1": 2},
-            GraphNodesCount(documents=1, named_entities={"CAT_0": 1, "CAT_1": 1 + 2}),
+                1,
+                {"CAT_0": 1, "CAT_1": 2},
+                GraphCounts(documents=1, named_entities={"CAT_0": 1, "CAT_1": 1 + 2}),
         ),
     ],
 )
@@ -227,7 +227,7 @@ async def test_count_graph_nodes(
     neo4j_test_driver: neo4j.AsyncDriver,
     n_docs: int,
     n_ents: Dict[str, int],
-    expected_count: GraphNodesCount,
+    expected_count: GraphCounts,
 ):
     # Given
     driver = neo4j_test_driver
@@ -237,7 +237,7 @@ async def test_count_graph_nodes(
         await _create_ents(driver, n_ents)
 
     # When
-    count = await count_graph_nodes(driver, project=TEST_PROJECT)
+    count = await count_documents_and_named_entities(driver, project=TEST_PROJECT)
 
     # Then
     assert count == expected_count

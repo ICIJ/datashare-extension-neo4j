@@ -118,12 +118,12 @@ public class Objects {
 
     }
 
-    protected static class GraphNodesCount {
+    protected static class GraphCount {
         protected final long documents;
         protected final Map<NamedEntity.Category, Long> namedEntities;
 
         @JsonCreator
-        GraphNodesCount(
+        GraphCount(
             @JsonProperty("documents") Long documents,
             @JsonProperty("namedEntities") Map<NamedEntity.Category, Long> namedEntities
         ) {

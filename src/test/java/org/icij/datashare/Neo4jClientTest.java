@@ -2,7 +2,7 @@ package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.Objects.DumpFormat;
-import static org.icij.datashare.Objects.GraphNodesCount;
+import static org.icij.datashare.Objects.GraphCount;
 import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.Objects.IncrementalImportResponse;
 import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
@@ -483,10 +483,10 @@ public class Neo4jClientTest {
         public void test_get_graph_node_counts_error() {
             // Given
             neo4jApp.configure(
-                routes -> routes.get("/graphs/nodes/count", this::mockGraphCounts)
+                routes -> routes.get("/graphs/counts", this::mockGraphCounts)
             );
             // When
-            GraphNodesCount nodeCounts = client.graphNodesCount("myproject");
+            GraphCount nodeCounts = client.graphCounts("myproject");
             // Then
 
             assertThat(nodeCounts.documents).isEqualTo(1);

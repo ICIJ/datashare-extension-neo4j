@@ -800,16 +800,16 @@ public class Neo4jResourceTest {
 
 
         @Test
-        public void test_get_graph_nodes_count_should_return_200() {
+        public void test_get_graph_counts_should_return_200() {
             // Given
             String counts = "{\"documents\":1,\"namedEntities\":{\"EMAIL\":1}}";
             neo4jApp.configure(
-                routes -> routes.get("/graphs/nodes/count",
+                routes -> routes.get("/graphs/counts",
                     context -> new Payload("application/json", counts.getBytes())
                 )
             );
             // When
-            Response response = get("/api/neo4j/graphs/nodes/count?project=foo-datashare"
+            Response response = get("/api/neo4j/graphs/counts?project=foo-datashare"
             ).withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(200);
@@ -817,34 +817,34 @@ public class Neo4jResourceTest {
         }
 
         @Test
-        public void test_get_graph_nodes_count_should_return_401_for_unauthorized_user() {
+        public void test_get_graph_counts_should_return_401_for_unauthorized_user() {
             // Given
             String counts = "{\"documents\": 1, \"namedEntities\": {\"EMAIL\": 1}}";
             neo4jApp.configure(
-                routes -> routes.get("/graphs/nodes/count",
+                routes -> routes.get("/graphs/counts",
                     context -> new Payload("application/json", counts.getBytes())
                 )
             );
             // When
-            Response response = get("/api/neo4j/graphs/nodes/count?project=foo-datashare"
+            Response response = get("/api/neo4j/graphs/counts?project=foo-datashare"
             ).withPreemptiveAuthentication("unauthorized", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(401);
         }
 
         @Test
-        public void test_get_graph_nodes_count_should_return_403_for_forbidden_mask() {
+        public void test_get_graph_counts_should_return_403_for_forbidden_mask() {
             // Given
             String counts = "{\"documents\": 1, \"namedEntities\": {\"EMAIL\": 1}}";
             neo4jApp.configure(
-                routes -> routes.get("/graphs/nodes/count",
+                routes -> routes.get("/graphs/counts",
                     context -> new Payload("application/json", counts.getBytes())
                 )
             );
             // When
             when(parentRepository.getProject("foo-datashare"))
                 .thenReturn(new Project("foo-datashare", "1.2.3.4"));
-            Response response = get("/api/neo4j/graphs/nodes/count?project=foo-datashare"
+            Response response = get("/api/neo4j/graphs/counts?project=foo-datashare"
             ).withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(403);
