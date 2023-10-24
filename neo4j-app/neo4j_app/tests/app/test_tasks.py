@@ -80,7 +80,7 @@ def test_task_should_return_200_for_existing_task(
     test_client = test_client_with_async
     url = f"/tasks?project={TEST_PROJECT}"
     inputs = {"greeted": "everyone"}
-    job = TaskJob(task_id=task_id, type="hello_world", inputs=inputs)
+    job = TaskJob(task_id=task_id, task_type="hello_world", inputs=inputs)
 
     # When
     first = test_client.post(url, json=job.dict())
