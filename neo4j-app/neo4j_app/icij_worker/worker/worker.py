@@ -33,6 +33,7 @@ from neo4j_app.icij_worker.exceptions import (
     TaskAlreadyReserved,
     TaskCancelled,
     UnregisteredTask,
+    WorkerCancelled,
 )
 from neo4j_app.icij_worker.task import (
     Task,
@@ -108,7 +109,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         return self._config
 
     @final
-    @functools.cached_property
     def logged_name(self) -> str:
         return self.id
 
@@ -315,7 +315,9 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         if self._config is not None:
             from neo4j_app.app.dependencies import run_deps
 
-            async with run_deps(self._config, self._config.to_async_deps()):
+            async with run_deps(
+                self.config.to_async_deps(), config=self.config, worker_id=self.id
+            ):
                 yield
         else:
             yield
