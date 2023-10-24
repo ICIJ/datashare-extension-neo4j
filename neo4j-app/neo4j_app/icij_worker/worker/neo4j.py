@@ -61,8 +61,13 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
         self._logger_ = logger
 
     async def _consume(self) -> Tuple[Task, str]:
-        projects = await retrieve_projects(self._driver)
+        projects = []
+        refresh_projects_i = 0
         while "waiting for some task to be available for some project":
+            # Refresh project list once in an while
+            refresh_projects = refresh_projects_i % 10
+            if not refresh_projects:
+                projects = await retrieve_projects(self._driver)
             for p in projects:
                 async with self._project_session(p.name) as sess:
                     received = await sess.execute_write(
@@ -71,6 +76,7 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
                     if received is not None:
                         return received, p.name
             await asyncio.sleep(self._app.config.neo4j_app_task_queue_poll_interval_s)
+            refresh_projects_i += 1
 
     async def _negatively_acknowledge(
         self, task: Task, project: str, *, requeue: bool
