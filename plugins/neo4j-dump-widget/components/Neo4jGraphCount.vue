@@ -158,8 +158,6 @@ export default {
   &__spinner {
     text-align: center;
     width: 100%;
-    // TODO: put this back (import bootstrap ???)
-    // padding: $spacer;
   }
 
   &__content {
