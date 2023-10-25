@@ -72,7 +72,7 @@ import org.slf4j.LoggerFactory;
 
 @Singleton
 @Prefix("/api/neo4j")
-public class Neo4jResource {
+public class Neo4jResource implements AutoCloseable {
     private final Repository repository;
     private static final String NEO4J_APP_BIN = "neo4j-app";
     private static final Path TMP_ROOT = Path.of(
@@ -754,6 +754,10 @@ public class Neo4jResource {
             .orElse(NEO4J_DEFAULT_DUMPED_DOCUMENTS);
     }
 
+    @Override
+    public void close() throws Exception {
+        this.client.close();
+    }
 
     static class KillPythonProcess implements Runnable {
         private final Neo4jResource resource;
