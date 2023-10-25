@@ -151,20 +151,3 @@ Note that updating the graph will only add new documents and entities and update
   },
 }
 </script>
-
-<style lang="scss" scoped>
-.widget {
-  min-height: 100%;
-  position: relative;
-
-  &__scrollable {
-    overflow-y: scroll;
-  }
-
-  // TODO: these don't seem to work
-  &__tasks-list {
-    height: 100px;
-    overflow-y: scroll;
-  }
-}
-</style>
