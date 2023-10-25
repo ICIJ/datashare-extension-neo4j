@@ -32,16 +32,19 @@ import kong.unirest.GenericType;
 import kong.unirest.HttpResponse;
 import kong.unirest.ObjectMapper;
 import kong.unirest.Unirest;
+import kong.unirest.UnirestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Neo4jClient {
+public class Neo4jClient implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(Neo4jClient.class);
     private static final int HTTP_TIMEOUT = 1000 * 30 * 60;
     protected final int port;
     private final String host = "127.0.0.1";
+    private final UnirestInstance unirest;
 
     private final java.net.http.HttpClient httpClient;
+
 
     protected static class AppNotReady extends Exception {
         protected AppNotReady(String message) {
@@ -57,17 +60,21 @@ public class Neo4jClient {
     public Neo4jClient(int port) {
         this.port = port;
         this.httpClient = java.net.http.HttpClient.newHttpClient();
-        Unirest.config().reset();
-        Unirest.config()
+        this.unirest = Unirest.spawnInstance();
+        this.unirest.config()
             .setObjectMapper(makeObjectMapper())
-            .socketTimeout(HTTP_TIMEOUT)
-        ;
+            .socketTimeout(HTTP_TIMEOUT);
+    }
+
+    @Override
+    public void close() throws IOException {
+        this.unirest.close();
     }
 
     public boolean initProject(String project) {
         String url = buildNeo4jUrl("/projects/init?project=" + project);
         logger.debug("Initializing project: {}", project);
-        HttpResponse<?> res = Unirest.post(url)
+        HttpResponse<?> res = unirest.post(url)
             .header("Content-Type", "application/json")
             .asEmpty();
         int status = res.getStatus();
@@ -85,15 +92,15 @@ public class Neo4jClient {
         String url = buildNeo4jUrl("/config");
         logger.debug("Fetching Python app config");
         return handleUnirestError(
-            Unirest.get(url).asObject(new GenericType<HashMap<String, Object>>() {
+            unirest.get(url).asObject(new GenericType<HashMap<String, Object>>() {
             })
         ).getBody();
     }
-    
+
     protected GraphCount graphCounts(String project) {
         String url = buildNeo4jUrl("/graphs/counts?project=" + project);
         logger.debug("Counting graph document and named entities");
-        return handleUnirestError(Unirest.get(url).asObject(GraphCount.class)).getBody();
+        return handleUnirestError(unirest.get(url).asObject(GraphCount.class)).getBody();
     }
 
     protected String fullImport(String project, boolean force) {
@@ -106,7 +113,7 @@ public class Neo4jClient {
         TaskJob<?> body = new TaskJob<>(taskType, taskId, null, Date.from(Instant.now()));
         logger.debug("Starting full import for project: {}", project);
         return handleUnirestError(
-            Unirest.post(url)
+            unirest.post(url)
                 .body(body)
                 .header("Content-Type", "application/json")
                 .asString()
@@ -120,7 +127,7 @@ public class Neo4jClient {
         logger.debug("Importing documents to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return handleUnirestError(
-            Unirest.post(url)
+            unirest.post(url)
                 .body(body)
                 .header("Content-Type", "application/json")
                 .asObject(IncrementalImportResponse.class)
@@ -134,7 +141,7 @@ public class Neo4jClient {
         logger.debug("Importing named entities to neo4j with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return handleUnirestError(
-            Unirest.post(url).body(body)
+            unirest.post(url).body(body)
                 .header("Content-Type", "application/json")
                 .asObject(IncrementalImportResponse.class)
         ).getBody();
@@ -162,7 +169,7 @@ public class Neo4jClient {
         logger.debug("Ping...");
         String url = buildNeo4jUrl("/ping");
         try {
-            int status = Unirest.get(url).asObject(String.class).getStatus();
+            int status = unirest.get(url).asObject(String.class).getStatus();
             if (status != 200) {
                 throw new AppNotReady("app is not ready");
             }
@@ -189,7 +196,7 @@ public class Neo4jClient {
         logger.debug("Exporting data to neo4j csv with request: {}",
             lazy(() -> MAPPER.writeValueAsString(body)));
         return handleUnirestError(
-            Unirest.post(url).body(body)
+            unirest.post(url).body(body)
                 .header("Content-Type", "application/json")
                 .asObject(Neo4jCSVResponse.class)
         ).getBody();
@@ -200,7 +207,7 @@ public class Neo4jClient {
         String url = buildNeo4jUrl("/tasks/" + taskId + "?project=" + project);
         logger.debug("Getting task {}", taskId);
         return handleUnirestError(
-            Unirest.get(url)
+            unirest.get(url)
                 .header("Content-Type", "application/json")
                 .asObject(Task.class)
         ).getBody();
@@ -210,7 +217,7 @@ public class Neo4jClient {
         String url = buildNeo4jUrl("/tasks/" + taskId + "/result?project=" + project);
         logger.debug("Getting task {} result", taskId);
         return handleUnirestError(
-            Unirest.get(url)
+            unirest.get(url)
                 .header("Content-Type", "application/json")
                 .asObject(clazz)
         ).getBody();
@@ -222,7 +229,7 @@ public class Neo4jClient {
         String url = buildNeo4jUrl("/tasks/" + taskId + "/errors?project=" + project);
         logger.debug("Getting task {} errors", taskId);
         return handleUnirestError(
-            Unirest.get(url)
+            unirest.get(url)
                 .header("Content-Type", "application/json")
                 .asObject(TaskError[].class)
         ).getBody();
@@ -232,7 +239,7 @@ public class Neo4jClient {
         String url = buildNeo4jUrl("/tasks/search?project=" + project);
         logger.debug("Searching tasks..");
         return handleUnirestError(
-            Unirest.post(url)
+            unirest.post(url)
                 .body(search)
                 .header("Content-Type", "application/json")
                 .asObject(new GenericType<List<Task>>() {
