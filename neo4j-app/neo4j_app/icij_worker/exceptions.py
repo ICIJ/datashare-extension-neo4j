@@ -22,7 +22,7 @@ class UnknownTask(ICIJWorkerError, ValueError):
     def __init__(self, task_id: str, worker_id: Optional[str] = None):
         msg = f'Unknown task "{task_id}"'
         if worker_id is not None:
-            msg += f" for worker {worker_id}"
+            msg += f" for {worker_id}"
         super().__init__(msg)
 
 
