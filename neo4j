@@ -71,6 +71,7 @@ function _helpers() {
         local app_bin
         app_bin=$(_make_neoj_binary_name)
 
+        # TODO: provide hook rather than hidden imports here
         PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
             --distpath "$app_dir" \
             -F \
@@ -78,6 +79,7 @@ function _helpers() {
             --name "$app_bin" \
             --specpath "$app_dir" \
             --add-data "$app_dir"/../neo4j-app/neo4j_app/scripts/bulk-import.sh:neo4j_app/scripts \
+            --hidden-import neo4j_app.tasks \
             -p neo4j_app \
             -p "$site_packages_path"
 
