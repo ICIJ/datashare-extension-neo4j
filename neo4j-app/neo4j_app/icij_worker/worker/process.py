@@ -1,6 +1,5 @@
 import functools
 import signal
-import threading
 from abc import ABC
 from typing import Callable, cast
 
@@ -21,21 +20,19 @@ class ProcessWorkerMixin(Worker, ABC):
         *,
         graceful: bool,
     ):
-        self.error("received %s", signal_name)
-        self._graceful_shutdown = graceful
-        raise WorkerCancelled()
+        if not self._already_shutdown:
+            self.error("received %s", signal_name)
+            self._graceful_shutdown = graceful
+            raise WorkerCancelled()
 
     def _setup_signal_handlers(self):
-        if threading.current_thread() is threading.main_thread():
-            handle_sigint = functools.partial(
-                self._signal_handler, "SIGINT", graceful=True
-            )
-            handle_sigint = cast(Callable[[int], None], handle_sigint)
-            signal.signal(signal.SIGINT, handle_sigint)
-            # Let's always shutdown gracefully for now since when the server shutdown
-            # it will try to SIGTERM, we want to avoid loosing track of running tasks
-            handle_sigterm = functools.partial(
-                self._signal_handler, "SIGTERM", graceful=True
-            )
-            handle_sigterm = cast(Callable[[int], None], handle_sigterm)
-            signal.signal(signal.SIGTERM, handle_sigterm)
+        # Let's always shutdown gracefully for now since when the server shutdown
+        # it will try to SIGTERM, we want to avoid loosing track of running tasks
+        for s in ["SIGINT", "SIGTERM", "CTRL_C_EVENT", "CTRL_BREAK_EVENT"]:
+            try:
+                signalnum = getattr(signal, s)
+            except AttributeError:
+                continue
+            handler = functools.partial(self._signal_handler, s, graceful=True)
+            handler = cast(Callable[[int], None], handler)
+            signal.signal(signalnum, handler)

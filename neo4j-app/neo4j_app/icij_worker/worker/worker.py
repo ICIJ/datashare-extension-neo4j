@@ -55,6 +55,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             raise ValueError("worker requires a configured app, app config is missing")
         self._app = app
         self._id = worker_id
+        self._already_shutdown = False
         self._graceful_shutdown = True
         self._config = app.config
         self._cancelled_ = defaultdict(set)
@@ -100,8 +101,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
                 self.error("error occurred while consuming: %s", _format_error(e))
                 self.info("will try to shutdown gracefully...")
                 raise e
-            finally:
-                await self.shutdown()
 
     @final
     @functools.cached_property
@@ -173,7 +172,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         self, task: Task, project: str, *, requeue: bool
     ) -> Task:
         self.info(
-            "negatively acknowledging Task(id=%s)w with (requeue=%s)...",
+            "negatively acknowledging Task(id=%s) with (requeue=%s)...",
             task.id,
             requeue,
         )
@@ -213,7 +212,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def save_error(self, error: TaskError, task: Task, project: str):
         self.error('Task(id="%s"): %s\n%s', task.id, error.title, error.detail)
         # Save the error in the appropriate location
-        self.debug('Task(id="%s") saving error', task.id, error)
+        self.debug('Task(id="%s") saving error', task.id)
         await self._save_error(error, task, project)
         # Once the error has been saved, we notify the event consumers, they are
         # responsible for reflecting the fact that the error has occurred wherever
@@ -334,7 +333,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     @final
     async def __aexit__(self, exc_type, exc_value, tb):
         await self._aexit__(exc_type, exc_value, tb)
-        await self._shutdown_gracefully()
+        await self.shutdown()
 
     async def _aexit__(self, exc_type, exc_val, exc_tb):
         pass
@@ -360,6 +359,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             self.info("graceful shut down complete")
         else:
             self.info("shutting down the hard way...")
+        self._already_shutdown = True
 
 
 def _retrieve_registered_task(
