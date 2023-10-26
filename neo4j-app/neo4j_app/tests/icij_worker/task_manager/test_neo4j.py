@@ -27,7 +27,7 @@ CREATE  (error:_TaskError {
     title: 'error',
     detail: 'with details',
     occurredAt: $now 
-})-[:OCCURRED_DURING]->(task)
+})-[:_OCCURRED_DURING]->(task)
 RETURN error"""
     recs_0, _, _ = await neo4j_app_driver.execute_query(
         query_0, taskId=task_with_error.id, now=datetime.now()
@@ -39,7 +39,7 @@ CREATE  (error:_TaskError {
     title: 'error',
     detail: 'same error again',
     occurredAt: $now 
-})-[:OCCURRED_DURING]->(task)
+})-[:_OCCURRED_DURING]->(task)
 RETURN error"""
     recs_1, _, _ = await neo4j_app_driver.execute_query(
         query_1,
@@ -62,7 +62,7 @@ async def _populate_results(
     inputs: '{"greeted": "2"}'
 })
 CREATE (result:_TaskResult { result: '"Hello 2"' })
-CREATE (task)-[:HAS_RESULT]->(result)
+CREATE (task)-[:_HAS_RESULT]->(result)
 RETURN task, result"""
     now = datetime.now()
     after = datetime.now()
