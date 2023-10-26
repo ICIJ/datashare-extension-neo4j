@@ -62,14 +62,12 @@ def lifespan_config() -> AppConfig:
 
 
 async def neo4j_driver_enter(_: AppConfig):
-    from neo4j_app.core.neo4j.projects import registry_db_session
-
     global _NEO4J_DRIVER
     _NEO4J_DRIVER = lifespan_config().to_neo4j_driver()
     await _NEO4J_DRIVER.__aenter__()  # pylint: disable=unnecessary-dunder-call
 
     logger.debug("pinging neo4j...")
-    async with registry_db_session(_NEO4J_DRIVER) as sess:
+    async with _NEO4J_DRIVER.session(database=neo4j.SYSTEM_DATABASE) as sess:
         await sess.run("CALL db.ping()")
     logger.debug("neo4j driver is ready")
 
@@ -254,6 +252,7 @@ FASTAPI_LIFESPAN_DEPS = [
     (config_enter, None),
     (loggers_enter, None),
     (neo4j_driver_enter, neo4j_driver_exit),
+    (create_project_registry_db_enter, None),
     (es_client_enter, es_client_exit),
     (test_process_manager_enter, test_process_manager_exit),
     (test_db_path_enter, test_db_path_exit),
@@ -261,7 +260,6 @@ FASTAPI_LIFESPAN_DEPS = [
     (task_task_manager_enter, None),
     (event_publisher_enter, None),
     (worker_pool_enter, worker_pool_exit),
-    (create_project_registry_db_enter, None),
     (migrate_app_db_enter, None),
 ]
 

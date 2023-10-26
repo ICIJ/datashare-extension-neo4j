@@ -102,8 +102,8 @@ async def is_enterprise(neo4j_driver: neo4j.AsyncDriver) -> bool:
     global _IS_ENTERPRISE
     if _IS_ENTERPRISE is None:
         query = "CALL dbms.components() YIELD edition RETURN edition"
-        res, _, _ = await neo4j_driver.execute_query(query)
-        if not res:
-            raise ValueError("Failed to determine neo4j distribution")
-        _IS_ENTERPRISE = res[0]["edition"] != "community"
+        async with neo4j_driver.session(database=neo4j.SYSTEM_DATABASE) as sess:
+            res = await sess.run(query)
+            res = await res.single()
+        _IS_ENTERPRISE = res["edition"] != "community"
     return _IS_ENTERPRISE
