@@ -192,9 +192,9 @@ RETURN m as migration
 
 async def delete_all_migrations(driver: neo4j.AsyncDriver):
     query = f"""MATCH (m:{MIGRATION_NODE})
-DETACH DELETE m
-    """
-    await driver.execute_query(query)
+DETACH DELETE m"""
+    async with registry_db_session(driver) as sess:
+        await sess.run(query)
 
 
 async def retrieve_projects(neo4j_driver: neo4j.AsyncDriver) -> List[Project]:
