@@ -45,9 +45,9 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
@@ -55,6 +55,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import joptsimple.OptionParser;
 import kong.unirest.Unirest;
 import kong.unirest.apache.ApacheClient;
 import net.codestory.http.Context;
@@ -84,21 +85,44 @@ public class Neo4jResource implements AutoCloseable {
 
     private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
     // All these properties have to start with "neo4j" in order to be properly filtered
-    private static final HashMap<String, String> DEFAULT_NEO4J_PROPERTIES = new HashMap<>() {
-        {
-            put("neo4jAppPort", "8008");
-            put("neo4jAppStartTimeoutS", "30");
-            put("neo4jAppSyslogFacility", "LOCAL7");
-            put("neo4jHost", "neo4j");
-            put("neo4jPassword", "");
-            put("neo4jPort", "7687");
-            put("neo4jDocumentNodesLimit", String.valueOf(NEO4J_DEFAULT_DUMPED_DOCUMENTS));
-            put("neo4jSingleProject", "local-datashare");
-            put("neo4jUriScheme", "neo4j");
-            put("neo4jUser", "");
-            put(TASK_POLL_INTERVAL_S, "2");
-        }
-    };
+    private static final List<List<Object>> DEFAULT_CLI_OPTIONS = List.of(
+        List.of("neo4jAppStartTimeoutS", 30, "Python neo4j service start timeout."),
+        List.of("neo4jAppPort", 8008, "Python neo4j service port"),
+        List.of(
+            "neo4jAppSyslogFacility",
+            "",
+            "Syslog facility used to log from the Python neo4j service to Datashare Java app"
+        ),
+        List.of(
+            "neo4jSingleProject",
+            "local-datashare",
+            "Name of the single project which will be able to user the extension when using neo4j"
+                + " Community Edition"
+        ),
+        List.of("neo4jHost", "neo4j", "Hostname of the neo4j DB."),
+        List.of("neo4jPort", 7687, "Port of the neo4j DB."),
+        List.of(
+            "neo4jUriScheme",
+            "",
+            "URI scheme used to connect to the neo4j DB (can be: bolt, neo4j, bolt+s, neo4j+s,"
+                + " ....)"
+        ),
+        List.of("neo4jUser", "", "User name used to connect to the neo4j DB"),
+        List.of("neo4jPassword", "", "Password used to connect to the neo4j DB"),
+        List.of(
+            TASK_POLL_INTERVAL_S,
+            2,
+            "Interval in second used to poll task statuses when in CLI mode"
+        )
+    );
+    //CHECKSTYLE.OFF: MemberName
+    //CHECKSTYLE.OFF: AbbreviationAsWordInName
+    Map<String, String> DEFAULT_NEO4J_PROPERTIES_MAP = DEFAULT_CLI_OPTIONS.stream()
+        .collect(
+            Collectors.toMap((item) -> item.get(0).toString(), (item) -> item.get(1).toString())
+        );
+    //CHECKSTYLE.ON: AbbreviationAsWordInName
+    //CHECKSTYLE.ON: MemberName
 
     protected static final HashSet<String> projects = new HashSet<>();
 
@@ -125,7 +149,9 @@ public class Neo4jResource implements AutoCloseable {
         this.repository = repository;
         this.propertiesProvider = propertiesProvider;
         Properties neo4jDefaultProps = new Properties();
-        neo4jDefaultProps.putAll(DEFAULT_NEO4J_PROPERTIES);
+        neo4jDefaultProps.putAll(DEFAULT_NEO4J_PROPERTIES_MAP.entrySet().stream()
+            .filter(entry -> !entry.getValue().isEmpty())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         this.propertiesProvider.mergeWith(neo4jDefaultProps);
         this.appLoader = new Neo4jAppLoader(this.propertiesProvider);
         this.port = Integer.parseInt(propertiesProvider.get("neo4jAppPort").orElse("8080"));
@@ -142,6 +168,31 @@ public class Neo4jResource implements AutoCloseable {
                 }
             });
         Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
+    }
+
+    protected static void addOptions(OptionParser parser) {
+        DEFAULT_CLI_OPTIONS.forEach(option -> {
+            if (option.size() != 3) {
+                throw new IllegalStateException(
+                    "Invalid default CLI options  " + option + " expected options of size 3"
+                );
+            }
+            String opt = option.get(0).toString();
+            String desc = option.get(2).toString();
+            Object defaultValue = option.get(1);
+            if (defaultValue instanceof String) {
+                String defaultAsString = (String) defaultValue;
+                if (!defaultAsString.isEmpty()) {
+                    parser.accepts(opt, desc).withRequiredArg().ofType(String.class)
+                        .defaultsTo((String) defaultValue);
+                }
+            } else if (defaultValue instanceof Integer) {
+                parser.accepts(opt, desc).withRequiredArg().ofType(Integer.class)
+                    .defaultsTo((Integer) defaultValue);
+            } else {
+                throw new IllegalArgumentException("Invalid default option " + option);
+            }
+        });
     }
 
     protected static boolean isOpen(String host, int port) {
@@ -315,7 +366,7 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    private boolean startNeo4jApp(boolean forceMigrations) {
+    boolean startNeo4jApp(boolean forceMigrations) {
         boolean alreadyRunning = neo4jAppPid() != null;
         if (!alreadyRunning) {
             synchronized (Neo4jResource.class) {
