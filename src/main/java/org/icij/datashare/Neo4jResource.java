@@ -42,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -378,11 +379,11 @@ public class Neo4jResource implements AutoCloseable {
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read app binary", e);
             }
-            startServerCmd = Arrays.asList(
+            startServerCmd = new ArrayList<>(Arrays.asList(
                 appBinaryPath.toString(),
                 "--config-path",
                 propertiesFile.getAbsolutePath()
-            );
+            ));
             if (forceMigrations) {
                 startServerCmd.add("--force-migrations");
             }
