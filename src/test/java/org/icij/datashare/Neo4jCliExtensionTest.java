@@ -309,5 +309,19 @@ public class Neo4jCliExtensionTest {
             String output = captured.toString().trim();
             assertThat(output).isEqualTo(MAPPER.writeValueAsString(fullImportResponse));
         }
+
+        @Test
+        public void test_extension_should_add_options() {
+            // Given
+            OptionParser parser = new OptionParser();
+            extension.addOptions(parser);
+
+            // When
+            OptionSet opts = parser.parse("--neo4jAppPort", "8888");
+
+            // Then
+            assertThat(opts.valueOf("neo4jAppPort")).isEqualTo(8888);
+        }
+
     }
 }

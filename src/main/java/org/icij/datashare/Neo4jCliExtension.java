@@ -56,6 +56,8 @@ public class Neo4jCliExtension implements CliExtension {
         parser.acceptsAll(asList(PROJECT, "p"), "Name of the datashare project")
             .withRequiredArg()
             .ofType(String.class);
+
+        neo4jResource.addOptions(parser);
     }
 
     @Override
