@@ -233,6 +233,7 @@ async def migrate_app_db_enter(config: AppConfig):
     driver = lifespan_neo4j_driver()
     if config.force_migrations:
         # TODO: improve this as is could lead to race conditions...
+        logger.info("Deleting all previous migrations...")
         await delete_all_migrations(driver)
     await migrate_db_schemas(
         driver,
