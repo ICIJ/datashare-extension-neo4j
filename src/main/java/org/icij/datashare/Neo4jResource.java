@@ -336,20 +336,7 @@ public class Neo4jResource {
             }
         }
         // Bind syslog
-        cleaner.register(this.getClass(), () -> {
-            logger.info("Closing syslog server...");
-            LoggingUtils.SyslogServerSingleton.getInstance().close();
-        });
-        LoggingUtils.SyslogServerSingleton syslogServer =
-            LoggingUtils.SyslogServerSingleton.getInstance();
-        String syslogFacility = this.propertiesProvider
-            .get("neo4jAppSyslogFacility")
-            .orElseThrow(() -> new IllegalArgumentException(
-                "neo4jAppSyslogFacility is missing from properties"));
-        syslogServer.addHandler(new LoggingUtils.SyslogMessageHandler(
-            Neo4jResource.class.getName(), syslogFacility, SYSLOG_SPLIT_CHAR));
-        logger.info("Starting syslog server...");
-        syslogServer.run();
+        bindSyslog();
 
         checkServerCommand(startServerCmd);
         logger.info("Starting Python app running \"{}\"",
@@ -458,6 +445,23 @@ public class Neo4jResource {
             }
         }
         return null;
+    }
+
+    protected void bindSyslog() {
+        this.propertiesProvider
+            .get("neo4jAppSyslogFacility")
+            .ifPresent(syslogFacility -> {
+                cleaner.register(this.getClass(), () -> {
+                    logger.info("Closing syslog server...");
+                    LoggingUtils.SyslogServerSingleton.getInstance().close();
+                });
+                LoggingUtils.SyslogServerSingleton syslogServer =
+                    LoggingUtils.SyslogServerSingleton.getInstance();
+                syslogServer.addHandler(new LoggingUtils.SyslogMessageHandler(
+                    Neo4jResource.class.getName(), syslogFacility, SYSLOG_SPLIT_CHAR));
+                logger.info("Starting syslog server...");
+                syslogServer.run();
+            });
     }
 
     protected boolean initProject(String projectId) {
