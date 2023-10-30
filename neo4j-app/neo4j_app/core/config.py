@@ -201,12 +201,12 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         import elasticsearch
 
         loggers = [neo4j_app.__name__, uvicorn.__name__, elasticsearch.__name__]
-        force_info = {elasticsearch.__name__}
+        force_warning = {elasticsearch.__name__}
         try:
             import opensearchpy
 
             loggers.append(opensearchpy.__name__)
-            force_info.add(opensearchpy.__name__)
+            force_warning.add(opensearchpy.__name__)
         except ImportError:
             pass
         worker_id_filter = None
@@ -216,8 +216,8 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         for logger in loggers:
             logger = logging.getLogger(logger)
             level = getattr(logging, self.neo4j_app_log_level)
-            if logger.name in force_info:
-                level = max(logging.INFO, level)
+            if logger.name in force_warning:
+                level = max(logging.WARNING, level)
             logger.setLevel(level)
             logger.handlers = []
             for handler in handlers:
