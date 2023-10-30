@@ -23,7 +23,7 @@ import org.icij.datashare.cli.spi.CliExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Neo4jCliExtension implements CliExtension {
+public class Neo4jCliExtension implements CliExtension, AutoCloseable {
     private PropertiesProvider propertiesProvider;
     private Neo4jResource neo4jResource;
 
@@ -32,6 +32,8 @@ public class Neo4jCliExtension implements CliExtension {
     private static final String NEO4J_EXTENSION_NAME = "neo4j";
     private static final String FULL_IMPORT = "full-import";
     private static final String PROJECT = "project";
+
+    private boolean startedServerProcess = true;
 
     public Neo4jCliExtension() {
     }
@@ -77,7 +79,7 @@ public class Neo4jCliExtension implements CliExtension {
     protected void fullImport(String project) {
         this.checkResource();
         logger.info("Starting neo4j app...");
-        this.neo4jResource.startNeo4jApp(true);
+        this.startedServerProcess = !this.neo4jResource.startNeo4jApp(true);
         logger.info("Initializing neo4j project...");
         this.neo4jResource.initProject(project);
         logger.info("Creating import task...");
@@ -106,7 +108,8 @@ public class Neo4jCliExtension implements CliExtension {
             task = neo4jResource.task(taskId, project);
             Float progress = Optional.ofNullable(task.progress).orElse(0.0f);
             logger.info(
-                "Task(id=\"{}\", status={}, progress={})", task.id, task.status, progress
+                "Task(id=\"{}\", status={}, progress={})",
+                task.id, task.status, String.format("%.2f", progress)
             );
             try {
                 sleep(s);
@@ -134,6 +137,13 @@ public class Neo4jCliExtension implements CliExtension {
             }
             default:
                 throw new IllegalArgumentException("unexpected status: " + task.status.name());
+        }
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (startedServerProcess) {
+            Neo4jResource.stopServerProcess();
         }
     }
 }
