@@ -97,6 +97,11 @@ public class Neo4jCliExtensionTest {
         }
 
         @Override
+        boolean startNeo4jApp(boolean forceMigrations) {
+            return true;
+        }
+
+        @Override
         protected void checkNeo4jAppStarted() {
             logger.debug(
                 Neo4jResourceTest.Neo4jResourceWithApp.class.getName() + " is always running");

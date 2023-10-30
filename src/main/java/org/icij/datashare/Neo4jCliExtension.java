@@ -8,6 +8,7 @@ import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.inject.Injector;
 import com.google.inject.Module;
+import java.io.File;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -144,6 +145,13 @@ public class Neo4jCliExtension implements CliExtension, AutoCloseable {
     public void close() throws Exception {
         if (startedServerProcess) {
             Neo4jResource.stopServerProcess();
+            if (this.neo4jResource.appBinaryPath != null) {
+                File appBinFile = new File(
+                    this.neo4jResource.appBinaryPath.toAbsolutePath().toString());
+                if (appBinFile.exists()) {
+                    appBinFile.delete();
+                }
+            }
         }
     }
 }
