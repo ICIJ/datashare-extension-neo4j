@@ -34,8 +34,10 @@ async def iterate_with_concurrency(
 ) -> AsyncIterator[T]:
     if not iterables:
         raise ValueError()
-    async for item in flatten(_to_async(iterables), task_limit=max_concurrency):
-        yield item
+    streamer = flatten(_to_async(iterables), task_limit=max_concurrency)
+    async with streamer.stream():
+        async for item in streamer:
+            yield item
 
 
 async def _run_with_semaphore(
