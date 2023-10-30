@@ -813,24 +813,6 @@ public class Neo4jResource implements AutoCloseable {
         this.client.close();
     }
 
-    static class KillPythonProcess implements Runnable {
-        private final Neo4jResource resource;
-
-        KillPythonProcess(Neo4jResource resource) {
-            this.resource = resource;
-        }
-
-        public void run() {
-            this.resource.stopServerProcess();
-            if (this.resource.appBinaryPath != null) {
-                File appBinFile = new File(this.resource.appBinaryPath.toAbsolutePath().toString());
-                if (appBinFile.exists()) {
-                    appBinFile.delete();
-                }
-            }
-        }
-    }
-
     protected static class ServerStopResponse {
         public final boolean alreadyStopped;
 
