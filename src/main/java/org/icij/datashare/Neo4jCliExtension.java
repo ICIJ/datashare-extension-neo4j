@@ -10,6 +10,7 @@ import com.google.inject.Injector;
 import com.google.inject.Module;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,7 +33,8 @@ public class Neo4jCliExtension implements CliExtension {
     private static final String FULL_IMPORT = "full-import";
     private static final String PROJECT = "project";
 
-    public Neo4jCliExtension() {}
+    public Neo4jCliExtension() {
+    }
 
     protected Neo4jCliExtension(
         PropertiesProvider propertiesProvider, Neo4jResource neo4jResource) {
@@ -102,8 +104,10 @@ public class Neo4jCliExtension implements CliExtension {
         ) * 1000;
         while (task == null || !TaskStatus.READY_STATES.contains(task.status)) {
             task = neo4jResource.task(taskId, project);
+            Float progress = Optional.ofNullable(task.progress).orElse(0.0f);
             logger.info(
-                "Task(id=\"{}\", status={}, progress={})", task.id, task.status, task.progress);
+                "Task(id=\"{}\", status={}, progress={})", task.id, task.status, progress
+            );
             try {
                 sleep(s);
             } catch (InterruptedException e) {
