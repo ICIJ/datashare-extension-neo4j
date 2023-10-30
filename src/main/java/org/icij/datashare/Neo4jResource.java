@@ -555,6 +555,7 @@ public class Neo4jResource implements AutoCloseable {
         this.propertiesProvider
             .get("neo4jAppSyslogFacility")
             .ifPresent(syslogFacility -> {
+                logger.info("Binding syslog server...");
                 cleaner.register(this.getClass(), () -> {
                     logger.info("Closing syslog server...");
                     LoggingUtils.SyslogServerSingleton.getInstance().close();
