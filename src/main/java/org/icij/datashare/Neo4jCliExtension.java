@@ -144,6 +144,7 @@ public class Neo4jCliExtension implements CliExtension, AutoCloseable {
     @Override
     public void close() throws Exception {
         if (startedServerProcess) {
+            logger.info("Stopping Python process...");
             Neo4jResource.stopServerProcess();
             if (this.neo4jResource.appBinaryPath != null) {
                 File appBinFile = new File(
@@ -152,6 +153,7 @@ public class Neo4jCliExtension implements CliExtension, AutoCloseable {
                     appBinFile.delete();
                 }
             }
+            logger.info("Python stopped !");
         }
     }
 }

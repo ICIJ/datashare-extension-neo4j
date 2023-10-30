@@ -48,4 +48,4 @@ neo4jStartServerCmd=
 neo4jAppStartTimeoutS=80
 neo4jUser=neo4j
 neo4jPassword=changeme
-neo4jCliTaskPollIntervalS=10
+neo4jCliTaskPollIntervalS=2
