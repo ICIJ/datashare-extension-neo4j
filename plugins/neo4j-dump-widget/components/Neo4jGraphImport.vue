@@ -76,7 +76,8 @@ export default {
   mixins: [polling],
   computed: {
     importButton() {
-      return this.neo4jImportTasks?.length ? 'Update graph' : 'Create graph'
+      const projectHasDocuments = this.neo4jGraphCounts[this.project]?.documents
+      return (this.neo4jImportTasks?.length || projectHasDocuments) ? 'Update graph' : 'Create graph'
     },
     importButtonToolTip() {
       if (this.neo4jAppStatus === AppStatus.Starting) {
