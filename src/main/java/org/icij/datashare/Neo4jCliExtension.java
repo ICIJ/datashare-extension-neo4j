@@ -8,6 +8,7 @@ import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.inject.Injector;
 import com.google.inject.Module;
+import com.google.inject.Singleton;
 import java.io.File;
 import java.util.List;
 import java.util.Objects;
@@ -24,9 +25,10 @@ import org.icij.datashare.cli.spi.CliExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Singleton
 public class Neo4jCliExtension implements CliExtension, AutoCloseable {
     private PropertiesProvider propertiesProvider;
-    private Neo4jResource neo4jResource;
+    private Neo4jResourceCli neo4jResource;
 
     private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
 
@@ -40,7 +42,7 @@ public class Neo4jCliExtension implements CliExtension, AutoCloseable {
     }
 
     protected Neo4jCliExtension(
-        PropertiesProvider propertiesProvider, Neo4jResource neo4jResource) {
+        PropertiesProvider propertiesProvider, Neo4jResourceCli neo4jResource) {
         this.propertiesProvider = propertiesProvider;
         this.neo4jResource = neo4jResource;
     }
@@ -49,7 +51,7 @@ public class Neo4jCliExtension implements CliExtension, AutoCloseable {
     public void init(Function<Module[], Injector> injectModuleFn) {
         Injector injector = injectModuleFn.apply(new Module[] {});
         this.propertiesProvider = injector.getInstance(PropertiesProvider.class);
-        this.neo4jResource = injector.getInstance(Neo4jResource.class);
+        this.neo4jResource = injector.getInstance(Neo4jResourceCli.class);
     }
 
     @Override
@@ -60,8 +62,7 @@ public class Neo4jCliExtension implements CliExtension, AutoCloseable {
         parser.acceptsAll(asList(PROJECT, "p"), "Name of the datashare project")
             .withRequiredArg()
             .ofType(String.class);
-
-        neo4jResource.addOptions(parser);
+        Neo4jResourceCli.addOptions(parser);
     }
 
     @Override

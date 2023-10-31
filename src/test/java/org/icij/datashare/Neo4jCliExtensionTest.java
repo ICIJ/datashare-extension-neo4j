@@ -8,7 +8,6 @@ import static org.icij.datashare.Objects.TaskStatus;
 import static org.icij.datashare.Objects.TaskType;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.inject.Inject;
@@ -34,8 +33,6 @@ import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class Neo4jCliExtensionTest {
     private static final String SINGLE_PROJECT = "foo-datashare";
@@ -46,7 +43,6 @@ public class Neo4jCliExtensionTest {
 
     private static ProdWebServerRuleExtension neo4jApp;
 
-    private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
 
     protected static FullImportResponse fullImportResponse = new FullImportResponse(
         new IncrementalImportResponse(1, 1, 0),
@@ -83,12 +79,11 @@ public class Neo4jCliExtensionTest {
     }
 
 
-    static class Neo4jResourceWithApp extends Neo4jResource {
+    static class Neo4jResourceWithApp extends Neo4jResourceCli {
 
         @Inject
-        protected Neo4jResourceWithApp(Repository repository,
-                                       PropertiesProvider propertiesProvider) {
-            super(repository, propertiesProvider);
+        protected Neo4jResourceWithApp(PropertiesProvider propertiesProvider) {
+            super(propertiesProvider);
         }
 
         @Override
@@ -104,7 +99,7 @@ public class Neo4jCliExtensionTest {
         @Override
         protected void checkNeo4jAppStarted() {
             logger.debug(
-                Neo4jResourceTest.Neo4jResourceWithApp.class.getName() + " is always running");
+                Neo4jResourceWebTest.Neo4jResourceWithApp.class.getName() + " is always running");
         }
 
     }
@@ -128,9 +123,8 @@ public class Neo4jCliExtensionTest {
                     put("neo4jAppStartTimeoutS", "2");
                 }
             });
-            Repository repository = mock(Repository.class);
-            Neo4jResource resources = new Neo4jResourceWithApp(repository, propertiesProvider);
-            extension = new Neo4jCliExtension(propertiesProvider, resources);
+            Neo4jResourceCli resource = new Neo4jResourceWithApp(propertiesProvider);
+            extension = new Neo4jCliExtension(propertiesProvider, resource);
         }
 
         @Override
