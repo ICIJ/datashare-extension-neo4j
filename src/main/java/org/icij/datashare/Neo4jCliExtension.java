@@ -119,7 +119,7 @@ public class Neo4jCliExtension implements CliExtension, AutoCloseable {
                 throw new RuntimeException(e);
             }
         }
-        logger.info("task {} has status {}, stopped polling", task, task.status);
+        logger.info("task {} has status {}, stopped polling", task.id, task.status);
         switch (task.status) {
             case DONE: {
                 return neo4jResource.taskResult(task.id, project, resultClass);
