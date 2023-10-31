@@ -32,16 +32,13 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-public class Neo4jResourceTest {
+public class Neo4jResourceWebTest {
 
     public static final String SINGLE_PROJECT = "foo-datashare";
-    private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
 
     @Prefix("/api/neo4j")
-    static class Neo4jResourceWithApp extends Neo4jResource {
+    static class Neo4jResourceWithApp extends Neo4jResourceWeb {
 
         public Neo4jResourceWithApp(Repository repository, PropertiesProvider propertiesProvider) {
             super(repository, propertiesProvider);
@@ -55,7 +52,7 @@ public class Neo4jResourceTest {
     }
 
     static Neo4jClient client;
-    private static Neo4jResource neo4jAppResource;
+    private static Neo4jResourceWeb neo4jAppResource;
     private static int port;
     private static int neo4jAppPort;
     private static ProdWebServerRuleExtension neo4jApp;
@@ -164,8 +161,8 @@ public class Neo4jResourceTest {
         @Mock
         private static Repository mockedRepository;
 
-        protected <T extends Neo4jResource> Class<T> getResourceClass() {
-            return (Class<T>) Neo4jResource.class;
+        protected <T extends Neo4jResourceWeb> Class<T> getResourceClass() {
+            return (Class<T>) Neo4jResourceWeb.class;
         }
 
         @Override
@@ -213,7 +210,7 @@ public class Neo4jResourceTest {
     }
 
     public static class BindNeo4jResourceWithPid extends BindNeo4jResource {
-        protected <T extends Neo4jResource> Class<T> getResourceClass() {
+        protected <T extends Neo4jResourceWeb> Class<T> getResourceClass() {
             return (Class<T>) Neo4jResourceWithApp.class;
         }
     }
@@ -282,7 +279,7 @@ public class Neo4jResourceTest {
         @Test
         public void test_not_be_running_by_default() {
             // When
-            Payload payload = neo4jAppResource.getStopNeo4jApp();
+            Payload payload = neo4jAppResource.getNeo4jAppStatus();
             Neo4jResource.Neo4jAppStatus status =
                 (Neo4jResource.Neo4jAppStatus) payload.rawContent();
             // Then

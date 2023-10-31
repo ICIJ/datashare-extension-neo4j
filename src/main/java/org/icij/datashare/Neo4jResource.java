@@ -2,8 +2,6 @@ package org.icij.datashare;
 
 
 import static java.io.File.createTempFile;
-import static org.icij.datashare.HttpUtils.fromException;
-import static org.icij.datashare.HttpUtils.parseContext;
 import static org.icij.datashare.LoggingUtils.lazy;
 import static org.icij.datashare.Neo4jAppLoader.getExtensionVersion;
 import static org.icij.datashare.Objects.DumpQuery;
@@ -15,18 +13,15 @@ import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
 import static org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest;
 import static org.icij.datashare.Objects.Neo4jCSVResponse;
 import static org.icij.datashare.Objects.SortedDumpRequest;
-import static org.icij.datashare.Objects.StartNeo4jAppRequest;
 import static org.icij.datashare.Objects.Task;
 import static org.icij.datashare.Objects.TaskError;
 import static org.icij.datashare.Objects.TaskSearch;
 import static org.icij.datashare.Objects.TaskType;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
-import static org.icij.datashare.text.Project.isAllowed;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.inject.Inject;
-import com.google.inject.Singleton;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -51,31 +46,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import joptsimple.OptionParser;
-import kong.unirest.Unirest;
-import kong.unirest.apache.ApacheClient;
 import net.codestory.http.Context;
-import net.codestory.http.annotations.Get;
-import net.codestory.http.annotations.Post;
-import net.codestory.http.annotations.Prefix;
 import net.codestory.http.errors.ForbiddenException;
-import net.codestory.http.errors.HttpException;
 import net.codestory.http.errors.UnauthorizedException;
-import net.codestory.http.payload.Payload;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.icij.datashare.user.User;
 import org.neo4j.cypherdsl.core.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Singleton
-@Prefix("/api/neo4j")
+
 public class Neo4jResource implements AutoCloseable {
-    private final Repository repository;
     private static final String NEO4J_APP_BIN = "neo4j-app";
     private static final Path TMP_ROOT = Path.of(
         FileSystems.getDefault().getSeparator(), "tmp");
@@ -85,7 +67,7 @@ public class Neo4jResource implements AutoCloseable {
 
     private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
     // All these properties have to start with "neo4j" in order to be properly filtered
-    private static final List<List<Object>> DEFAULT_CLI_OPTIONS = List.of(
+    protected static final List<List<Object>> DEFAULT_CLI_OPTIONS = List.of(
         List.of("neo4jAppStartTimeoutS", 30, "Python neo4j service start timeout."),
         List.of("neo4jAppPort", 8008, "Python neo4j service port"),
         List.of(
@@ -131,7 +113,7 @@ public class Neo4jResource implements AutoCloseable {
 
     protected static Boolean supportNeo4jEnterprise;
 
-    private static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
+    protected static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
     // TODO: not sure that we want to delete the process when this deleted...
     // Cleaner which will ensure the Python server will be close when the resource is deleted
     private static Cleaner cleaner;
@@ -143,10 +125,7 @@ public class Neo4jResource implements AutoCloseable {
     private final Neo4jAppLoader appLoader;
     protected Path appBinaryPath;
 
-
-    @Inject
-    public Neo4jResource(Repository repository, PropertiesProvider propertiesProvider) {
-        this.repository = repository;
+    protected Neo4jResource(PropertiesProvider propertiesProvider) {
         this.propertiesProvider = propertiesProvider;
         Properties neo4jDefaultProps = new Properties();
         neo4jDefaultProps.putAll(DEFAULT_NEO4J_PROPERTIES_MAP.entrySet().stream()
@@ -167,32 +146,6 @@ public class Neo4jResource implements AutoCloseable {
                     neo4jSingleProjectId = projectId;
                 }
             });
-        Unirest.config().httpClient(ApacheClient.builder(HttpClientBuilder.create().build()));
-    }
-
-    protected static void addOptions(OptionParser parser) {
-        DEFAULT_CLI_OPTIONS.forEach(option -> {
-            if (option.size() != 3) {
-                throw new IllegalStateException(
-                    "Invalid default CLI options  " + option + " expected options of size 3"
-                );
-            }
-            String opt = option.get(0).toString();
-            String desc = option.get(2).toString();
-            Object defaultValue = option.get(1);
-            if (defaultValue instanceof String) {
-                String defaultAsString = (String) defaultValue;
-                if (!defaultAsString.isEmpty()) {
-                    parser.accepts(opt, desc).withRequiredArg().ofType(String.class)
-                        .defaultsTo((String) defaultValue);
-                }
-            } else if (defaultValue instanceof Integer) {
-                parser.accepts(opt, desc).withRequiredArg().ofType(Integer.class)
-                    .defaultsTo((Integer) defaultValue);
-            } else {
-                throw new IllegalArgumentException("Invalid default option " + option);
-            }
-        });
     }
 
     protected static boolean isOpen(String host, int port) {
@@ -230,135 +183,6 @@ public class Neo4jResource implements AutoCloseable {
     protected boolean pingSuccessful() {
         return client.pingSuccessful();
     }
-
-    @Post("/start")
-    public Payload postStartNeo4jApp(Context context) {
-        return wrapNeo4jAppCall(() -> {
-                boolean forceMigrations = false;
-                if (!context.request().content().isBlank()) {
-                    forceMigrations = parseContext(
-                        context, StartNeo4jAppRequest.class).forceMigration;
-                }
-                boolean alreadyRunning = this.startNeo4jApp(forceMigrations);
-                return new Payload(new ServerStartResponse(alreadyRunning));
-            }
-        );
-    }
-
-    @Post("/stop")
-    public Payload postStopNeo4jApp() {
-        return wrapNeo4jAppCall(() -> new ServerStopResponse(stopServerProcess())
-        );
-    }
-
-    @Get("/status")
-    public Payload getStopNeo4jApp() {
-        return wrapNeo4jAppCall(() -> {
-            boolean isRunning = neo4jAppPid() != null;
-            return new Neo4jAppStatus(isRunning);
-        });
-    }
-
-    @Post("/init?project=:project")
-    public Payload postInitProject(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            boolean created = this.initProject(project);
-            int code;
-            if (created) {
-                code = 201;
-            } else {
-                code = 200;
-            }
-            return new Payload(created).withCode(code);
-        });
-    }
-
-    @Post("/documents?project=:project")
-    public Payload postDocuments(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            IncrementalImportRequest incrementalImportRequest = parseContext(
-                context, IncrementalImportRequest.class);
-            return this.importDocuments(project, incrementalImportRequest);
-        });
-    }
-
-    @Post("/named-entities?project=:project")
-    public Payload postNamedEntities(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            // TODO: this should throw a bad request when not parsed correcly...
-            IncrementalImportRequest incrementalImportRequest = parseContext(
-                context, IncrementalImportRequest.class);
-            return this.importNamedEntities(project, incrementalImportRequest);
-        });
-    }
-
-    //CHECKSTYLE.OFF: AbbreviationAsWordInName
-    @Post("/admin/neo4j-csvs?project=:project")
-    public Payload postNeo4jCSVs(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkCheckLocal();
-            checkProjectAccess(project, context);
-            Neo4jAppNeo4jCSVRequest request = parseContext(context, Neo4jAppNeo4jCSVRequest.class);
-            return this.exportNeo4jCSVs(project, request);
-        });
-    }
-    //CHECKSTYLE.ON: AbbreviationAsWordInName
-
-    @Post("/graphs/dump?project=:project")
-    public Payload postGraphDump(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            DumpRequest request = parseContext(context, DumpRequest.class);
-            return this.dumpGraph(project, request);
-        });
-    }
-
-    @Post("/graphs/sorted-dump?project=:project")
-    public Payload postSortedGraphDump(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            SortedDumpRequest request = parseContext(context, SortedDumpRequest.class);
-            return this.sortedDumpGraph(project, request);
-        });
-    }
-
-    @Get("/tasks/:taskId?project=:project")
-    public Payload getTask(String taskId, String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            checkTaskAccess(taskId, project, context);
-            return task(taskId, project);
-        });
-    }
-
-    @Get("/graphs/counts?project=:project")
-    public Payload getGraphCounts(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            return graphCounts(project);
-        });
-    }
-
-    @Post("/full-imports?project=:project")
-    public Payload postFullImport(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            checkCheckLocal();
-            return new Payload(runFullImport(project, true)).withCode(201);
-        });
-    }
-
-    @Get("/full-imports?project=:project")
-    public Payload getSearchFullImports(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            return searchFullImports(project);
-        });
-    }
-
 
     protected void checkNeo4jAppStarted() {
         if (neo4jAppPid() == null) {
@@ -534,7 +358,7 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    private static Long neo4jAppPid() {
+    protected static Long neo4jAppPid() {
         Path maybePidPath = neo4jAppPidPath();
         if (maybePidPath != null) {
             Long maybePid = ProcessUtils.isProcessRunning(maybePidPath, 500, TimeUnit.MILLISECONDS);
@@ -688,45 +512,6 @@ public class Neo4jResource implements AutoCloseable {
         Neo4jAppDumpRequest neo4jAppRequest = new Neo4jAppDumpRequest(
             request.format, statement.getCypher());
         return client.dumpGraph(projectId, neo4jAppRequest);
-    }
-
-    private <T> Payload wrapNeo4jAppCall(Callable<T> responseProvider) {
-        try {
-            return new Payload(responseProvider.call());
-        } catch (InvalidProjectError e) {
-            return new Payload("application/problem+json", e).withCode(403);
-        } catch (Neo4jNotRunningError e) {
-            return new Payload("application/problem+json", e).withCode(503);
-        } catch (Neo4jClient.Neo4jAppError e) {
-            HttpUtils.HttpError returned = e.toHttp();
-            logger.error(
-                "internal error on the python app side {}", returned.getMessageWithTrace()
-            );
-            return new Payload("application/problem+json", returned).withCode(e.status);
-        } catch (HttpException e) {
-            return new Payload("application/problem+json", fromException(e))
-                .withCode(e.code());
-        } catch (ProjectNotInitialized e) {
-            return new Payload("application/problem+json", fromException(e)).withCode(503);
-        } catch (HttpUtils.JacksonParseError e) {
-            HttpUtils.HttpError returned = fromException(e);
-            logger.error(returned.getMessageWithTrace());
-            return new Payload("application/problem+json", returned).withCode(400);
-        } catch (Exception e) {
-            HttpUtils.HttpError returned = fromException(e);
-            logger.error("internal error on the java extension side {}",
-                returned.getMessageWithTrace());
-            return new Payload("application/problem+json", returned).withCode(500);
-        }
-    }
-
-    protected void checkProjectAccess(String project, Context context) throws ForbiddenException {
-        if (!((User) context.currentUser()).isGranted(project)) {
-            throw new ForbiddenException();
-        }
-        if (!isAllowed(repository.getProject(project), context.request().clientAddress())) {
-            throw new ForbiddenException();
-        }
     }
 
     protected void checkTaskAccess(String taskId, String project, Context context)
