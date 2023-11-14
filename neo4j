@@ -90,7 +90,7 @@ function _helpers() {
     }
 
     function _build_neo4j_dump_widget_plugin() {
-        cd "$ROOT_DIR"/plugins/neo4j-dump-widget
+        cd "$ROOT_DIR"/plugins/neo4j-graph-widget
         yarn build
         local tar_filename
         tar_filename=$(yarn -s build:pack)
@@ -127,7 +127,7 @@ function _helpers() {
         fi
 
         if _should_run_project "neo4j_dump_widget_plugin"; then
-            cd "$ROOT_DIR"/plugins/neo4j-dump-widget
+            cd "$ROOT_DIR"/plugins/neo4j-graph-widget
             local npm_version
             npm_version=$(jq -r '.version' package.json)
             if ! [ "$npm_version" = "$file_version" ]; then _exit_with_message "Dump plugin version \"$npm_version\" differs from \"$file_version\""; fi
@@ -208,7 +208,7 @@ function _helpers() {
     }
 
     function _make_neoj_dump_widget_binary_name() {
-        echo "datashare-plugin-neo4j-dump-widget-$(_print_version)"
+        echo "datashare-plugin-neo4j-graph-widget-$(_print_version)"
     }
 
     function _pip_install() (
@@ -288,9 +288,9 @@ function _helpers() {
         version=$(_print_version)
 
         local tar_path
-        tar_path="$ROOT_DIR/bins/datashare-plugin-neo4j-dump-widget-$version.tgz"
+        tar_path="$ROOT_DIR/bins/datashare-plugin-neo4j-graph-widget-$version.tgz"
         local zip_path
-        zip_path="$ROOT_DIR/bins/datashare-plugin-neo4j-dump-widget-$version.zip"
+        zip_path="$ROOT_DIR/bins/datashare-plugin-neo4j-graph-widget-$version.zip"
 
         # Create the zip distribution
         cat "$tar_path" | zip > "$zip_path"
@@ -599,7 +599,7 @@ Please run ./neo4j format"
         elif _should_run_project "neo4j_dump_widget_plugin"; then
             _print_step "Setting up neo4j_dump_widget_plugin"
             _frontend_checks
-            cd "$ROOT_DIR/plugins/neo4j-dump-widget"
+            cd "$ROOT_DIR/plugins/neo4j-graph-widget"
             yarn install --immutable
         else
             _exit_with_message "Can't setup project $PROJECT"
