@@ -1,3 +1,3 @@
 # datashare-plugin-neo4j-graph-widget
 
-A Datashare plugin to dump a neo4j graph
+A Datashare plugin to interact with the neo4j graph
