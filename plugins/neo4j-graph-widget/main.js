@@ -1,4 +1,4 @@
-import dumpWidgetFactory from './core/WidgetNeo4jDump'
+import dumpWidgetFactory from './core/WidgetNeo4jGraph'
 import { default as neo4jStoreBuilder } from './store/Neo4jModule'
 import { CoreExtension } from './core/CoreExtension'
 
@@ -11,7 +11,7 @@ document.addEventListener('datashare:ready', async ({ detail }) => {
     detail.core.store.registerModule('neo4j', module)
   }
   detail.core.registerWidget({
-    name: 'WidgetNeo4jDump',
+    name: 'WidgetNeo4jGraph',
     type(WidgetEmptyCls) {
       return dumpWidgetFactory(WidgetEmptyCls)
     },

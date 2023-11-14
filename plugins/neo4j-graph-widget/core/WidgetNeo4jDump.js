@@ -1,6 +1,6 @@
-import Component from '../components/WidgetNeo4jDump.vue'
+import Component from '../components/WidgetNeo4jGraph.vue'
 
-export default (widgetEmptyCls) => class WidgetNeo4jDump extends widgetEmptyCls {
+export default (widgetEmptyCls) => class WidgetNeo4jGraph extends widgetEmptyCls {
   get component() {
     return Component
   }
