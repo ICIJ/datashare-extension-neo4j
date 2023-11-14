@@ -97,7 +97,7 @@ const CYPHER_SHELL = 'cypher-shell'
 const GRAPHML = 'graphml'
 
 export default {
-  name: 'WidgetNeo4jDump',
+  name: 'WidgetNeo4jGraph',
   props: {
     widget: {
       type: Object
