@@ -9,8 +9,8 @@ parameters:
     description: Release the backend
     type: boolean
     default: false
-  release_dump_plugin:
-    description: Release the dump plugin frontend
+  release_graph_widget_plugin:
+    description: Release the graph widget plugin
     type: boolean
     default: false
   branch:
@@ -36,8 +36,8 @@ executors:
       - image: cimg/node:16.16.0
 
 commands:
-  build-dump-plugin-cmd:
-    description: Build the dump plugin frontend
+  build-graph-widget-plugin-cmd:
+    description: Build the graph widget plugin
     parameters:
       branch:
         type: string
@@ -51,18 +51,18 @@ commands:
           name: Perform sanity checks
           command: |
             cd datashare-extension-neo4j
-            ./neo4j is_publishable -p neo4j_dump_widget_plugin
+            ./neo4j is_publishable -p neo4j_graph_widget_plugin
       - restore_cache:
           name: Restore yarn package cache
           keys:
-            - v4-deps-dump-plugin-{{ checksum "datashare-extension-neo4j/plugins/neo4j-graph-widget/yarn.lock" }}
-            - v4-deps-dump-plugin # used if checksum fails
+            - v4-deps-graph-widget-plugin-{{ checksum "datashare-extension-neo4j/plugins/neo4j-graph-widget/yarn.lock" }}
+            - v4-deps-graph-widget-plugin # used if checksum fails
       - run:
           name: Build binary
           command: |
             cd datashare-extension-neo4j
-            ./neo4j setup -p neo4j_dump_widget_plugin
-            ./neo4j build -p neo4j_dump_widget_plugin
+            ./neo4j setup -p neo4j_graph_widget_plugin
+            ./neo4j build -p neo4j_graph_widget_plugin
       - persist_to_workspace:
           root: datashare-extension-neo4j/bins
           paths:
@@ -71,7 +71,7 @@ commands:
           when: always
           paths:
             - ~/.cache/yarn
-          key: v4-deps-dump-plugin-{{ checksum "datashare-extension-neo4j/plugins/neo4j-graph-widget/yarn.lock" }}
+          key: v4-deps-graph-widget-plugin-{{ checksum "datashare-extension-neo4j/plugins/neo4j-graph-widget/yarn.lock" }}
 
   build-python-binary:
     description: Build neo4j_app Python binary
@@ -193,13 +193,13 @@ jobs:
       - build-python-binary:
           branch: << parameters.branch >>
 
-  build-dump-plugin:
+  build-graph-widget-plugin:
     executor: frontend
     parameters:
       branch:
         type: string
     steps:
-      - build-dump-plugin-cmd:
+      - build-graph-widget-plugin-cmd:
           branch: << parameters.branch >>
 
   # We build test services to benefit from caching, using docker-compose up directly doesn't seem to benefit from it
@@ -255,7 +255,7 @@ jobs:
             ./neo4j build -p neo4j_extension
             ./neo4j publish -p neo4j_extension
 
-  publish-dump-plugin-binaries:
+  publish-graph-widget-plugin-binaries:
     parameters:
       branch:
         type: string
@@ -275,13 +275,13 @@ jobs:
           steps:
             - create-and-push-tag
       - run:
-          name: Publish dump plugin assets to GH release
+          name: Publish graph widget plugin assets to GH release
           # We rebuild everything here since it's really quick, we could have copied the tar
           command: |
             cd datashare-extension-neo4j
             tag=$(./neo4j --version)
             cp /tmp/workspace/datashare-plugin-neo4j-graph-widget-"$tag".tgz bins
-            ./neo4j publish -p neo4j_dump_widget_plugin --create-release
+            ./neo4j publish -p neo4j_graph_widget_plugin --create-release
 
   test-script:
     executor: docker-machine
@@ -340,7 +340,7 @@ workflows:
         or:
           - << pipeline.parameters.release_all >>
           - << pipeline.parameters.release_backend >>
-          - << pipeline.parameters.release_dump_plugin >>
+          - << pipeline.parameters.release_graph_widget_plugin >>
     jobs:
       - build
       - build-test-services
@@ -365,18 +365,18 @@ workflows:
               branch: [ << pipeline.parameters.branch >> ]
       - build-darwin-universal2-binary:
           branch: << pipeline.parameters.branch >>
-      - build-dump-plugin:
+      - build-graph-widget-plugin:
           branch: << pipeline.parameters.branch >>
       - publish-backend-binaries:
           branch: << pipeline.parameters.branch >>
           requires:
             - build-unknown-linux-python-binary
             - build-darwin-universal2-binary
-      - publish-dump-plugin-binaries:
+      - publish-graph-widget-plugin-binaries:
           branch: << pipeline.parameters.branch >>
           create_tag: false
           requires:
-            - build-dump-plugin
+            - build-graph-widget-plugin
             # We need to create the tag during the backend creation since it will update the manifest of Python
             #  binaries and create a tag + release from there
             - publish-backend-binaries
@@ -397,13 +397,13 @@ workflows:
             - build-unknown-linux-python-binary
             - build-darwin-universal2-binary
 
-  release-dump-plugin:
-    when: << pipeline.parameters.release_dump_plugin >>
+  release-graph-widget-plugin:
+    when: << pipeline.parameters.release_graph_widget_plugin >>
     jobs:
-      - build-dump-plugin:
+      - build-graph-widget-plugin:
           branch: << pipeline.parameters.branch >>
-      - publish-dump-plugin-binaries:
+      - publish-graph-widget-plugin-binaries:
           branch: << pipeline.parameters.branch >>
           create_tag: true
           requires:
-            - build-dump-plugin
+            - build-graph-widget-plugin

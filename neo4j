@@ -89,7 +89,7 @@ function _helpers() {
         cd "$ROOT_DIR"
     }
 
-    function _build_neo4j_dump_widget_plugin() {
+    function _build_neo4j_graph_widget_plugin() {
         cd "$ROOT_DIR"/plugins/neo4j-graph-widget
         yarn build
         local tar_filename
@@ -126,7 +126,7 @@ function _helpers() {
             if ! [ "$python_version" = "$file_version" ]; then _exit_with_message "Python version \"$python_version\" differs from \"$file_version\""; fi
         fi
 
-        if _should_run_project "neo4j_dump_widget_plugin"; then
+        if _should_run_project "neo4j_graph_widget_plugin"; then
             cd "$ROOT_DIR"/plugins/neo4j-graph-widget
             local npm_version
             npm_version=$(jq -r '.version' package.json)
@@ -207,7 +207,7 @@ function _helpers() {
         echo "datashare-extension-neo4j-$(_print_version)-jar-with-dependencies.jar"
     }
 
-    function _make_neoj_dump_widget_binary_name() {
+    function _make_neo4j_graph_widget_binary_name() {
         echo "datashare-plugin-neo4j-graph-widget-$(_print_version)"
     }
 
@@ -283,7 +283,7 @@ function _helpers() {
             --data-binary "@$jar_path"
     }
 
-    function _publish_neo4j_dump_widget_plugin() {
+    function _publish_neo4j_graph_widget_plugin() {
         local version
         version=$(_print_version)
 
@@ -413,9 +413,9 @@ function _commands() {
             jar="$ROOT_DIR"/target/$(_make_neo4j_extension_jar_name)
             chmod +x "$jar"
             cp "$jar" "$ROOT_DIR/bins"
-        elif _should_run_project "neo4j_dump_widget_plugin"; then
-            _print_step "Compiling the dump widget plugin"
-            _build_neo4j_dump_widget_plugin
+        elif _should_run_project "neo4j_graph_widget_plugin"; then
+            _print_step "Compiling the graph widget plugin"
+            _build_neo4j_graph_widget_plugin
         else
             _exit_with_message "Can't build project $PROJECT"
         fi
@@ -530,8 +530,8 @@ Please run ./neo4j format"
             _publish_neo4j_app
         elif _should_run_project "neo4j_extension"; then
             _publish_neo4j_extension
-        elif _should_run_project "neo4j_dump_widget_plugin"; then
-            _publish_neo4j_dump_widget_plugin
+        elif _should_run_project "neo4j_graph_widget_plugin"; then
+            _publish_neo4j_graph_widget_plugin
         else
             _exit_with_message "Can't pre-publish project $PROJECT"
         fi
@@ -596,8 +596,8 @@ Please run ./neo4j format"
             cd "$PYTHON_APP_DIR"
             poetry install --no-interaction -vvv --with=dev --no-ansi
             echo "Python setup succeeded !"
-        elif _should_run_project "neo4j_dump_widget_plugin"; then
-            _print_step "Setting up neo4j_dump_widget_plugin"
+        elif _should_run_project "neo4j_graph_widget_plugin"; then
+            _print_step "Setting up neo4j_graph_widget_plugin"
             _frontend_checks
             cd "$ROOT_DIR/plugins/neo4j-graph-widget"
             yarn install --immutable
@@ -708,7 +708,7 @@ function _main() {
         neo4j_app
         neo4j_app_format
         neo4j_extension
-        neo4j_dump_widget_plugin
+        neo4j_graph_widget_plugin
         neo4j_extension_format
         neo4j_script
         release_version
