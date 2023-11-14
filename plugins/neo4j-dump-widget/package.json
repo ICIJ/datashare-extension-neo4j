@@ -1,5 +1,5 @@
 {
-  "name": "datashare-plugin-neo4j-dump-widget",
+  "name": "datashare-plugin-neo4j-graph-widget",
   "description": "A Datashare plugin to dump a neo4j graph",
   "version": "0.2.6",
   "main": "dist/index.umd.min.js",

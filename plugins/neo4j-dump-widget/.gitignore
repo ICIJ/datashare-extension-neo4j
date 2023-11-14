@@ -1,6 +1,6 @@
 dist
 node_modules
-datashare-plugin-neo4j-dump-widget-*.tgz
+datashare-plugin-neo4j-graph-widget-*.tgz
 geckodriver.log
 tests_output
 package
