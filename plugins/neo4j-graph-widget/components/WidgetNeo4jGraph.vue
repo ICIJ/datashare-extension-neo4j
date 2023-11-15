@@ -44,7 +44,7 @@
                       id="input-selected-path"
                       type="text"
                       disabled></b-form-input>
-                    <b-button variant="primary" v-b-modal="treeview" class="input-group-append">
+                    <b-button variant="primary" v-b-modal="`treeview`" class="input-group-append">
                       Select path
                     </b-button>
                     <b-modal
