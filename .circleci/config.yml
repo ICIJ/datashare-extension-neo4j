@@ -124,16 +124,14 @@ commands:
         type: string
     steps:
       - run: |
-          if [[ ! -d datashare-extension-neo4j ]]; then
-            if ! [[ -f ~/.ssh/known_hosts ]]; then 
-              mkdir -p ~/.ssh
-              touch ~/.ssh/known_hosts
-            fi
-            if [[ -z $(cat  ~/.ssh/known_hosts | grep github.com) ]]; then
-              ssh-keyscan github.com >> ~/.ssh/known_hosts
-            fi
-          fi 
-          git clone git@github.com:ICIJ/datashare-extension-neo4j.git;
+          if ! [[ -f ~/.ssh/known_hosts ]]; then 
+            mkdir -p ~/.ssh
+            touch ~/.ssh/known_hosts
+          fi
+          if [[ -z $(cat  ~/.ssh/known_hosts | grep github.com) ]]; then
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+          fi
+          if [[ ! -d datashare-extension-neo4j ]]; then git clone git@github.com:ICIJ/datashare-extension-neo4j.git; fi
           cd datashare-extension-neo4j
           git checkout << parameters.revision >>
 
