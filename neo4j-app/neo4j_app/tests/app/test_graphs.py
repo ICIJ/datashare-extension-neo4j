@@ -51,10 +51,8 @@ RETURN data;
                     "storeNodeIds": False,
                 },
                 query_filter="""MATCH (node)
-OPTIONAL MATCH (d)-[r]-(other)
-WHERE NOT any(l IN labels(node) WHERE l = '_Migration')
-    AND NOT any(l IN labels(other) WHERE l = '_Migration')
-RETURN d, r, other
+OPTIONAL MATCH (node)-[r]-(other)
+RETURN *
 """,
             ),
         ),
@@ -68,10 +66,10 @@ YIELD cypherStatements
 RETURN cypherStatements;
 """,
                 config={
+                    "stream": True,
+                    "writeNodeProperties": True,
                     "format": "cypher-shell",
                     "cypherFormat": "create",
-                    "streamStatements": True,
-                    "batchSize": 20000,
                     "useOptimizations": {
                         "type": "UNWIND_BATCH",
                         "unwindBatchSize": 100,
@@ -90,20 +88,18 @@ YIELD cypherStatements
 RETURN cypherStatements;
 """,
                 config={
+                    "stream": True,
+                    "writeNodeProperties": True,
                     "format": "cypher-shell",
                     "cypherFormat": "create",
-                    "streamStatements": True,
-                    "batchSize": 20000,
                     "useOptimizations": {
                         "type": "UNWIND_BATCH",
                         "unwindBatchSize": 100,
                     },
                 },
                 query_filter="""MATCH (node)
-OPTIONAL MATCH (d)-[r]-(other)
-WHERE NOT any(l IN labels(node) WHERE l = '_Migration')
-    AND NOT any(l IN labels(other) WHERE l = '_Migration')
-RETURN d, r, other
+OPTIONAL MATCH (node)-[r]-(other)
+RETURN *
 """,
             ),
         ),
@@ -117,10 +113,10 @@ YIELD cypherStatements
 RETURN cypherStatements;
 """,
                 config={
+                    "stream": True,
+                    "writeNodeProperties": True,
                     "format": "cypher-shell",
                     "cypherFormat": "create",
-                    "streamStatements": True,
-                    "batchSize": 20000,
                     "useOptimizations": {
                         "type": "UNWIND_BATCH",
                         "unwindBatchSize": 100,
