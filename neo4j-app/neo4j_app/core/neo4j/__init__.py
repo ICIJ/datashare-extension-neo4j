@@ -12,6 +12,7 @@ from .migrations.migrations import (
     migration_v_0_1_0_tx,
     migration_v_0_2_0_tx,
     migration_v_0_3_0_tx,
+    migration_v_0_4_0_tx,
 )
 
 V_0_1_0 = Migration(
@@ -29,7 +30,12 @@ V_0_3_0 = Migration(
     label="Create tasks indexes and constraints",
     migration_fn=migration_v_0_3_0_tx,
 )
-MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0]
+V_0_4_0 = Migration(
+    version="0.4.0",
+    label="Create document path and content type indexes",
+    migration_fn=migration_v_0_4_0_tx,
+)
+MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0, V_0_4_0]
 
 
 def get_neo4j_csv_reader(
