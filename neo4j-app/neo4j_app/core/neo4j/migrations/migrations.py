@@ -1,8 +1,10 @@
 import neo4j
 
 from neo4j_app.constants import (
+    DOC_CONTENT_TYPE,
     DOC_ID,
     DOC_NODE,
+    DOC_PATH,
     MIGRATION_NODE,
     MIGRATION_PROJECT,
     MIGRATION_VERSION,
@@ -36,6 +38,10 @@ async def migration_v_0_2_0_tx(tx: neo4j.AsyncTransaction):
 
 async def migration_v_0_3_0_tx(tx: neo4j.AsyncTransaction):
     await _create_task_index_and_constraints(tx)
+
+
+async def migration_v_0_4_0_tx(tx: neo4j.AsyncTransaction):
+    await _create_document_path_and_content_type_indexes(tx)
 
 
 async def _create_document_and_ne_id_unique_constraint_tx(tx: neo4j.AsyncTransaction):
@@ -116,3 +122,14 @@ REQUIRE (lock.{TASK_LOCK_TASK_ID}) IS UNIQUE"""
 FOR (lock:{TASK_LOCK_NODE})
 ON (lock.{TASK_LOCK_WORKER_ID})"""
     await tx.run(task_lock_worker_id_query)
+
+
+async def _create_document_path_and_content_type_indexes(tx: neo4j.AsyncTransaction):
+    doc_path_index = f"""CREATE INDEX index_document_path IF NOT EXISTS
+FOR (doc:{DOC_NODE})
+ON (doc.{DOC_PATH})"""
+    await tx.run(doc_path_index)
+    doc_content_type_index = f"""CREATE INDEX index_document_content_type IF NOT EXISTS
+FOR (doc:{DOC_NODE})
+ON (doc.{DOC_CONTENT_TYPE})"""
+    await tx.run(doc_content_type_index)
