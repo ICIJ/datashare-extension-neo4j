@@ -496,8 +496,7 @@ public class Neo4jResource implements AutoCloseable {
     protected InputStream dumpGraph(
         String projectId, DumpRequest request
     ) throws URISyntaxException, IOException, InterruptedException {
-        Neo4jAppDumpRequest neo4jAppRequest = validateDumpRequest(
-            request);
+        Neo4jAppDumpRequest neo4jAppRequest = validateDumpRequest(request);
         checkProject(projectId);
         checkNeo4jAppStarted();
         return client.dumpGraph(projectId, neo4jAppRequest);
