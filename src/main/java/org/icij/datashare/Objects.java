@@ -118,6 +118,16 @@ public class Objects {
             this.query = query;
         }
 
+        String dumpExtension() {
+            switch (format) {
+                case CYPHER_SHELL:
+                    return ".dump";
+                case GRAPHML:
+                    return ".graphml";
+                default:
+                    throw new IllegalStateException("Unexpected value: " + format);
+            }
+        }
     }
 
     protected static class GraphCount {

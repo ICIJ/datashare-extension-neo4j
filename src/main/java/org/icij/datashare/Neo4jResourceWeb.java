@@ -2,7 +2,7 @@ package org.icij.datashare;
 
 
 import static org.icij.datashare.HttpUtils.fromException;
-import static org.icij.datashare.HttpUtils.parseContext;
+import static org.icij.datashare.HttpUtils.parseRequestContent;
 import static org.icij.datashare.Objects.DumpRequest;
 import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest;
@@ -12,6 +12,7 @@ import static org.icij.datashare.text.Project.isAllowed;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import java.io.InputStream;
 import java.util.concurrent.Callable;
 import net.codestory.http.Context;
 import net.codestory.http.annotations.Get;
@@ -21,11 +22,14 @@ import net.codestory.http.errors.ForbiddenException;
 import net.codestory.http.errors.HttpException;
 import net.codestory.http.payload.Payload;
 import org.icij.datashare.user.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 @Prefix("/api/neo4j")
 public class Neo4jResourceWeb extends Neo4jResource {
     private final Repository repository;
+    protected static final Logger logger = LoggerFactory.getLogger(Neo4jResourceWeb.class);
 
     @Inject
     public Neo4jResourceWeb(Repository repository, PropertiesProvider propertiesProvider) {
@@ -38,8 +42,8 @@ public class Neo4jResourceWeb extends Neo4jResource {
         return wrapNeo4jAppCall(() -> {
                 boolean forceMigrations = false;
                 if (!context.request().content().isBlank()) {
-                    forceMigrations = parseContext(
-                        context, StartNeo4jAppRequest.class).forceMigration;
+                    forceMigrations = parseRequestContent(
+                        context.request().content(), StartNeo4jAppRequest.class).forceMigration;
                 }
                 boolean alreadyRunning = this.startNeo4jApp(forceMigrations);
                 return new Payload(new ServerStartResponse(alreadyRunning));
@@ -80,8 +84,8 @@ public class Neo4jResourceWeb extends Neo4jResource {
     public Payload postDocuments(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
-            IncrementalImportRequest incrementalImportRequest = parseContext(
-                context, IncrementalImportRequest.class);
+            IncrementalImportRequest incrementalImportRequest = parseRequestContent(
+                context.request().content(), IncrementalImportRequest.class);
             return this.importDocuments(project, incrementalImportRequest);
         });
     }
@@ -91,8 +95,8 @@ public class Neo4jResourceWeb extends Neo4jResource {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
             // TODO: this should throw a bad request when not parsed correcly...
-            IncrementalImportRequest incrementalImportRequest = parseContext(
-                context, IncrementalImportRequest.class);
+            IncrementalImportRequest incrementalImportRequest = parseRequestContent(
+                context.request().content(), IncrementalImportRequest.class);
             return this.importNamedEntities(project, incrementalImportRequest);
         });
     }
@@ -104,7 +108,8 @@ public class Neo4jResourceWeb extends Neo4jResource {
             checkCheckLocal();
             checkProjectAccess(project, context);
             Neo4jAppNeo4jCSVRequest
-                request = parseContext(context, Neo4jAppNeo4jCSVRequest.class);
+                request = parseRequestContent(
+                    context.request().content(), Neo4jAppNeo4jCSVRequest.class);
             return this.exportNeo4jCSVs(project, request);
         });
     }
@@ -114,8 +119,12 @@ public class Neo4jResourceWeb extends Neo4jResource {
     public Payload postGraphDump(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
-            DumpRequest request = parseContext(context, DumpRequest.class);
-            return this.dumpGraph(project, request);
+            DumpRequest request = parseRequestContent(
+                context.get("dumpRequest"), DumpRequest.class);
+            InputStream is =  this.dumpGraph(project, request);
+            String fileName = "datashare-graph" + request.dumpExtension();
+            return new Payload(is)
+                .withHeader("Content-Disposition", "attachment;filename=\"" + fileName + "\"");
         });
     }
 
@@ -123,7 +132,8 @@ public class Neo4jResourceWeb extends Neo4jResource {
     public Payload postSortedGraphDump(String project, Context context) {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
-            SortedDumpRequest request = parseContext(context, SortedDumpRequest.class);
+            SortedDumpRequest request = parseRequestContent(
+                context.request().content(), SortedDumpRequest.class);
             return this.sortedDumpGraph(project, request);
         });
     }

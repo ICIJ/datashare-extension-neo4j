@@ -75,9 +75,10 @@ public class HttpUtils {
         }
     }
 
-    protected static <T> T parseContext(Context context, Class<T> clazz) throws JacksonParseError {
+    protected static <T> T parseRequestContent(String content, Class<T> clazz)
+        throws JacksonParseError {
         try {
-            return EXT_MAPPER.readValue(context.request().content(), clazz);
+            return EXT_MAPPER.readValue(content, clazz);
         } catch (IOException | IllegalArgumentException e) {
             throw new JacksonParseError("Failed to parse request", e);
         }

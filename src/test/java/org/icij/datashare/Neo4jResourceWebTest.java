@@ -9,8 +9,11 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -630,7 +633,7 @@ public class Neo4jResourceWebTest {
         }
 
         @Test
-        public void test_post_graph_dump_should_return_200() {
+        public void test_post_graph_dump_should_return_200() throws JsonProcessingException {
             // Given
             neo4jApp.configure(
                 routes -> routes.post("/graphs/dump",
@@ -638,9 +641,14 @@ public class Neo4jResourceWebTest {
                 )
             );
             // When
-            String body = "{\"format\": \"graphml\"}";
-            Response response = post("/api/neo4j/graphs/dump?project=foo-datashare",
-                body).withPreemptiveAuthentication("foo", "null").response();
+            Objects.DumpRequest request = new Objects.DumpRequest(Objects.DumpFormat.GRAPHML, null);
+            String content = "dumpRequest=" + URLEncoder.encode(
+                MAPPER.writeValueAsString(request), StandardCharsets.UTF_8);
+
+            Response response = postRaw("/api/neo4j/graphs/dump?project=foo-datashare",
+                "application/x-www-form-urlencoded", content)
+                .withPreemptiveAuthentication("foo", "null")
+                .response();
             // Then
             assertThat(response.code()).isEqualTo(200);
             String dumpAsString = response.content();

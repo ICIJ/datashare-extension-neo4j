@@ -51,10 +51,14 @@ export class CoreExtension {
     return response
   }
 
-
-  async request(url, config = {}) {
+  getFullUrl(url) {
     const Api = this.#core.api.constructor
     const fullUrl = Api.getFullUrl(url)
+    return fullUrl
+  }
+
+  async request(url, config = {}) {
+    const fullUrl = this.getFullUrl(url)
     try {
       const r = await fetch(fullUrl, {
         body: JSON.stringify(config.data),

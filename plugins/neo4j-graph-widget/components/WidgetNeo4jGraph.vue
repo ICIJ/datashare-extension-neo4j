@@ -78,6 +78,9 @@
         </div>
       </div>
     </b-form>
+    <b-form ref="form" method="POST" :action=dumpUrl target="_blank">
+      <input type="hidden" name="dumpRequest" :value=dumpRequestJson />
+    </b-form>
   </div>
 </template>
 
@@ -160,6 +163,30 @@ export default {
       }
       return this.dumpFormat === GRAPHML ? '.graphml' : '.dump'
     },
+    dumpQuery() {
+      let where = this.selectedFileTypes ? this.selectedFileTypes.map(this.fileTypeToWhere) : []
+      if (this.selectedPath) {
+        where.push(this.filePathToWhere(this.selectedPath))
+      }
+      if (where.length === 1) {
+        return { where: where[0] }
+      } else if (where.length) {
+        return { where: { and: where } }
+      }
+      return {}
+    },
+    dumpRequest() {
+      return {
+        format: this.dumpFormat,
+        query: this.dumpQuery,
+      }
+    },
+    dumpRequestJson() {
+      return JSON.stringify(this.dumpRequest)
+    },
+    dumpUrl() {
+      return this.$neo4jCore.getFullUrl(`/api/neo4j/graphs/dump?project=${this.project}`)
+    },
     project() {
       return this.$store.state.insights.project
     },
@@ -190,17 +217,7 @@ export default {
       return result
     },
     async dumpGraph() {
-      const request = this.getDumpRequest()
-      const res = await this.postDumpRequest(request)
-      const blob = await res.blob()
-      const url = window.URL.createObjectURL(new Blob([blob]));
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `datashare-graph${this.dumpExtension}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
+      this.$refs.form.submit();
     },
     clear() {
       this.dumpFormat = null
@@ -233,37 +250,19 @@ export default {
         }
       }
     },
-    getDumpRequest() {
-      return {
-        format: this.dumpFormat,
-        query: this.getDumpQuery(),
-      }
-    },
-    getDumpQuery() {
-      let where = this.selectedFileTypes ? this.selectedFileTypes.map(this.fileTypeToWhere) : []
-      if (this.selectedPath) {
-        where.push(this.filePathToWhere(this.selectedPath))
-      }
-      if (where.length === 1) {
-        return { where: where[0] }
-      } else if (where.length) {
-        return { where: { and: where } }
-      }
-      return {}
-    },
     async initProject() {
       await this.$neo4jCore.request(`/api/neo4j/init?project=${this.project}`, { method: 'POST' })
-      await this.$store.commit('neo4j/projectInit', { project: this.project, initialized: true })
+      this.$store.commit('neo4j/projectInit', { project: this.project, initialized: true })
     },
     postDumpRequest(request) {
       const config = {
         method: 'POST',
         data: request,
         headers: {
-          "Content-Type": "application/json",
-        },
-        responseType: 'stream'
+          "accept-encoding": "identity"
+        }
       }
+      getFullUrl
       return this.$neo4jCore.request(`/api/neo4j/graphs/dump?project=${this.project}`, config)
     },
     async getFileTypes() {
