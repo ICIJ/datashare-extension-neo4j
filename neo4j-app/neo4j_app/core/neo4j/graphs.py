@@ -4,7 +4,6 @@ import neo4j
 
 from neo4j_app.constants import (
     DOC_NODE,
-    MIGRATION_NODE,
     NE_APPEARS_IN_DOC,
     NE_NODE,
 )
@@ -20,18 +19,16 @@ _GRAPHML_DUMP_CONFIG = {
 }
 
 _CYPHER_DUMP_CONFIG = {
+    "stream": True,
+    "writeNodeProperties": True,
     "format": "cypher-shell",
     "cypherFormat": "create",
-    "streamStatements": True,
-    "batchSize": 20000,
     "useOptimizations": {"type": "UNWIND_BATCH", "unwindBatchSize": 100},
 }
 
-_DEFAULT_DUMP_QUERY = f"""MATCH (node)
-OPTIONAL MATCH (d)-[r]-(other)
-WHERE NOT any(l IN labels(node) WHERE l = '{MIGRATION_NODE}')
-    AND NOT any(l IN labels(other) WHERE l = '{MIGRATION_NODE}')
-RETURN d, r, other
+_DEFAULT_DUMP_QUERY = """MATCH (node)
+OPTIONAL MATCH (node)-[r]-(other)
+RETURN *
 """
 
 
