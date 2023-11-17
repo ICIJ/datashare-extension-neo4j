@@ -355,6 +355,7 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
     random.seed(a=777)
     for i in random.sample(list(range(n)), k=n):
         yield {
+            "_index": TEST_PROJECT,
             "_id": f"doc-{i}",
             "_source": {
                 "rootDocument": f"doc-{i - 1}" if i else None,

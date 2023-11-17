@@ -13,6 +13,7 @@ DOC_ID = "id"
 DOC_ID_CSV = f"ID({DOC_NODE})"
 DOC_EXTRACTION_DATE = "extractionDate"
 DOC_PATH = "path"
+DOC_URL_SUFFIX = "urlSuffix"
 DOC_ROOT_ID = "rootDocument"
 DOC_ROOT_TYPE = "HAS_PARENT"
 DOC_COLUMNS = {
@@ -22,6 +23,7 @@ DOC_COLUMNS = {
     DOC_CONTENT_LENGTH: {NEO4J_CSV_COL: "LONG"},
     DOC_EXTRACTION_DATE: {NEO4J_CSV_COL: "DATETIME"},
     DOC_PATH: {},
+    DOC_URL_SUFFIX: {},
 }
 
 DOC_ES_SOURCES = list(DOC_COLUMNS) + [JOIN, DOC_ROOT_ID]
@@ -54,7 +56,6 @@ RECEIVED_EMAIL_HEADERS = {
     "tika_metadata_message_to",
 }
 
-
 MIGRATION_COMPLETED = "completed"
 MIGRATION_LABEL = "label"
 MIGRATION_NODE = "_Migration"
@@ -62,7 +63,6 @@ MIGRATION_PROJECT = "project"
 MIGRATION_STARTED = "started"
 MIGRATION_STATUS = "status"
 MIGRATION_VERSION = "version"
-
 
 # TODO: replicate other named entities attributes
 NE_APPEARS_IN_DOC = "APPEARS_IN"
@@ -107,7 +107,6 @@ NEO4J_CSV_LABEL = ":LABEL"
 NEO4J_CSV_START_ID = ":START_ID"
 NEO4J_CSV_TYPE = ":TYPE"
 
-
 TASK_NODE = "_Task"
 TASK_COMPLETED_AT = "completedAt"
 TASK_CREATED_AT = "createdAt"
@@ -128,7 +127,6 @@ TASK_ERROR_OCCURRED_AT = "occurredAt"
 TASK_ERROR_TITLE = "title"
 
 TASK_ERROR_OCCURRED_TYPE = "_OCCURRED_DURING"
-
 
 TASK_RESULT_NODE = "_TaskResult"
 TASK_HAS_RESULT_TYPE = "_HAS_RESULT"
