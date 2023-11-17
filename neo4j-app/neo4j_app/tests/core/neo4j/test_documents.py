@@ -27,6 +27,7 @@ async def test_write_neo4j_csv():
         "contentType",
         "contentLength",
         "extractionDate",
+        "urlSuffix",
         "path",
     ]
 
@@ -37,10 +38,13 @@ async def test_write_neo4j_csv():
 
     # Then
     expected_csv = """id,rootDocument,dirname,contentType,contentLength,\
-extractionDate,path
-doc-0,,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,dirname-0
-doc-1,doc-0,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1
-doc-2,doc-1,dirname-2,content-type-2,4,2023-02-06T13:48:22.3866,dirname-2
+extractionDate,urlSuffix,path
+doc-0,,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,\
+ds/test_project/doc-0/doc-0,dirname-0
+doc-1,doc-0,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,\
+ds/test_project/doc-1/doc-0,dirname-1
+doc-2,doc-1,dirname-2,content-type-2,4,2023-02-06T13:48:22.3866,\
+ds/test_project/doc-2/doc-1,dirname-2
 """
     assert csv == expected_csv
 
@@ -115,7 +119,7 @@ RETURN doc, count(*) as numDocs"""
     assert count == 1
     doc = dict(doc["doc"])
     expected_doc = docs[0]
-    assert len(doc) == 6
+    assert len(doc) == 7
     assert doc["id"] == expected_doc["_id"]
     ignored = {"type", "join"}
     # TODO: test the document directly

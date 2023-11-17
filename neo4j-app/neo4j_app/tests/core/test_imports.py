@@ -518,15 +518,20 @@ async def test_to_neo4j_csvs(
     assert doc_nodes_export.labels == [DOC_NODE]
 
     expected_doc_header = """\
-id:ID(Document),dirname,contentType,contentLength:LONG,extractionDate:DATETIME,path,:LABEL
+id:ID(Document),dirname,contentType,contentLength:LONG,extractionDate:DATETIME,path,\
+urlSuffix,:LABEL
 """
     doc_nodes_header_path = archive_dir / doc_nodes_export.header_path
     assert_content(doc_nodes_header_path, expected_doc_header)
 
-    expected_doc_nodes = """doc-0,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,dirname-0,Document
-doc-1,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1,Document
-doc-3,dirname-3,content-type-3,9,2023-02-06T13:48:22.3866,dirname-3,Document
-doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,Document
+    expected_doc_nodes = """doc-0,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,\
+dirname-0,ds/test_project/doc-0/doc-0,Document
+doc-1,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1,\
+ds/test_project/doc-1/doc-0,Document
+doc-3,dirname-3,content-type-3,9,2023-02-06T13:48:22.3866,dirname-3,\
+ds/test_project/doc-3/doc-2,Document
+doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,\
+ds/test_project/doc-6/doc-5,Document
 """
     doc_root_rels_path = archive_dir / doc_nodes_export.node_paths[0]
     assert_content(doc_root_rels_path, expected_doc_nodes, sort_lines=True)

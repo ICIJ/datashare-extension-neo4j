@@ -6,18 +6,19 @@ from neo4j_app.constants import (
     DOC_ID,
     DOC_NODE,
     DOC_ROOT_ID,
+    DOC_URL_SUFFIX,
     EMAIL_HEADER,
     EMAIL_RECEIVED_TYPE,
     EMAIL_REL_COLS,
     EMAIL_REL_HEADER_FIELDS,
     EMAIL_SENT_TYPE,
     NEO4J_ARRAY_SPLIT_CHAR,
+    NEO4J_CSV_COL,
     NEO4J_CSV_END_ID,
     NEO4J_CSV_ID,
     NEO4J_CSV_LABEL,
     NEO4J_CSV_START_ID,
     NEO4J_CSV_TYPE,
-    NEO4J_CSV_COL,
     NE_APPEARS_IN_DOC,
     NE_APPEARS_IN_DOC_COLS,
     NE_CATEGORY,
@@ -33,17 +34,24 @@ from neo4j_app.constants import (
     RECEIVED_EMAIL_HEADERS,
     SENT_EMAIL_HEADERS,
 )
-from neo4j_app.core.elasticsearch.utils import JOIN, PARENT, SOURCE
+from neo4j_app.core.elasticsearch.utils import INDEX_, JOIN, PARENT, SOURCE
 from neo4j_app.core.neo4j import write_neo4j_csv
+
+_DS_DOC_URL = "ds/"
 
 
 def es_to_neo4j_doc_row(document_hit: Dict) -> List[Dict[str, str]]:
-    doc = {DOC_ID: document_hit["_id"]}
+    doc_id = document_hit["_id"]
+    doc = {DOC_ID: doc_id}
     hit_source = document_hit[SOURCE]
     doc.update({k: hit_source[k] for k in hit_source if k in DOC_COLUMNS})
     root_id = hit_source.get(DOC_ROOT_ID)
     if root_id is not None:
         doc[DOC_ROOT_ID] = root_id
+    doc_url = (
+        f"{_DS_DOC_URL}{document_hit[INDEX_]}/{doc_id}/{doc.get(DOC_ROOT_ID, doc_id)}"
+    )
+    doc[DOC_URL_SUFFIX] = doc_url
     return [doc]
 
 

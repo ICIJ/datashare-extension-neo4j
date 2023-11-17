@@ -13,6 +13,7 @@ from neo4j_app.constants import (
     DOC_PATH,
     DOC_ROOT_ID,
     DOC_ROOT_TYPE,
+    DOC_URL_SUFFIX,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,8 @@ CALL {{
         doc.{DOC_CONTENT_LENGTH} = toInteger(row.{DOC_CONTENT_LENGTH}),
         doc.{DOC_EXTRACTION_DATE} = datetime(row.{DOC_EXTRACTION_DATE}),
         doc.{DOC_DIRNAME} = row.{DOC_DIRNAME},
-        doc.{DOC_PATH} = row.{DOC_PATH}
+        doc.{DOC_PATH} = row.{DOC_PATH},
+        doc.{DOC_URL_SUFFIX} = row.{DOC_URL_SUFFIX} 
     WITH doc, row
     WHERE doc.{DOC_ID} = row.{DOC_ID} and row.{DOC_ROOT_ID} IS NOT NULL
     MERGE (root:{DOC_NODE} {{{DOC_ID}: row.{DOC_ROOT_ID}}})
