@@ -6,6 +6,7 @@ from neo4j_app.core.neo4j.migrations.migrations import (
     migration_v_0_2_0_tx,
     migration_v_0_3_0_tx,
     migration_v_0_4_0_tx,
+    migration_v_0_5_0_tx,
 )
 
 
@@ -83,6 +84,24 @@ async def test_migration_v_0_4_0_tx(neo4j_test_session: neo4j.AsyncSession):
     expected_indexes = [
         "index_document_path",
         "index_document_content_type",
+    ]
+    for index in expected_indexes:
+        assert index in expected_indexes
+
+
+@pytest.mark.asyncio
+async def test_migration_v_0_5_0_tx(neo4j_test_session: neo4j.AsyncSession):
+    # When
+    await neo4j_test_session.execute_write(migration_v_0_5_0_tx)
+
+    # Then
+    indexes_res = await neo4j_test_session.run("SHOW INDEXES")
+    existing_indexes = set()
+    async for rec in indexes_res:
+        existing_indexes.add(rec["name"])
+    expected_indexes = [
+        "index_named_entity_email_user",
+        "index_named_entity_email_domain",
     ]
     for index in expected_indexes:
         assert index in expected_indexes

@@ -34,9 +34,11 @@ PROJECT_NODE = "_Project"
 
 # TODO: check that it the name retained in https://github.com/ICIJ/datashare/pull/1180
 EMAIL_CATEGORY = "EMAIL"
+EMAIL_DOMAIN = "emailDomain"
 EMAIL_HEADER = "emailHeaderField"
 EMAIL_RECEIVED_TYPE = "RECEIVED"
 EMAIL_SENT_TYPE = "SENT"
+EMAIL_USER = "emailUser"
 # TODO: check the naming here, we use "fields" here since the RFC specification
 #  https://www.rfc-editor.org/rfc/rfc2822 refers to this kind of header as fields, this
 #  is not very ubiquitous nor end user friendly. FTM and other knowledge base don't
@@ -46,6 +48,7 @@ EMAIL_REL_HEADER_FIELDS = "fields"
 EMAIL_REL_COLS = {
     EMAIL_REL_HEADER_FIELDS: {NEO4J_CSV_COL: "STRING[]"},
 }
+
 
 # TODO: check that this list is exhaustive, we know it isn't !!!
 SENT_EMAIL_HEADERS = {"tika_metadata_message_from", "tika_metadata_dc_creator"}

@@ -5,6 +5,8 @@ from neo4j_app.constants import (
     DOC_ID,
     DOC_NODE,
     DOC_PATH,
+    EMAIL_DOMAIN,
+    EMAIL_USER,
     MIGRATION_NODE,
     MIGRATION_PROJECT,
     MIGRATION_VERSION,
@@ -42,6 +44,10 @@ async def migration_v_0_3_0_tx(tx: neo4j.AsyncTransaction):
 
 async def migration_v_0_4_0_tx(tx: neo4j.AsyncTransaction):
     await _create_document_path_and_content_type_indexes(tx)
+
+
+async def migration_v_0_5_0_tx(tx: neo4j.AsyncTransaction):
+    await _create_email_user_and_domain_indexes(tx)
 
 
 async def _create_document_and_ne_id_unique_constraint_tx(tx: neo4j.AsyncTransaction):
@@ -133,3 +139,15 @@ ON (doc.{DOC_PATH})"""
 FOR (doc:{DOC_NODE})
 ON (doc.{DOC_CONTENT_TYPE})"""
     await tx.run(doc_content_type_index)
+
+
+async def _create_email_user_and_domain_indexes(tx: neo4j.AsyncTransaction):
+    ne_email_user_index = f"""CREATE INDEX index_named_entity_email_user IF NOT EXISTS
+FOR (ne:{NE_NODE})
+ON (ne.{EMAIL_USER})"""
+    await tx.run(ne_email_user_index)
+    ne_email_domain_index = f"""
+CREATE INDEX index_named_entity_email_domain IF NOT EXISTS
+FOR (ne:{NE_NODE})
+ON (ne.{EMAIL_DOMAIN})"""
+    await tx.run(ne_email_domain_index)
