@@ -254,17 +254,6 @@ export default {
       await this.$neo4jCore.request(`/api/neo4j/init?project=${this.project}`, { method: 'POST' })
       this.$store.commit('neo4j/projectInit', { project: this.project, initialized: true })
     },
-    postDumpRequest(request) {
-      const config = {
-        method: 'POST',
-        data: request,
-        headers: {
-          "accept-encoding": "identity"
-        }
-      }
-      getFullUrl
-      return this.$neo4jCore.request(`/api/neo4j/graphs/dump?project=${this.project}`, config)
-    },
     async getFileTypes() {
       this.$wait.start('load all file types')
       this.fileTypes = await this.aggregate('contentType', 'contentType')
