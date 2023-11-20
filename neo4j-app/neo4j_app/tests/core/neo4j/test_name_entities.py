@@ -1,3 +1,5 @@
+from typing import Optional
+
 import neo4j
 import pytest
 import pytest_asyncio
@@ -238,3 +240,52 @@ CREATE (ne)-[:SENT { fields: ["someField"] }]->(doc)
     record = records[0]
     rel = record.get("rel")
     assert set(rel["fields"]) == {"someField", header_field}
+
+
+@pytest.mark.asyncio()
+@pytest.mark.parametrize(
+    "mention_norm,expected_user,expected_domain",
+    [
+        ("not_and_email", None, None),
+        ("ill@formated@domain.com", None, None),
+        ("user@domain.com", "user", "domain.com"),
+    ],
+)
+async def test_import_named_entity_rows_should_import_email_user_and_domain(
+    _create_document: neo4j.AsyncSession,
+    mention_norm: str,
+    expected_user: Optional[str],
+    expected_domain: Optional[str],
+):
+    # pylint: disable=invalid-name
+    # Given
+    neo4j_session = _create_document
+    records = [
+        {
+            "id": "senderId",
+            "documentId": "docId",
+            "category": "EMAIL",
+            "mentionNorm": mention_norm,
+            "offsets": [0],
+            "extractor": "fromNoWhere",
+            "metadata": {"emailHeaderField": "tika_metadata_message_from"},
+        }
+    ]
+    transaction_batch_size = 2
+    # When
+    await import_named_entity_rows(
+        neo4j_session,
+        records=records,
+        transaction_batch_size=transaction_batch_size,
+    )
+    match_ne_email_query = f"""MATCH (ne:NamedEntity {{mentionNorm: '{mention_norm}' }})
+RETURN ne"""
+    res = await neo4j_session.run(match_ne_email_query)
+    records = [rec async for rec in res]
+    # Then
+    assert len(records) == 1
+    record = records[0].get("ne")
+    domain = record.get("emailDomain")
+    assert domain == expected_domain
+    user = record.get("emailUser")
+    assert user == expected_user

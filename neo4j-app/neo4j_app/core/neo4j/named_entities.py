@@ -6,10 +6,13 @@ import neo4j
 from neo4j_app.constants import (
     DOC_ID,
     DOC_NODE,
+    EMAIL_CATEGORY,
+    EMAIL_DOMAIN,
     EMAIL_HEADER,
     EMAIL_RECEIVED_TYPE,
     EMAIL_REL_HEADER_FIELDS,
     EMAIL_SENT_TYPE,
+    EMAIL_USER,
     NE_APPEARS_IN_DOC,
     NE_CATEGORY,
     NE_DOC_ID,
@@ -32,15 +35,32 @@ _MERGE_SENT_EMAIL = f"""MERGE (mention)-[emailRel:{EMAIL_SENT_TYPE}]->(doc)
 ON CREATE
     SET emailRel.{EMAIL_REL_HEADER_FIELDS} = [row.{NE_METADATA}.{EMAIL_HEADER}]
 ON MATCH
-    SET emailRel.{EMAIL_REL_HEADER_FIELDS} =  apoc.coll.toSet(emailRel.{EMAIL_REL_HEADER_FIELDS} + row.{NE_METADATA}.{EMAIL_HEADER})
+    SET emailRel.{EMAIL_REL_HEADER_FIELDS} =  apoc.coll.toSet(\
+        emailRel.{EMAIL_REL_HEADER_FIELDS} + row.{NE_METADATA}.{EMAIL_HEADER})
 RETURN emailRel"""
 
 _MERGE_RECEIVED_EMAIL = f"""MERGE (mention)-[emailRel:{EMAIL_RECEIVED_TYPE}]->(doc)
 ON CREATE
     SET emailRel.{EMAIL_REL_HEADER_FIELDS} = [row.{NE_METADATA}.{EMAIL_HEADER}]
 ON MATCH
-    SET emailRel.{EMAIL_REL_HEADER_FIELDS} =  apoc.coll.toSet(emailRel.{EMAIL_REL_HEADER_FIELDS} + row.{NE_METADATA}.{EMAIL_HEADER})
+    SET emailRel.{EMAIL_REL_HEADER_FIELDS} =  apoc.coll.toSet(\
+    emailRel.{EMAIL_REL_HEADER_FIELDS} + row.{NE_METADATA}.{EMAIL_HEADER})
 RETURN emailRel"""
+
+_MAKE_EMAIL_USER = f"""CASE mention.{NE_CATEGORY} = '{EMAIL_CATEGORY}'
+  WHEN true THEN split(mention)
+  ELSE null
+END"""
+
+_SET_EMAIL_USER_AND_DOMAIN = f"""WITH mention, row, \
+        CASE WHEN row.{NE_CATEGORY} = '{EMAIL_CATEGORY}' \
+            THEN split(mention.{NE_MENTION_NORM}, '@') \
+            ELSE [] END as emailSplit
+    SET
+        mention.{EMAIL_USER} = CASE WHEN size(emailSplit) = 2 \
+            THEN emailSplit[0] ELSE NULL END,
+        mention.{EMAIL_DOMAIN} = CASE WHEN size(emailSplit) = 2 \
+            THEN emailSplit[1] ELSE NULL END"""
 
 
 async def import_named_entity_rows(
@@ -49,12 +69,15 @@ async def import_named_entity_rows(
     *,
     transaction_batch_size: int,
 ) -> neo4j.ResultSummary:
-    # pylint: disable=line-too-long
     # TODO: see if we can avoid the apoc.coll.toSet
     query = f"""UNWIND $rows AS row
 CALL {{
     WITH row
-    CALL apoc.merge.node(["{NE_NODE}", row.{NE_CATEGORY}], {{{NE_MENTION_NORM}: row.{NE_MENTION_NORM}}}) YIELD node as mention
+    CALL apoc.merge.node(\
+        ["{NE_NODE}", row.{NE_CATEGORY}], {{{NE_MENTION_NORM}: row.{NE_MENTION_NORM}}}\
+    ) YIELD node as mention
+    {_SET_EMAIL_USER_AND_DOMAIN}
+    WITH mention, row
     MATCH (doc:{DOC_NODE} {{{DOC_ID}: row.{NE_DOC_ID}}})
     MERGE (mention)-[rel:{NE_APPEARS_IN_DOC}]->(doc)
     ON CREATE
@@ -66,17 +89,20 @@ CALL {{
     ON MATCH
         SET
             rel.{NE_IDS} = apoc.coll.toSet(rel.{NE_IDS} + row.{NE_ID}),
-            rel.{NE_EXTRACTORS} = apoc.coll.toSet(rel.{NE_EXTRACTORS} + row.{NE_EXTRACTOR}),
+            rel.{NE_EXTRACTORS} = apoc.coll.toSet(\
+                rel.{NE_EXTRACTORS} + row.{NE_EXTRACTOR}),
             rel.{NE_OFFSETS} = apoc.coll.toSet(rel.{NE_OFFSETS} + row.{NE_OFFSETS})
     WITH mention, doc, row
     CALL apoc.do.case(
         [
             row.{NE_METADATA} IS NOT NULL 
                 AND row.{NE_METADATA}.{EMAIL_HEADER} IS NOT NULL
-                AND row.{NE_METADATA}.{EMAIL_HEADER} IN $sentHeaders, '{_MERGE_SENT_EMAIL}',
+                AND row.{NE_METADATA}.{EMAIL_HEADER} IN $sentHeaders, \
+                    '{_MERGE_SENT_EMAIL}',
             row.{NE_METADATA} IS NOT NULL 
                 AND row.{NE_METADATA}.{EMAIL_HEADER} IS NOT NULL 
-                AND row.{NE_METADATA}.{EMAIL_HEADER} IN $receivedHeaders, '{_MERGE_RECEIVED_EMAIL}'
+                AND row.{NE_METADATA}.{EMAIL_HEADER} IN $receivedHeaders, \
+                    '{_MERGE_RECEIVED_EMAIL}'
         ],
         'RETURN NULL as emailRel',
       {{
