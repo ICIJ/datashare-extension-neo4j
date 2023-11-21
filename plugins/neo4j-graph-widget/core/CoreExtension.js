@@ -52,9 +52,7 @@ export class CoreExtension {
   }
 
   getFullUrl(url) {
-    const Api = this.#core.api.constructor
-    const fullUrl = Api.getFullUrl(url)
-    return fullUrl
+    return this.#core.api.constructor.getFullUrl(url)
   }
 
   async request(url, config = {}) {
