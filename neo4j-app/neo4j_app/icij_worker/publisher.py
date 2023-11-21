@@ -98,10 +98,7 @@ class MessagePublisher(LogWithNameMixin):
                 self._attempt_connect(0)
                 yield self
         finally:
-            if self._connection_ is not None and self._connection.is_open:
-                self._log(logging.INFO, "closing connection...")
-                self._connection_.close()  # This will close the channel too
-                self._log(logging.INFO, "connection closed !")
+            self.close()
 
     def _attempt_connect(self, attempt: int):
         if self._connection_ is None or not self._connection.is_open:
@@ -151,7 +148,9 @@ class MessagePublisher(LogWithNameMixin):
 
     def close(self):
         if self._connection_ is not None and self._connection.is_open:
+            self._log(logging.INFO, "closing connection...")
             self._connection_.close()
+            self._log(logging.INFO, "connection closed !")
 
     def _reconnect_retry(self, max_attempts: int, max_wait_s: float) -> Retrying:
         retry = Retrying(
