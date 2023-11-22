@@ -359,7 +359,7 @@ function _helpers() {
 
         local transform
         if [ "$PLATFORM" == "Darwin" ]; then
-            transform="-s/package/$package_name/"
+            transform="-s/package/$package_name/g"
         elif [ "$PLATFORM" == "Linux" ]; then
             transform="--transform=s,package/,$package_name/,"
         else
@@ -367,6 +367,8 @@ function _helpers() {
         fi
 
         tar "$transform" -xvzf "$tar_path"
+        # Repackage to a tar.gz where package is replaced with the package name
+        tar -cvzf "$tar_path" "$package_name"
     }
 
     function _update_manifest() {
