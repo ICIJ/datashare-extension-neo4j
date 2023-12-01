@@ -559,7 +559,7 @@ Please run ./neo4j format"
             sed -r "s@^neo4jStartServerCmd=.*\$@neo4jStartServerCmd=$local_extension_path --config-path $settings_path@" \
                 "$template_path" >"$settings_path"
         else
-            cp "$settings_path" "$template_path"
+            cp "$template_path" "$settings_path"
         fi
         local ds_data_dir
         ds_data_dir=""
