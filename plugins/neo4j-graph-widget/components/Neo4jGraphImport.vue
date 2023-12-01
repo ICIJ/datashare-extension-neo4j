@@ -63,6 +63,8 @@ export const TaskStatus = {
 
 const TASK_READY_STATES = Object.freeze(new Set([TaskStatus.Done, TaskStatus.Error, TaskStatus.Cancelled]))
 
+const SERVER_MODE = "server"
+
 export default {
   name: 'Neo4jImport',
   data() {
@@ -94,7 +96,7 @@ Note that updating the graph will only add new documents and entities and update
       return tooltip
     },
     isServer() {
-      return this.$core.mode === 'SERVER'
+      return this.$core.mode.modeName === SERVER_MODE
     },
     latestDone() {
       return this.neo4jImportTasks?.find(t => t.status === TaskStatus.Done) ?? null
