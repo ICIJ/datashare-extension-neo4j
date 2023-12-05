@@ -241,9 +241,13 @@ class ESClientABC(metaclass=abc.ABCMeta):
             num_neo4j_workers,
             concurrency,
         )
-        queue_size = max_records_in_memory // import_batch_size
+        queue_size = max(max_records_in_memory // import_batch_size, 1)
         if not queue_size:
-            raise ValueError("import_batch_size must be >= max_records_in_memory")
+            msg = (
+                "import_batch_size must be < max_records_in_memory to leverage"
+                " neo4j concurrency"
+            )
+            logger.warning(msg)
         queue = asyncio.Queue(maxsize=queue_size)
 
         # Start the consumer tasks
