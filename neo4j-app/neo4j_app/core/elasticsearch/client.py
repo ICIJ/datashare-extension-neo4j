@@ -20,7 +20,6 @@ from typing import (
     Union,
 )
 
-import neo4j
 from elasticsearch import AsyncElasticsearch, TransportError
 from tenacity import (
     AsyncRetrying,
@@ -52,7 +51,7 @@ from neo4j_app.core.elasticsearch.utils import (
     SOURCE,
     match_all,
 )
-from neo4j_app.core.neo4j import Neo4jImportWorker, write_neo4j_csv
+from neo4j_app.core.neo4j import LightCounters, Neo4jImportWorker, write_neo4j_csv
 from neo4j_app.core.utils.asyncio import iterate_with_concurrency, run_with_concurrency
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 from neo4j_app.core.utils.progress import to_raw_progress
@@ -231,7 +230,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         import_batch_size: int,
         imported_entity_label: str,
         progress: Optional[PercentProgress] = None,
-    ) -> [int, List[neo4j.ResultSummary]]:
+    ) -> [int, List[LightCounters]]:
         if num_neo4j_workers <= 0:
             raise ValueError("num_neo4j_workers must be > 0")
         if concurrency is None:

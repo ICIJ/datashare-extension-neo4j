@@ -15,6 +15,7 @@ from neo4j_app.constants import (
     DOC_ROOT_TYPE,
     DOC_URL_SUFFIX,
 )
+from neo4j_app.core.neo4j import LightCounters
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ async def import_document_rows(
     records: List[Dict],
     *,
     transaction_batch_size: int,
-) -> neo4j.ResultSummary:
+) -> LightCounters:
     query = f"""UNWIND $rows AS row
 WITH row
 CALL {{
@@ -45,7 +46,11 @@ CALL {{
 """
     res = await neo4j_session.run(query, rows=records, batchSize=transaction_batch_size)
     summary = await res.consume()
-    return summary
+    counters = LightCounters(
+        nodes_created=summary.counters.nodes_created,
+        relationships_created=summary.counters.relationships_created,
+    )
+    return counters
 
 
 async def documents_ids_tx(tx: neo4j.AsyncTransaction) -> List[str]:

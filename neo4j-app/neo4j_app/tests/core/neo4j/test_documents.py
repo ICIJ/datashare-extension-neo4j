@@ -62,19 +62,19 @@ async def test_import_documents(
     transaction_batch_size = 3
     if n_existing:
         records = [row for doc in docs[:n_existing] for row in es_to_neo4j_doc_row(doc)]
-        summary = await import_document_rows(
+        counters = await import_document_rows(
             neo4j_session=neo4j_test_session,
             records=records,
             transaction_batch_size=transaction_batch_size,
         )
-        n_created_first = summary.counters.nodes_created
+        n_created_first = counters.nodes_created
     records = [row for doc in docs for row in es_to_neo4j_doc_row(doc)]
-    summary = await import_document_rows(
+    counters = await import_document_rows(
         neo4j_session=neo4j_test_session,
         records=records,
         transaction_batch_size=transaction_batch_size,
     )
-    n_created_second = summary.counters.nodes_created
+    n_created_second = counters.nodes_created
 
     # Then
     assert n_created_first == n_existing
