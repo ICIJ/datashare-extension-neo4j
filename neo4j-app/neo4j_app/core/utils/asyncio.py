@@ -2,7 +2,6 @@ import asyncio
 from typing import (
     AsyncGenerator,
     AsyncIterable,
-    AsyncIterator,
     Coroutine,
     Iterable,
     Sequence,
@@ -29,15 +28,13 @@ async def _to_async(it: Iterable[T]) -> AsyncIterable[T]:
         yield item
 
 
-async def iterate_with_concurrency(
+def iterate_with_concurrency(
     iterables: Sequence[AsyncIterable[T]], max_concurrency: int
-) -> AsyncIterator[T]:
+):
     if not iterables:
         raise ValueError()
     streamer = flatten(_to_async(iterables), task_limit=max_concurrency)
-    async with streamer.stream():
-        async for item in streamer:
-            yield item
+    return streamer
 
 
 async def _run_with_semaphore(

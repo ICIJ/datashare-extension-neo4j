@@ -2,7 +2,7 @@ import abc
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from copy import copy, deepcopy
+from copy import deepcopy
 from distutils.version import StrictVersion
 from functools import cached_property
 from typing import (
@@ -399,16 +399,23 @@ class ESClientABC(metaclass=abc.ABCMeta):
         if max_concurrency is None:
             max_concurrency = len(gens)
         imported = 0
-        async for n_imported in iterate_with_concurrency(
+        concurrent_streamer = iterate_with_concurrency(
             gens, max_concurrency=max_concurrency
-        ):
-            imported += n_imported
-            if raw_progress is not None:
-                asyncio.create_task(raw_progress(imported))
+        )
+        progress_tasks = set()
+        async with concurrent_streamer.stream() as streamer:
+            async for n_imported in streamer:
+                imported += n_imported
+                if raw_progress is not None:
+                    progress_task = asyncio.create_task(raw_progress(imported))
+                    progress_tasks.add(progress_task)
+                    progress_tasks.add_done_callback(progress_tasks.discard)
         if buffer:
             imported += await _enqueue_import_batch(queue, buffer)
             if progress is not None:
-                asyncio.create_task(raw_progress(imported))
+                progress_task = asyncio.create_task(raw_progress(imported))
+                progress_tasks.add(progress_task)
+                progress_tasks.add_done_callback(progress_tasks.discard)
         return imported
 
     async def _fill_import_buffer(
@@ -429,7 +436,6 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 buffer.extend(res[HITS][HITS])
                 if len(buffer) >= import_batch_size:
                     yield await _enqueue_import_batch(queue, buffer)
-                    buffer.clear()
 
     async def _write_search_to_neo4j_csvs_with_lock(
         self,
@@ -608,15 +614,23 @@ except ImportError:
     pass
 
 
-async def _enqueue_import_batch(queue: asyncio.Queue, import_batch: List[Dict]) -> int:
+async def _enqueue_import_batch(queue: asyncio.Queue, buffer: List[Dict]) -> int:
     # Let's monitor the time it takes to enqueue the batch, if it's long it
     # means that more neo4j workers are needed
     with log_elapsed_time_cm(
         logger, logging.DEBUG, "Waited {elapsed_time} to enqueue batch"
     ):
-        queued = copy(import_batch)
+        queued = deepcopy(buffer)
+        n_queued = len(queued)
         await queue.put(queued)
-        return len(queued)
+        # TODO: remove this cleanup is it's not causing the memory leak
+        for item in buffer:
+            del item
+        buffer.clear()
+        for item in queued:
+            del item
+        del queued
+        return n_queued
 
 
 def sliced_search(
