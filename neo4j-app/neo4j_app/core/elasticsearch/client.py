@@ -409,13 +409,13 @@ class ESClientABC(metaclass=abc.ABCMeta):
                 if raw_progress is not None:
                     progress_task = asyncio.create_task(raw_progress(imported))
                     progress_tasks.add(progress_task)
-                    progress_tasks.add_done_callback(progress_tasks.discard)
+                    progress_task.add_done_callback(progress_tasks.discard)
         if buffer:
             imported += await _enqueue_import_batch(queue, buffer)
             if progress is not None:
                 progress_task = asyncio.create_task(raw_progress(imported))
                 progress_tasks.add(progress_task)
-                progress_tasks.add_done_callback(progress_tasks.discard)
+                progress_task.add_done_callback(progress_tasks.discard)
         return imported
 
     async def _fill_import_buffer(
