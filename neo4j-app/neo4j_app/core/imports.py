@@ -294,7 +294,7 @@ async def _es_to_neo4j_import(
         transaction_batch_size=neo4j_transaction_batch_size,
         to_neo4j=to_neo4j_row,
     )
-    imported, summaries = await es_client.to_neo4j(
+    imported, counters = await es_client.to_neo4j(
         es_index,
         es_bodies,
         neo4j_import_worker_factory=neo4j_import_worker_factory,
@@ -305,10 +305,8 @@ async def _es_to_neo4j_import(
         imported_entity_label=imported_entity_label,
         progress=progress,
     )
-    nodes_created = sum(summary.counters.nodes_created for summary in summaries)
-    relationships_created = sum(
-        summary.counters.relationships_created for summary in summaries
-    )
+    nodes_created = sum(c.nodes_created for c in counters)
+    relationships_created = sum(c.relationships_created for c in counters)
     summary = ImportSummary(
         imported=imported,
         nodes_created=nodes_created,
