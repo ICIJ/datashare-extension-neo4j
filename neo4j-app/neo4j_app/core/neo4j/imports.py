@@ -5,6 +5,8 @@ from typing import Any, Callable, Dict, List, Optional, Protocol
 
 import neo4j
 
+from neo4j_app.typing_ import LightCounters
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,7 +17,7 @@ class Neo4Import(Protocol):
         records: List[Dict],
         *,
         transaction_batch_size: int,
-    ) -> neo4j.ResultSummary:
+    ) -> LightCounters:
         ...
 
 

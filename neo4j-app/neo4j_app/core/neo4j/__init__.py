@@ -1,7 +1,6 @@
 import csv
 import os
 import tempfile
-from collections import namedtuple
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, TextIO, Tuple
@@ -43,8 +42,6 @@ V_0_5_0 = Migration(
     migration_fn=migration_v_0_5_0_tx,
 )
 MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0, V_0_4_0, V_0_5_0]
-
-LightCounters = namedtuple("LightCounters", ["nodes_created", "relationships_created"])
 
 
 def get_neo4j_csv_reader(

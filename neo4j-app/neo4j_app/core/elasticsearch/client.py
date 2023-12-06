@@ -51,11 +51,11 @@ from neo4j_app.core.elasticsearch.utils import (
     SOURCE,
     match_all,
 )
-from neo4j_app.core.neo4j import LightCounters, Neo4jImportWorker, write_neo4j_csv
+from neo4j_app.core.neo4j import Neo4jImportWorker, write_neo4j_csv
 from neo4j_app.core.utils.asyncio import iterate_with_concurrency, run_with_concurrency
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 from neo4j_app.core.utils.progress import to_raw_progress
-from neo4j_app.typing_ import PercentProgress
+from neo4j_app.typing_ import LightCounters, PercentProgress
 
 logger = logging.getLogger(__name__)
 
