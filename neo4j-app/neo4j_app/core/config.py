@@ -180,6 +180,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             hosts=[self.elasticsearch_address],
             pagination=self.es_default_page_size,
             max_concurrency=self.es_max_concurrency,
+            keep_alive=self.es_keep_alive,
             timeout=self.es_timeout_s,
             max_retries=self.es_max_retries,
             max_retry_wait_s=self.es_max_retry_wait_s,
