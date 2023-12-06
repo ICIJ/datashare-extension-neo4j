@@ -28,7 +28,7 @@ from neo4j_app.constants import (
     RECEIVED_EMAIL_HEADERS,
     SENT_EMAIL_HEADERS,
 )
-from neo4j_app.core.neo4j import LightCounters
+from neo4j_app.typing_ import LightCounters
 
 logger = logging.getLogger(__name__)
 

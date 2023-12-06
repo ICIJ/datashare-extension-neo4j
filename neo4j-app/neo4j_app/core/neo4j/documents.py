@@ -15,7 +15,7 @@ from neo4j_app.constants import (
     DOC_ROOT_TYPE,
     DOC_URL_SUFFIX,
 )
-from neo4j_app.core.neo4j import LightCounters
+from neo4j_app.typing_ import LightCounters
 
 logger = logging.getLogger(__name__)
 
