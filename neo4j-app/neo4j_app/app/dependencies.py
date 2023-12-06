@@ -47,6 +47,7 @@ class DependencyInjectionError(RuntimeError):
 def config_enter(config: AppConfig, **_):
     global _CONFIG
     _CONFIG = config
+    logger.info("Loaded config %s", config.json(indent=2))
 
 
 def loggers_enter(**_):
