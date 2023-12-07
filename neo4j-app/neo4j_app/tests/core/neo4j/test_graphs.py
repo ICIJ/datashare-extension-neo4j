@@ -26,11 +26,12 @@ async def _create_ents(driver: neo4j.AsyncDriver, n_ents: Dict[str, int]):
         for i in range(n):
             props = {"mentionNorm": f"ent-{i}"}
             mention_ids = [f"ent-{i}" for i in range(1, i + 2)]
-            ents.append({"props": props, "labels": labels, "mentionIds": mention_ids})
+            props = {"props": props, "labels": labels, "mentionCount": len(mention_ids)}
+            ents.append(props)
     query = """UNWIND $ents as ent
 CALL apoc.create.node(ent.labels, ent.props) YIELD node as ne
 MATCH (doc:Document {id: 'doc-0'})
-MERGE (ne)-[rel:APPEARS_IN {mentionIds: ent.mentionIds}]->(doc)
+MERGE (ne)-[rel:APPEARS_IN {mentionCount: ent.mentionCount}]->(doc)
 """
     await driver.execute_query(query, ents=ents)
 

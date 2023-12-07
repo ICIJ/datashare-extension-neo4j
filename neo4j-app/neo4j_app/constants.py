@@ -1,5 +1,3 @@
-from neo4j_app.core.elasticsearch.utils import JOIN
-
 PROJECT_REGISTRY_DB = "datashare-project-registry"
 
 NEO4J_CSV_COL = "node_col"
@@ -26,7 +24,7 @@ DOC_COLUMNS = {
     DOC_URL_SUFFIX: {},
 }
 
-DOC_ES_SOURCES = list(DOC_COLUMNS) + [JOIN, DOC_ROOT_ID]
+DOC_ES_SOURCES = list(DOC_COLUMNS) + ["join", DOC_ROOT_ID]
 
 PROJECT_RUNS_MIGRATION = "_RUNS"
 PROJECT_NAME = "name"
@@ -77,6 +75,7 @@ NE_EXTRACTOR = "extractor"
 NE_EXTRACTORS = "mentionExtractors"
 NE_EXTRACTOR_LANG = "extractorLanguage"
 NE_MENTION = "mention"
+NE_MENTION_COUNT = "mentionCount"
 NE_MENTION_NORM = "mentionNorm"
 NE_MENTION_NORM_TEXT_LENGTH = "mentionNormTextLength"
 NE_METADATA = "metadata"
@@ -96,7 +95,7 @@ NE_COLUMNS = {
     NE_METADATA: {},
     NE_OFFSETS: {NEO4J_CSV_COL: "LONG[]"},
 }
-NE_ES_SOURCES = list(NE_COLUMNS) + [JOIN, NE_DOC_ID]
+NE_ES_SOURCES = list(NE_COLUMNS) + ["join", NE_DOC_ID]
 NE_APPEARS_IN_DOC_COLS = {
     NE_EXTRACTORS: {NEO4J_CSV_COL: "STRING[]"},
     NE_EXTRACTOR_LANG: {},
