@@ -1,7 +1,8 @@
 from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, List, Tuple
+from distutils.version import StrictVersion
+from typing import AsyncGenerator, List, Optional, Tuple
 
 import neo4j
 
@@ -11,7 +12,12 @@ from neo4j_app.core.utils.pydantic import BaseICIJModel
 logger = logging.getLogger(__name__)
 
 NEO4J_COMMUNITY_DB = "neo4j"
-_IS_ENTERPRISE = None
+_IS_ENTERPRISE: Optional[bool] = None
+_NEO4J_VERSION: Optional[StrictVersion] = None
+_SUPPORTS_PARALLEL: Optional[bool] = None
+
+_COMPONENTS_QUERY = """CALL dbms.components() YIELD versions, edition
+RETURN versions, edition"""
 
 
 class Project(BaseICIJModel):
@@ -97,12 +103,31 @@ async def registry_db_session(neo4j_driver: neo4j.AsyncDriver) -> neo4j.AsyncSes
         yield sess
 
 
-async def is_enterprise(neo4j_driver: neo4j.AsyncDriver) -> bool:
+async def _get_components(neo4j_driver: neo4j.AsyncDriver):
+    async with neo4j_driver.session(database=neo4j.SYSTEM_DATABASE) as sess:
+        res = await sess.run(_COMPONENTS_QUERY)
+        res = await res.single()
     global _IS_ENTERPRISE
+    global _NEO4J_VERSION
+    _IS_ENTERPRISE = res["edition"] != "community"
+    _NEO4J_VERSION = StrictVersion(res["versions"][0])
+
+
+async def server_version(neo4j_driver: neo4j.AsyncDriver) -> StrictVersion:
+    if _NEO4J_VERSION is None:
+        await _get_components(neo4j_driver)
+    return _NEO4J_VERSION
+
+
+async def supports_parallel_runtime(neo4j_driver: neo4j.AsyncDriver) -> bool:
+    global _SUPPORTS_PARALLEL
+    if _SUPPORTS_PARALLEL is None:
+        version = await server_version(neo4j_driver)
+        _SUPPORTS_PARALLEL = version >= StrictVersion("5.13")
+    return _SUPPORTS_PARALLEL
+
+
+async def is_enterprise(neo4j_driver: neo4j.AsyncDriver) -> bool:
     if _IS_ENTERPRISE is None:
-        query = "CALL dbms.components() YIELD edition RETURN edition"
-        async with neo4j_driver.session(database=neo4j.SYSTEM_DATABASE) as sess:
-            res = await sess.run(query)
-            res = await res.single()
-        _IS_ENTERPRISE = res["edition"] != "community"
+        await _get_components(neo4j_driver)
     return _IS_ENTERPRISE

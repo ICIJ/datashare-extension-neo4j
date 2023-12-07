@@ -5,9 +5,10 @@ import neo4j
 from neo4j_app.constants import (
     DOC_NODE,
     NE_APPEARS_IN_DOC,
+    NE_MENTION_COUNT,
     NE_NODE,
 )
-from neo4j_app.core.neo4j.projects import project_db
+from neo4j_app.core.neo4j.projects import project_db, supports_parallel_runtime
 from neo4j_app.core.objects import DumpFormat, GraphCounts
 
 _GRAPHML_DUMP_CONFIG = {
@@ -88,19 +89,27 @@ async def count_documents_and_named_entities(
     neo4j_driver: neo4j.AsyncDriver, project: str
 ) -> GraphCounts:
     neo4j_db = await project_db(neo4j_driver, project)
+    parallel = await supports_parallel_runtime(neo4j_driver)
     async with neo4j_driver.session(database=neo4j_db) as sess:
-        count = await sess.execute_read(_count_documents_and_named_entities_tx)
+        count = await sess.execute_read(
+            _count_documents_and_named_entities_tx, parallel=parallel
+        )
         return count
 
 
 async def _count_documents_and_named_entities_tx(
-    tx: neo4j.AsyncTransaction,
+    tx: neo4j.AsyncTransaction, parallel: bool
 ) -> GraphCounts:
-    doc_query = f"MATCH (doc:{DOC_NODE}) RETURN count(*) as nDocs"
+    runtime = "CYPHER runtime=parallel" if parallel else ""
+    doc_query = f"""{runtime}
+MATCH (doc:{DOC_NODE}) RETURN count(*) as nDocs
+"""
     doc_res = await tx.run(doc_query)
-    entity_query = f"""MATCH (ne:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->()
-WITH labels(ne) as neLabels, rel
-RETURN neLabels as neLabels, sum(size(rel.mentionIds)) as nMentions"""
+    entity_query = f"""{runtime}
+MATCH (ne:{NE_NODE})
+WITH DISTINCT labels(ne) as neLabels, ne
+MATCH (ne)-[rel:{NE_APPEARS_IN_DOC}]->()
+RETURN neLabels, sum(rel.{NE_MENTION_COUNT}) as nMentions"""
     entity_res = await tx.run(entity_query)
     count = await GraphCounts.from_neo4j(doc_res=doc_res, entity_res=entity_res)
     return count

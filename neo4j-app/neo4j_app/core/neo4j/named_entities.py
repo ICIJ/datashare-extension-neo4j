@@ -21,6 +21,7 @@ from neo4j_app.constants import (
     NE_EXTRACTOR_LANG,
     NE_ID,
     NE_IDS,
+    NE_MENTION_COUNT,
     NE_MENTION_NORM,
     NE_METADATA,
     NE_NODE,
@@ -93,6 +94,7 @@ CALL {{
             rel.{NE_EXTRACTORS} = apoc.coll.toSet(\
                 rel.{NE_EXTRACTORS} + row.{NE_EXTRACTOR}),
             rel.{NE_OFFSETS} = apoc.coll.toSet(rel.{NE_OFFSETS} + row.{NE_OFFSETS})
+    SET rel.{NE_MENTION_COUNT} = size(rel.{NE_OFFSETS}) 
     WITH mention, doc, row
     CALL apoc.do.case(
         [
