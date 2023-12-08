@@ -63,7 +63,7 @@ public class Neo4jResource implements AutoCloseable {
     private static final long NEO4J_DEFAULT_DUMPED_DOCUMENTS = 1000;
     private static final String SYSLOG_SPLIT_CHAR = "@";
     protected static final String TASK_POLL_INTERVAL_S = "neo4jCliTaskPollIntervalS";
-    protected static final String NEO4J_PROCESS_INHERIT_IO = "neo4jProcessInheritIo";
+    protected static final String NEO4J_PROCESS_INHERIT_OUTPUTS = "neo4jProcessInheritOutputs";
     protected static final String NEO4J_APP_LOG_IN_JSON = "neo4jAppLogInJson";
 
     private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
@@ -103,9 +103,9 @@ public class Neo4jResource implements AutoCloseable {
             "Interval in second used to poll task statuses when in CLI mode"
         ),
         List.of(
-            NEO4J_PROCESS_INHERIT_IO,
+            NEO4J_PROCESS_INHERIT_OUTPUTS,
             true,
-            "Should the Python process output be redirected to the Java process output ?"
+            "Should the Python process outputs be redirected to the Java process outputs ?"
         )
     );
     //CHECKSTYLE.OFF: MemberName
@@ -281,14 +281,17 @@ public class Neo4jResource implements AutoCloseable {
         logger.info("Starting Python app running \"{}\"",
             lazy(() -> String.join(" ", startServerCmd)));
         ProcessBuilder builder = new ProcessBuilder(startServerCmd);
-        Boolean inheritIo = propertiesProvider.get(NEO4J_PROCESS_INHERIT_IO)
+        Boolean inheritOutputs = propertiesProvider.get(NEO4J_PROCESS_INHERIT_OUTPUTS)
             .map(Boolean::parseBoolean).orElse(true);
-        if (inheritIo) {
-            builder.inheritIO();
+        if (inheritOutputs) {
+            // We don't inherit the input to avoid killing the Python process when ^C the
+            // java process
+            builder.redirectError(ProcessBuilder.Redirect.INHERIT)
+                .redirectOutput(ProcessBuilder.Redirect.INHERIT);
         }
         Process serverProcess;
         try {
-            serverProcess = new ProcessBuilder(startServerCmd).inheritIO().start();
+            serverProcess = builder.start();
         } catch (IOException e) {
             throw new RuntimeException("Failed to start server process", e);
         }
