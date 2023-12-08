@@ -21,7 +21,6 @@ import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.inject.Inject;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -64,10 +63,17 @@ public class Neo4jResource implements AutoCloseable {
     private static final long NEO4J_DEFAULT_DUMPED_DOCUMENTS = 1000;
     private static final String SYSLOG_SPLIT_CHAR = "@";
     protected static final String TASK_POLL_INTERVAL_S = "neo4jCliTaskPollIntervalS";
+    protected static final String NEO4J_PROCESS_INHERIT_IO = "neo4jProcessInheritIo";
+    protected static final String NEO4J_APP_LOG_IN_JSON = "neo4jAppLogInJson";
 
     private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
     // All these properties have to start with "neo4j" in order to be properly filtered
     protected static final List<List<Object>> DEFAULT_CLI_OPTIONS = List.of(
+        List.of(
+            NEO4J_APP_LOG_IN_JSON,
+            false,
+            "Should the Python process log in JSON format"
+        ),
         List.of("neo4jAppStartTimeoutS", 30, "Python neo4j service start timeout."),
         List.of("neo4jAppPort", 8008, "Python neo4j service port"),
         List.of(
@@ -95,6 +101,11 @@ public class Neo4jResource implements AutoCloseable {
             TASK_POLL_INTERVAL_S,
             2,
             "Interval in second used to poll task statuses when in CLI mode"
+        ),
+        List.of(
+            NEO4J_PROCESS_INHERIT_IO,
+            true,
+            "Should the Python process output be redirected to the Java process output ?"
         )
     );
     //CHECKSTYLE.OFF: MemberName
@@ -269,9 +280,15 @@ public class Neo4jResource implements AutoCloseable {
         checkServerCommand(startServerCmd);
         logger.info("Starting Python app running \"{}\"",
             lazy(() -> String.join(" ", startServerCmd)));
+        ProcessBuilder builder = new ProcessBuilder(startServerCmd);
+        Boolean inheritIo = propertiesProvider.get(NEO4J_PROCESS_INHERIT_IO)
+            .map(Boolean::parseBoolean).orElse(true);
+        if (inheritIo) {
+            builder.inheritIO();
+        }
         Process serverProcess;
         try {
-            serverProcess = new ProcessBuilder(startServerCmd).start();
+            serverProcess = new ProcessBuilder(startServerCmd).inheritIO().start();
         } catch (IOException e) {
             throw new RuntimeException("Failed to start server process", e);
         }
