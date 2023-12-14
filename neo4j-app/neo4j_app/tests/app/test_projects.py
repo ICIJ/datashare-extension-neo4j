@@ -1,5 +1,4 @@
 import neo4j
-import pytest
 from starlette.testclient import TestClient
 
 from neo4j_app.core.neo4j import V_0_1_0
@@ -19,7 +18,6 @@ def test_project_init_should_return_201(test_client: TestClient):
     assert res.status_code == 201
 
 
-@pytest.mark.asyncio
 async def test_project_init_should_return_200(
     test_client: TestClient, neo4j_test_driver: neo4j.AsyncDriver
 ):

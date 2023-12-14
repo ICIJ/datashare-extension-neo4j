@@ -39,7 +39,6 @@ async def _count_locks(driver: neo4j.AsyncDriver, project: str) -> int:
     return counts["nLocks"]
 
 
-@pytest.mark.asyncio
 async def test_worker_consume_task(
     populate_tasks: List[Task], worker: Neo4jAsyncWorker
 ):
@@ -61,7 +60,6 @@ async def test_worker_consume_task(
     assert counts["nLocks"] == 1
 
 
-@pytest.mark.asyncio
 async def test_worker_negatively_acknowledge(
     populate_tasks: List[Task], worker: Neo4jAsyncWorker
 ):
@@ -80,7 +78,6 @@ async def test_worker_negatively_acknowledge(
     assert n_locks == 0
 
 
-@pytest.mark.asyncio
 async def test_worker_negatively_acknowledge_and_requeue(
     populate_tasks: List[Task], worker: Neo4jAsyncWorker
 ):
@@ -118,7 +115,6 @@ async def test_worker_negatively_acknowledge_and_requeue(
     assert n_locks == 0
 
 
-@pytest.mark.asyncio
 async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jAsyncWorker):
     # Given
     task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
@@ -138,7 +134,6 @@ async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jAsync
     assert saved_result == task_result
 
 
-@pytest.mark.asyncio
 async def test_worker_should_raise_when_saving_existing_result(
     populate_tasks: List[Task], worker: Neo4jAsyncWorker
 ):
@@ -157,7 +152,6 @@ async def test_worker_should_raise_when_saving_existing_result(
         await worker.save_result(result=task_result, project=project)
 
 
-@pytest.mark.asyncio
 async def test_worker_save_error(populate_tasks: List[Task], worker: Neo4jAsyncWorker):
     # pylint: disable=unused-argument
     # Given
@@ -183,7 +177,6 @@ async def test_worker_save_error(populate_tasks: List[Task], worker: Neo4jAsyncW
     assert saved_errors == [error]
 
 
-@pytest.mark.asyncio
 async def test_worker_acknowledgment_cm(
     populate_tasks: List[Task], worker: Neo4jAsyncWorker
 ):

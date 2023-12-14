@@ -30,7 +30,6 @@ async def _mocked_run(
     return _iter_records(lines, record_key)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "dump_format,record_key,query,expected_run_args",
     [
@@ -157,7 +156,6 @@ async def test_post_graph_dump_should_return_200(
         assert res.content == expected_output
 
 
-@pytest.mark.asyncio
 async def test_post_graph_dump_should_return_400_for_missing_database(
     test_client_module: TestClient,
 ):
@@ -175,7 +173,6 @@ async def test_post_graph_dump_should_return_400_for_missing_database(
     assert "field required" in error["detail"]
 
 
-@pytest.mark.asyncio
 async def test_post_graph_dump_should_return_400_for_invalid_dump_format(
     test_client_module: TestClient,
 ):

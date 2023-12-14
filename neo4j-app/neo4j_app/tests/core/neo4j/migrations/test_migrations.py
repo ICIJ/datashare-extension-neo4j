@@ -1,5 +1,4 @@
 import neo4j
-import pytest
 
 from neo4j_app.core.neo4j.migrations.migrations import (
     migration_v_0_1_0_tx,
@@ -10,7 +9,6 @@ from neo4j_app.core.neo4j.migrations.migrations import (
 )
 
 
-@pytest.mark.asyncio
 async def test_migration_v_0_1_0_tx(
     neo4j_test_session: neo4j.AsyncSession,
 ):
@@ -25,7 +23,6 @@ async def test_migration_v_0_1_0_tx(
     assert "constraint_migration_unique_project_and_version" in existing_constraints
 
 
-@pytest.mark.asyncio
 async def test_migration_v_0_2_0_tx(
     neo4j_test_session: neo4j.AsyncSession,
 ):
@@ -46,7 +43,6 @@ async def test_migration_v_0_2_0_tx(
     assert "constraint_document_unique_id" in existing_constraints
 
 
-@pytest.mark.asyncio
 async def test_migration_v_0_3_0_tx(neo4j_test_session: neo4j.AsyncSession):
     # When
     await neo4j_test_session.execute_write(migration_v_0_3_0_tx)
@@ -71,7 +67,6 @@ async def test_migration_v_0_3_0_tx(neo4j_test_session: neo4j.AsyncSession):
     assert "constraint_task_unique_id" in existing_constraints
 
 
-@pytest.mark.asyncio
 async def test_migration_v_0_4_0_tx(neo4j_test_session: neo4j.AsyncSession):
     # When
     await neo4j_test_session.execute_write(migration_v_0_4_0_tx)
@@ -89,7 +84,6 @@ async def test_migration_v_0_4_0_tx(neo4j_test_session: neo4j.AsyncSession):
         assert index in expected_indexes
 
 
-@pytest.mark.asyncio
 async def test_migration_v_0_5_0_tx(neo4j_test_session: neo4j.AsyncSession):
     # When
     await neo4j_test_session.execute_write(migration_v_0_5_0_tx)

@@ -1,11 +1,9 @@
 import asyncio
 
-import pytest
 
 from neo4j_app.core.utils.asyncio import run_with_concurrency
 
 
-@pytest.mark.asyncio
 async def test_run_concurrently():
     # Given
     short = 0.001

@@ -14,7 +14,6 @@ from neo4j_app.tests.conftest import (
 )
 
 
-@pytest.mark.asyncio
 async def test_write_neo4j_csv():
     # Given
 
@@ -49,7 +48,6 @@ ds/test_project/doc-2/doc-1,dirname-2
     assert csv == expected_csv
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("n_existing", list(range(3)))
 async def test_import_documents(
     neo4j_test_session: neo4j.AsyncSession, n_existing: int
@@ -88,7 +86,6 @@ RETURN count(*) as numDocs"""
     assert total_docs["numDocs"] == 3
 
 
-@pytest.mark.asyncio
 async def test_import_documents_should_update_document(
     neo4j_test_session: neo4j.AsyncSession,
 ):

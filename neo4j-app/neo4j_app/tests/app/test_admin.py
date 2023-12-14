@@ -2,7 +2,6 @@ import os
 import stat
 from pathlib import Path
 
-import pytest
 import pytest_asyncio
 from aiohttp.test_utils import TestClient
 
@@ -24,7 +23,6 @@ async def _populate_es(es_test_client_module: ESClient):
     await populate_es_with_doc_and_named_entities(es_test_client_module, n=10)
 
 
-@pytest.mark.asyncio
 async def test_post_named_entities_import_should_return_200(
     test_client_module: TestClient,
     _populate_es,

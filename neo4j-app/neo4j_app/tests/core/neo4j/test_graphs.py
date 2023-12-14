@@ -50,7 +50,6 @@ CREATE (Keanu)-[:ACTED_IN {roles:['Neo']}]->(TheMatrix);
     yield neo4j_test_driver_module
 
 
-@pytest.mark.asyncio
 async def test_dump_full_graph_to_graphml(_populate_neo4j: neo4j.AsyncDriver):
     # pylint: disable=invalid-name
     # Given
@@ -97,7 +96,6 @@ xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http\
     assert len(edges) == 1
 
 
-@pytest.mark.asyncio
 async def test_should_dump_subgraph_to_graphml(_populate_neo4j: neo4j.AsyncDriver):
     # pylint: disable=invalid-name
     # Given
@@ -145,7 +143,6 @@ xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http\
     assert names[0].text == "Keanu Reeves"
 
 
-@pytest.mark.asyncio
 async def test_should_dump_full_graph_to_cypher(_populate_neo4j: neo4j.AsyncDriver):
     # pylint: disable=invalid-name
     # Given
@@ -165,7 +162,6 @@ async def test_should_dump_full_graph_to_cypher(_populate_neo4j: neo4j.AsyncDriv
     assert 'properties:{born:1964, name:"Keanu Reeves"}}' in cypher_statements
 
 
-@pytest.mark.asyncio
 async def test_should_dump_subgraph_to_cypher(_populate_neo4j: neo4j.AsyncDriver):
     # pylint: disable=invalid-name
     # Given
@@ -191,7 +187,6 @@ RETURN person;
     assert 'properties:{born:1964, name:"Keanu Reeves"}}' in cypher_statements
 
 
-@pytest.mark.asyncio
 async def test_should_raise_for_invalid_dump_format(
     neo4j_test_driver_session: neo4j.AsyncDriver,
 ):
@@ -211,7 +206,6 @@ async def test_should_raise_for_invalid_dump_format(
             pass
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "n_docs,n_ents,expected_count",
     [

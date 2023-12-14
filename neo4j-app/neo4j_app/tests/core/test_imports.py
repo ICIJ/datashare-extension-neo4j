@@ -118,7 +118,6 @@ async def _populate_es(
     yield es_client
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "query,doc_type_field,expected_response",
     [
@@ -193,7 +192,6 @@ async def test_import_documents(
     assert response == expected_response
 
 
-@pytest.mark.asyncio
 async def test_import_documents_should_forward_project_db(
     watching_session_dbs: _WatchingSessionDbsDriver,
     mock_enterprise,  # pylint: disable=unused-argument
@@ -219,7 +217,6 @@ async def test_import_documents_should_forward_project_db(
     assert all(db == TEST_PROJECT for db in neo4j_driver.session_dbs)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "query,doc_type_field,expected_response",
     [
@@ -305,7 +302,6 @@ async def test_import_named_entities(
     assert response == expected_response
 
 
-@pytest.mark.asyncio
 async def test_should_aggregate_named_entities_attributes_on_relationship(
     _populate_es: ESClient,
     insert_docs_in_neo4j: neo4j.AsyncSession,
@@ -363,7 +359,6 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
     assert rels == expected_rels
 
 
-@pytest.mark.asyncio
 async def test_import_named_entities_should_forward_db(
     insert_docs_in_neo4j: neo4j.AsyncSession,
     watching_session_dbs: _WatchingSessionDbsDriver,
@@ -475,7 +470,6 @@ def _expected_ne_doc_rel_lines() -> str:
     return "\n".join(sorted(lines)) + "\n"
 
 
-@pytest.mark.asyncio
 async def test_to_neo4j_csvs(
     _populate_es: ESClient, neo4j_test_driver_session: neo4j.AsyncDriver, tmpdir
 ):
@@ -599,7 +593,6 @@ mentionIds:STRING[],offsets:LONG[],:START_ID,:END_ID(Document),:TYPE
     assert archive_dir.joinpath("bulk-import.sh").exists()
 
 
-@pytest.mark.asyncio
 async def test_to_neo4j_email_csvs(
     _populate_es: ESClient, neo4j_test_driver: neo4j.AsyncDriver, tmpdir
 ):
@@ -731,7 +724,6 @@ def test_neo4j_bulk_import_script(
     assert neo4j_cmd == expected_cmd
 
 
-@pytest.mark.asyncio
 async def test_to_neo4j_csvs_should_forward_project_db(
     _populate_es: ESClient,
     mock_enterprise,

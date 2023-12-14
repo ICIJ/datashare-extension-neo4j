@@ -43,7 +43,6 @@ async def _mocked_search(*, body: Optional[Dict], index: Optional[str], size: in
     return {}
 
 
-@pytest.mark.asyncio
 async def test_es_client_should_search_with_pagination_size():
     # Given
     pagination = 666
@@ -58,7 +57,6 @@ async def test_es_client_should_search_with_pagination_size():
         mocked_search.assert_called_once_with(body=None, index=index, size=pagination)
 
 
-@pytest.mark.asyncio
 async def test_os_client_should_search_with_pagination_size():
     # Given
     pagination = 666
@@ -73,7 +71,6 @@ async def test_os_client_should_search_with_pagination_size():
         mocked_search.assert_called_once_with(body=None, index=index, size=pagination)
 
 
-@pytest.mark.asyncio
 async def test_es_client_should_raise_when_size_is_provided():
     # Given
     pagination = 666
@@ -88,7 +85,6 @@ async def test_es_client_should_raise_when_size_is_provided():
         await es_client.search(body=body, index=index, size=size)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "query,concurrency,expected_num_lines",
     [
@@ -203,7 +199,6 @@ def _make_transport_error(error_code: int) -> TransportError:
     return TransportError(error_code, "", "")
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "fail_at,max_retries,failure,raised",
     [

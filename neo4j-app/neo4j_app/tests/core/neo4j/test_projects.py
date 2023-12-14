@@ -1,11 +1,8 @@
 from unittest.mock import AsyncMock
 
-import pytest
-
 from neo4j_app.core.neo4j.projects import create_project_registry_db
 
 
-@pytest.mark.asyncio
 async def test_should_create_project_registry_db_with_enterprise_distribution(
     mock_enterprise,
 ):

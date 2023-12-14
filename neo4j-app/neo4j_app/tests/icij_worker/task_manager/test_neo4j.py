@@ -73,7 +73,6 @@ RETURN task, result"""
     return list(zip(tasks, [None, None, r_2]))
 
 
-@pytest.mark.asyncio
 async def test_task_manager_get_task(
     neo4j_app_driver: neo4j.AsyncDriver, populate_tasks: List[Task]
 ):
@@ -103,7 +102,6 @@ async def test_task_manager_get_task(
     assert task == expected_task
 
 
-@pytest.mark.asyncio
 async def test_task_manager_get_completed_task(
     neo4j_app_driver: neo4j.AsyncDriver,
     _populate_results: List[Tuple[Task, List[TaskResult]]],
@@ -121,7 +119,6 @@ async def test_task_manager_get_completed_task(
     assert isinstance(task.completed_at, datetime)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "statuses,task_type,expected_ix",
     [
@@ -157,7 +154,6 @@ async def test_task_manager_get_tasks(
     assert tasks == expected_tasks
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "task_id,expected_errors",
     [
@@ -208,7 +204,6 @@ async def test_get_task_errors(
     assert retrieved_errors == expected_errors
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "task_id,expected_result",
     [
@@ -240,7 +235,6 @@ async def test_task_manager_get_task_result(
         assert result == expected_result
 
 
-@pytest.mark.asyncio
 async def test_task_manager_enqueue(neo4j_app_driver: neo4j.AsyncDriver):
     # Given
     project = TEST_PROJECT
@@ -262,7 +256,6 @@ async def test_task_manager_enqueue(neo4j_app_driver: neo4j.AsyncDriver):
     assert queued == expected
 
 
-@pytest.mark.asyncio
 async def test_task_manager_enqueue_should_raise_for_existing_task(
     neo4j_app_driver: neo4j.AsyncDriver,
 ):
@@ -283,7 +276,6 @@ async def test_task_manager_enqueue_should_raise_for_existing_task(
         await task_manager.enqueue(task, project)
 
 
-@pytest.mark.asyncio
 async def test_task_manager_cancel(neo4j_app_driver: neo4j.AsyncDriver):
     # Given
     project = TEST_PROJECT
@@ -302,7 +294,6 @@ async def test_task_manager_cancel(neo4j_app_driver: neo4j.AsyncDriver):
     assert task == expected
 
 
-@pytest.mark.asyncio
 async def test_task_manager_enqueue_should_raise_when_queue_full(
     neo4j_app_driver: neo4j.AsyncDriver,
 ):
