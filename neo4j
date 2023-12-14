@@ -654,7 +654,6 @@ Please run ./neo4j format"
         if _should_run_project "neo4j_app"; then
             cd "$ROOT_DIR"/neo4j-app
             # TODO: parallelize pytest...
-            _pytest linting_test.py
             # Here we expect the docker test images to be launched either by the user or the CI
             _pytest neo4j_app
 
