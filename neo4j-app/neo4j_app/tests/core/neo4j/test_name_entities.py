@@ -22,7 +22,6 @@ async def _create_document(neo4j_test_session: neo4j.AsyncSession):
     return neo4j_test_session
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("n_existing", list(range(3)))
 async def test_import_named_entities(
     neo4j_test_session: neo4j.AsyncSession, n_existing: int
@@ -78,7 +77,6 @@ ORDER BY entLabels"""
     assert ents == expected_ents
 
 
-@pytest.mark.asyncio
 async def test_import_named_entities_should_update_named_entity(
     neo4j_test_session: neo4j.AsyncSession,
 ):
@@ -117,7 +115,6 @@ _MATCH_RECEIVED_EMAIL = (
 )
 
 
-@pytest.mark.asyncio()
 @pytest.mark.parametrize(
     "header_field,match_email_query",
     [
@@ -164,7 +161,6 @@ async def test_import_named_entity_rows_should_import_email_relationship(
     assert rel["fields"] == [header_field]
 
 
-@pytest.mark.asyncio()
 async def test_import_named_entity_rows_should_import_records_with_null_email_header(
     _create_document: neo4j.AsyncSession,
 ):
@@ -193,7 +189,6 @@ async def test_import_named_entity_rows_should_import_records_with_null_email_he
         )
 
 
-@pytest.mark.asyncio()
 @pytest.mark.parametrize(
     "header_field,match_email_query",
     [
@@ -242,7 +237,6 @@ CREATE (ne)-[:SENT { fields: ["someField"] }]->(doc)
     assert set(rel["fields"]) == {"someField", header_field}
 
 
-@pytest.mark.asyncio()
 @pytest.mark.parametrize(
     "mention_norm,expected_user,expected_domain",
     [

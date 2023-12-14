@@ -17,7 +17,6 @@ def publisher(neo4j_app_driver: neo4j.AsyncDriver) -> Neo4jEventPublisher:
     return worker
 
 
-@pytest.mark.asyncio
 async def test_worker_publish_event(
     populate_tasks: List[Task], publisher: Neo4jEventPublisher
 ):
@@ -48,7 +47,6 @@ async def test_worker_publish_event(
     assert saved_task == expected
 
 
-@pytest.mark.asyncio
 async def test_worker_publish_done_task_event_should_not_update_task(
     publisher: Neo4jEventPublisher,
 ):
@@ -82,7 +80,6 @@ async def test_worker_publish_done_task_event_should_not_update_task(
     assert saved_task == completed
 
 
-@pytest.mark.asyncio
 async def test_worker_publish_event_for_unknown_task(publisher: Neo4jEventPublisher):
     # This is useful when task is not reserved yet
     # Given
@@ -110,7 +107,6 @@ async def test_worker_publish_event_for_unknown_task(publisher: Neo4jEventPublis
     assert saved_task == expected
 
 
-@pytest.mark.asyncio
 async def test_worker_publish_event_should_use_status_resolution(
     populate_tasks: List[Task], publisher: Neo4jEventPublisher
 ):

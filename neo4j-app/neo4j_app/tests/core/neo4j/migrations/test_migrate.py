@@ -66,7 +66,6 @@ _MIGRATION_1 = Migration(
 )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "registry,expected_indexes,not_expected_indexes",
     [
@@ -117,7 +116,6 @@ async def test_migrate_db_schema(
         assert db_version == max_version
 
 
-@pytest.mark.asyncio
 async def test_migrate_db_schema_should_raise_after_timeout(
     _migration_index_and_constraint: neo4j.AsyncDriver,
     # pylint: disable=invalid-name
@@ -146,7 +144,6 @@ async def test_migrate_db_schema_should_raise_after_timeout(
         await migrate_db_schemas(neo4j_driver, registry, timeout_s=0, throttle_s=0.1)
 
 
-@pytest.mark.asyncio
 async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
     caplog,
     monkeypatch,
@@ -191,7 +188,6 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
     )
 
 
-@pytest.mark.asyncio
 async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
     monkeypatch,
     caplog,
@@ -251,7 +247,6 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
             await wipe_db(sess)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("enterprise", [True, False])
 async def test_retrieve_project_dbs(
     _migration_index_and_constraint: neo4j.AsyncDriver,
@@ -271,7 +266,6 @@ async def test_retrieve_project_dbs(
     assert projects == [Project(name=TEST_PROJECT)]
 
 
-@pytest.mark.asyncio
 async def test_migrate_should_use_registry_db_when_with_enterprise_support(
     _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
     monkeypatch,
@@ -293,7 +287,6 @@ async def test_migrate_should_use_registry_db_when_with_enterprise_support(
         await migrate_db_schemas(neo4j_driver, registry, timeout_s=10, throttle_s=0.1)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("is_enterprise", [True, False])
 async def test_init_project(
     neo4j_test_driver: neo4j.AsyncDriver, is_enterprise: bool, monkeypatch
@@ -333,7 +326,6 @@ async def test_init_project(
         assert migration.version == V_0_1_0.version
 
 
-@pytest.mark.asyncio
 async def test_init_project_should_be_idempotent(neo4j_test_driver: neo4j.AsyncDriver):
     # Given
     neo4j_driver = neo4j_test_driver
@@ -363,7 +355,6 @@ async def test_init_project_should_be_idempotent(neo4j_test_driver: neo4j.AsyncD
     assert migration.version == V_0_1_0.version
 
 
-@pytest.mark.asyncio
 async def test_init_project_should_raise_for_reserved_name(
     neo4j_test_driver_session: neo4j.AsyncDriver,
 ):

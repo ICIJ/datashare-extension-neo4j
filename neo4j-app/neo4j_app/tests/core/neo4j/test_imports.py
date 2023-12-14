@@ -26,7 +26,6 @@ CALL {
     return summary
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("num_workers", [1, 2])
 async def test_neo4_import_worker(
     num_workers: int, neo4j_test_driver: neo4j.AsyncDriver

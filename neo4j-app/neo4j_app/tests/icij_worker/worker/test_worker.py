@@ -46,7 +46,6 @@ def mock_failing_worker(test_failing_async_app: ICIJApp, tmpdir: Path) -> MockWo
 _TASK_DB = dict()
 
 
-@pytest.mark.asyncio
 async def test_task_wrapper_run_asyncio_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
@@ -103,7 +102,6 @@ async def test_task_wrapper_run_asyncio_task(mock_worker: MockWorker):
     assert saved_result == expected_result
 
 
-@pytest.mark.asyncio
 async def test_task_wrapper_run_sync_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
@@ -158,7 +156,6 @@ async def test_task_wrapper_run_sync_task(mock_worker: MockWorker):
     assert saved_result == expected_result
 
 
-@pytest.mark.asyncio
 async def test_task_wrapper_should_recover_from_recoverable_error(
     mock_failing_worker: MockWorker,
 ):
@@ -245,7 +242,6 @@ async def test_task_wrapper_should_recover_from_recoverable_error(
     assert events == expected_events
 
 
-@pytest.mark.asyncio
 async def test_task_wrapper_should_handle_non_recoverable_error(
     mock_failing_worker: MockWorker,
 ):
@@ -310,7 +306,6 @@ async def test_task_wrapper_should_handle_non_recoverable_error(
     assert error_event == expected_error_event
 
 
-@pytest.mark.asyncio
 async def test_task_wrapper_should_handle_unregistered_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
@@ -375,7 +370,6 @@ async def test_task_wrapper_should_handle_unregistered_task(mock_worker: MockWor
     assert error_event == expected_error_event
 
 
-@pytest.mark.asyncio
 async def test_work_once_should_not_run_cancelled_task(mock_worker: MockWorker, caplog):
     # Given
     worker = mock_worker
@@ -403,7 +397,6 @@ async def test_work_once_should_not_run_cancelled_task(mock_worker: MockWorker, 
     assert any(expected in m for m in caplog.messages)
 
 
-@pytest.mark.asyncio
 async def test_cancel_running_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker

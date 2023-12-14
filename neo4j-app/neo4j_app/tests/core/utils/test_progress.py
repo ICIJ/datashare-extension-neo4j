@@ -17,7 +17,6 @@ class MockProgress:
         self._progress.append(p)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "max_progress,raw,expected_progress",
     [
@@ -40,7 +39,6 @@ async def test_to_raw_progress(
     assert progress.progress == expected_progress
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "start,end,expected_progress",
     [
@@ -64,7 +62,6 @@ async def test_to_scaled_progress(
     assert progress.progress == expected_progress
 
 
-@pytest.mark.asyncio
 async def test_to_scaled_and_raw():
     # Given
     progress = MockProgress()
