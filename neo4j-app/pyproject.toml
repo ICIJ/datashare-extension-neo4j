@@ -21,7 +21,7 @@ python = "^3.9"
 fastapi = "^0.99.1"
 pyyaml = ">=5.4.0" # For security
 uvicorn = { version = "^0.23.2", extras = ["standard"] }
-elasticsearch = { version = "<7.14", extras = ["async"] }
+elasticsearch = {version = "<7.14", extras = ["async"]}
 neo4j = "^5.5.0"
 setuptools = "^67.6.1"
 datrie = "^0.8.2"
