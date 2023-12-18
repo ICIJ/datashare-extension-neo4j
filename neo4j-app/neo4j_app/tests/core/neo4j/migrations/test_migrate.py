@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from typing import List, Set
+from unittest import mock
 
 import neo4j
 import pytest
@@ -16,6 +17,7 @@ from neo4j_app.core.neo4j.migrations.migrate import (
     MigrationStatus,
     Neo4jMigration,
     init_project,
+    migrate_project_db_schema,
     retrieve_projects,
 )
 from neo4j_app.core.neo4j.projects import Project
@@ -267,7 +269,8 @@ async def test_retrieve_project_dbs(
 
 
 async def test_migrate_should_use_registry_db_when_with_enterprise_support(
-    _migration_index_and_constraint: neo4j.AsyncDriver,  # pylint: disable=invalid-name
+    _migration_index_and_constraint: neo4j.AsyncDriver,
+    # pylint: disable=invalid-name
     monkeypatch,
 ):
     # Given
@@ -371,3 +374,30 @@ async def test_init_project_should_raise_for_reserved_name(
         await init_project(
             neo4j_driver, project_name, registry=[], timeout_s=1, throttle_s=1
         )
+
+
+@pytest.mark.regression("131")
+async def test_migrate_project_db_schema_should_read_migrations_from_registry(
+    neo4j_test_driver_session: neo4j.AsyncDriver,
+    monkeypatch,
+):
+    # Given
+    registry = [V_0_1_0.copy(update={"status": MigrationStatus.DONE})]
+    monkeypatch.setattr(
+        neo4j_app.core.neo4j.projects, "is_enterprise", mocked_is_enterprise
+    )
+    with mock.patch(
+        "neo4j_app.core.neo4j.migrations.migrate.registry_db_session"
+    ) as mocked_registry_sess:
+        with mock.patch("neo4j_app.core.neo4j.migrations.migrate.project_db_session"):
+            mocked_sess = mock.AsyncMock()
+            mocked_registry_sess.return_value.__aenter__.return_value = mocked_sess
+            mocked_sess.execute_read.return_value = registry
+            await migrate_project_db_schema(
+                neo4j_test_driver_session,
+                _BASE_REGISTRY,
+                TEST_PROJECT,
+                timeout_s=1,
+                throttle_s=1,
+            )
+        mocked_sess.execute_read.assert_called_once()
