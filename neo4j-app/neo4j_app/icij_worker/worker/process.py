@@ -1,10 +1,16 @@
 import functools
 import signal
+import sys
 from abc import ABC
-from typing import Callable, cast
 
-from neo4j_app.icij_worker.exceptions import WorkerCancelled
 from neo4j_app.icij_worker.worker.worker import Worker
+
+_HANDLE_SIGNALS = [
+    signal.SIGINT,
+    signal.SIGTERM,
+]
+if sys.platform == "win32":
+    _HANDLE_SIGNALS += [signal.CTRL_C_EVENT, signal.CTRL_BREAK_EVENT]
 
 
 class ProcessWorkerMixin(Worker, ABC):
@@ -12,27 +18,16 @@ class ProcessWorkerMixin(Worker, ABC):
         await super()._aenter__()
         self._setup_signal_handlers()
 
-    def _signal_handler(
-        self,
-        signal_name: int,
-        _,
-        __,  # pylint: disable=invalid-name
-        *,
-        graceful: bool,
-    ):
-        if not self._already_shutdown:
-            self.error("received %s", signal_name)
-            self._graceful_shutdown = graceful
-            raise WorkerCancelled()
+    def _signal_handler(self, signal_name: signal.Signals, *, graceful: bool):
+        self.error("received %s", signal_name)
+        self._graceful_shutdown = graceful
+        if self._work_forever_task is not None:
+            self.info("cancelling worker loop...")
+            self._work_forever_task.cancel()
 
     def _setup_signal_handlers(self):
         # Let's always shutdown gracefully for now since when the server shutdown
         # it will try to SIGTERM, we want to avoid loosing track of running tasks
-        for s in ["SIGINT", "SIGTERM", "CTRL_C_EVENT", "CTRL_BREAK_EVENT"]:
-            try:
-                signalnum = getattr(signal, s)
-            except AttributeError:
-                continue
+        for s in _HANDLE_SIGNALS:
             handler = functools.partial(self._signal_handler, s, graceful=True)
-            handler = cast(Callable[[int], None], handler)
-            signal.signal(signalnum, handler)
+            self._loop.add_signal_handler(s, handler)

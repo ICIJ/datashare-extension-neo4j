@@ -11,7 +11,7 @@ exclude = ["neo4j_app/tests"]
 
 [tool.black]
 line-length = 88
-target = "py38"
+target = "py39"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -26,15 +26,6 @@ from neo4j_app.tests.icij_worker.conftest import MockManager, MockWorker
 
 
 @pytest.fixture(scope="function")
-def mock_worker(test_async_app: ICIJApp, tmpdir: Path) -> MockWorker:
-    db_path = Path(tmpdir) / "db.json"
-    MockWorker.fresh_db(db_path)
-    lock = threading.Lock()
-    worker = MockWorker(test_async_app, "test-worker", db_path, lock)
-    return worker
-
-
-@pytest.fixture(scope="function")
 def mock_failing_worker(test_failing_async_app: ICIJApp, tmpdir: Path) -> MockWorker:
     db_path = Path(tmpdir) / "db.json"
     MockWorker.fresh_db(db_path)

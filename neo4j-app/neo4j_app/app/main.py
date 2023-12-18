@@ -9,7 +9,7 @@ from neo4j_app.app.dependencies import (
     lifespan_es_client,
     lifespan_neo4j_driver,
     lifespan_task_manager,
-    lifespan_worker_pool,
+    lifespan_process_executor,
 )
 from neo4j_app.app.doc import OTHER_TAG
 from neo4j_app.core import AppConfig
@@ -25,7 +25,7 @@ def main_router() -> APIRouter:
             await driver.verify_connectivity()
             lifespan_es_client()
             lifespan_task_manager()
-            lifespan_worker_pool()
+            lifespan_process_executor()
         except (DriverError, DependencyInjectionError) as e:
             raise HTTPException(503, detail="Service Unavailable") from e
         return "pong"

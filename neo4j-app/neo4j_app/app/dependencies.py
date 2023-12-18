@@ -1,3 +1,4 @@
+import concurrent.futures
 import inspect
 import logging
 import multiprocessing
@@ -35,7 +36,7 @@ _NEO4J_DRIVER: Optional[neo4j.AsyncDriver] = None
 _TASK_MANAGER: Optional[TaskManager] = None
 _TEST_DB_FILE: Optional[Path] = None
 _TEST_LOCK: Optional[multiprocessing.Lock] = None
-_WORKER_POOL: Optional[multiprocessing.Pool] = None
+_PROCESS_EXECUTOR: Optional[concurrent.futures.ProcessPoolExecutor] = None
 
 
 class DependencyInjectionError(RuntimeError):
@@ -151,17 +152,24 @@ def _lifespan_test_lock() -> multiprocessing.Lock:
     return cast(multiprocessing.Lock, _TEST_LOCK)
 
 
-def worker_pool_enter(**_):
+def process_executor_enter(**_):
     # pylint: disable=consider-using-with
     config = lifespan_config()
-    global _WORKER_POOL
-    _WORKER_POOL = multiprocessing.Pool(processes=config.neo4j_app_n_async_workers)
-    _WORKER_POOL.__enter__()  # pylint: disable=unnecessary-dunder-call
+    global _PROCESS_EXECUTOR
+    _PROCESS_EXECUTOR = multiprocessing.Pool(processes=config.neo4j_app_n_async_workers)
+    _PROCESS_EXECUTOR.__enter__()  # pylint: disable=unnecessary-dunder-call
     process_id = os.getpid()
     config = lifespan_config()
     n_workers = min(config.neo4j_app_n_async_workers, config.neo4j_app_task_queue_size)
+    n_workers = max(1, n_workers)
+    # TODO: let the process choose they ID and set it with the worker process ID,
+    #  this will help debugging
     worker_ids = [f"worker-{process_id}-{i}" for i in range(n_workers)]
 
+    _PROCESS_EXECUTOR = concurrent.futures.ProcessPoolExecutor(  # pylint: disable=unnecessary-dunder-call
+        max_workers=n_workers,
+        mp_context=multiprocessing.get_context("spawn"),
+    ).__enter__()
     kwargs = dict()
     worker_cls = config.to_worker_cls()
     if worker_cls.__name__ == "MockWorker":
@@ -171,24 +179,25 @@ def worker_pool_enter(**_):
     for w_id in worker_ids:
         kwargs.update({"worker_id": w_id})
         logger.info("starting worker %s", w_id)
-        _WORKER_POOL.apply_async(worker_cls.work_forever_from_config, kwds=kwargs)
+        _PROCESS_EXECUTOR.submit(worker_cls.work_forever_from_config, **kwargs)
 
     logger.info("worker pool ready !")
 
 
-def worker_pool_exit(exc_type, exc_value, trace):
+def process_executor_exit(exc_type, exc_value, trace):
     # pylint: disable=unused-argument
-    pool = lifespan_worker_pool()
-    pool.__exit__(exc_type, exc_value, trace)
+    pool = lifespan_process_executor()
+    pool.shutdown(wait=False)
+    logger.debug("async worker pool has shut down !")
 
 
-def lifespan_worker_pool() -> multiprocessing.Pool:
-    if _WORKER_POOL is None:
+def lifespan_process_executor() -> concurrent.futures.ProcessPoolExecutor:
+    if _PROCESS_EXECUTOR is None:
         raise DependencyInjectionError("worker pool")
-    return cast(multiprocessing.Pool, _WORKER_POOL)
+    return cast(concurrent.futures.ProcessPoolExecutor, _PROCESS_EXECUTOR)
 
 
-def task_task_manager_enter(**_):
+def task_manager_enter(**_):
     global _TASK_MANAGER
     config = lifespan_config()
     if config.test:
@@ -251,18 +260,18 @@ def lifespan_event_publisher() -> EventPublisher:
 
 
 FASTAPI_LIFESPAN_DEPS = [
-    (config_enter, None),
-    (loggers_enter, None),
-    (neo4j_driver_enter, neo4j_driver_exit),
-    (create_project_registry_db_enter, None),
-    (es_client_enter, es_client_exit),
-    (test_process_manager_enter, test_process_manager_exit),
-    (test_db_path_enter, test_db_path_exit),
-    (_test_lock_enter, None),
-    (task_task_manager_enter, None),
-    (event_publisher_enter, None),
-    (worker_pool_enter, worker_pool_exit),
-    (migrate_app_db_enter, None),
+    ("configuration reading", config_enter, None),
+    ("loggers setup", loggers_enter, None),
+    ("neo4j driver creation", neo4j_driver_enter, neo4j_driver_exit),
+    ("neo4j project registry creation", create_project_registry_db_enter, None),
+    ("ES client creation", es_client_enter, es_client_exit),
+    (None, test_process_manager_enter, test_process_manager_exit),
+    (None, test_db_path_enter, test_db_path_exit),
+    (None, _test_lock_enter, None),
+    ("task manager creation", task_manager_enter, None),
+    ("event publisher creation", event_publisher_enter, None),
+    ("async worker executor creation", process_executor_enter, process_executor_exit),
+    ("neo4j DB migration", migrate_app_db_enter, None),
 ]
 
 
@@ -293,13 +302,16 @@ async def run_deps(dependencies: List, **kwargs) -> AsyncGenerator[None, None]:
     original_ex = None
     try:
         with _log_and_reraise():
-            for enter_fn, exit_fn in dependencies:
+            logger.info("applying dependencies...")
+            for name, enter_fn, exit_fn in dependencies:
                 if enter_fn is not None:
+                    if name is not None:
+                        logger.debug("applying: %s", name)
                     if inspect.iscoroutinefunction(enter_fn):
                         await enter_fn(**kwargs)
                     else:
                         enter_fn(**kwargs)
-                to_close.append(exit_fn)
+                to_close.append((name, exit_fn))
         yield
     except Exception as e:  # pylint: disable=broad-exception-caught
         original_ex = e
@@ -308,10 +320,13 @@ async def run_deps(dependencies: List, **kwargs) -> AsyncGenerator[None, None]:
             to_raise = []
             if original_ex is not None:
                 to_raise.append(original_ex)
-            for exit_fn in to_close[::-1]:
+            logger.info("rolling back dependencies...")
+            for name, exit_fn in to_close[::-1]:
                 if exit_fn is None:
                     continue
                 try:
+                    if name is not None:
+                        logger.debug("rolling back %s", name)
                     exc_info = sys.exc_info()
                     if inspect.iscoroutinefunction(exit_fn):
                         await exit_fn(*exc_info)
@@ -319,5 +334,6 @@ async def run_deps(dependencies: List, **kwargs) -> AsyncGenerator[None, None]:
                         exit_fn(*exc_info)
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     to_raise.append(e)
+            logger.debug("rolled back all dependencies !")
             if to_raise:
                 raise RuntimeError(to_raise)

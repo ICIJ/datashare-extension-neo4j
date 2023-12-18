@@ -4,16 +4,14 @@ from typing import Optional
 import pytest
 from pydantic import ValidationError
 
-from neo4j_app.core import AppConfig, UviCornModel
+from neo4j_app.core import AppConfig
 from neo4j_app.tests.conftest import fail_if_exception
 
 
 def test_should_support_alias():
     # When
     neo4j_app_name = "test_name"
-    config = AppConfig(
-        neo4j_app_name=neo4j_app_name,
-    )
+    config = AppConfig(neo4j_app_name=neo4j_app_name)
 
     # Then
     assert config.neo4j_app_name == neo4j_app_name
@@ -57,27 +55,6 @@ def test_should_load_from_java(config: str, expected_config: AppConfig):
 
     # Then
     assert loaded_config == expected_config
-
-
-@pytest.mark.parametrize(
-    "config,expected_uvicorn_config",
-    [
-        (
-            AppConfig(neo4j_app_host="127.0.0.1", neo4j_app_port=8888),
-            UviCornModel(host="127.0.0.1", port=8888),
-        ),
-        (
-            AppConfig(neo4j_app_log_level="DEBUG"),
-            UviCornModel(host="127.0.0.1", port=8080),
-        ),
-    ],
-)
-def test_to_uvicorn(config: AppConfig, expected_uvicorn_config: UviCornModel):
-    # When
-    uvicorn_config = config.to_uvicorn()
-
-    # Then
-    assert uvicorn_config == expected_uvicorn_config
 
 
 @pytest.mark.pull(id="62")

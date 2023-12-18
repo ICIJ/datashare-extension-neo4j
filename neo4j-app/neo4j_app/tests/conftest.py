@@ -158,8 +158,8 @@ def test_config() -> AppConfig:
 
 
 TEST_WORKER_DEPS = [
-    (config_enter, None),
-    (loggers_enter, None),
+    ("config reading", config_enter, None),
+    ("loggers setup", loggers_enter, None),
 ]
 
 
