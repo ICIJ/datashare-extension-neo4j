@@ -242,7 +242,7 @@ async def migrate_project_db_schema(
     async with registry_db_session(neo4j_driver) as registry_sess:
         async with project_db_session(neo4j_driver, project=project) as project_sess:
             while "Waiting for DB to be migrated or for a timeout":
-                migrations = await project_sess.execute_read(
+                migrations = await registry_sess.execute_read(
                     project_migrations_tx, project=project
                 )
                 in_progress = [
