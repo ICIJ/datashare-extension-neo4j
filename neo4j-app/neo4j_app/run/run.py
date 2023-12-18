@@ -1,4 +1,4 @@
-# TODO: rename this into run_http ?
+from __future__ import annotations
 import argparse
 import logging
 import multiprocessing
@@ -7,7 +7,8 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
-import uvicorn
+from fastapi import FastAPI
+from gunicorn.app.base import BaseApplication
 
 import neo4j_app
 from neo4j_app.app.utils import create_app
@@ -30,6 +31,27 @@ def _start_app_(ns):
     _start_app(config_path=ns.config_path, force_migrations=ns.force_migrations)
 
 
+class GunicornApp(BaseApplication):  # pylint: disable=abstract-method
+    def __init__(self, app: FastAPI, config: AppConfig, **kwargs):
+        self.application = app
+        self._app_config = config
+        super().__init__(**kwargs)
+
+    def load_config(self):
+        self.cfg.set("worker_class", "uvicorn.workers.UvicornWorker")
+        self.cfg.set("workers", self._app_config.neo4j_app_gunicorn_workers)
+        bind = f"{self._app_config.neo4j_app_host}:{self._app_config.neo4j_app_port}"
+        self.cfg.set("bind", bind)
+
+    def load(self):
+        return self.application
+
+    @classmethod
+    def from_config(cls, config: AppConfig) -> GunicornApp:
+        fast_api = create_app(config)
+        return cls(fast_api, config)
+
+
 def _start_app(config_path: Optional[str] = None, force_migrations: bool = False):
     if config_path is not None:
         config_path = Path(config_path)
@@ -41,9 +63,8 @@ def _start_app(config_path: Optional[str] = None, force_migrations: bool = False
             )
     else:
         config = AppConfig()
-    app = create_app(config)
-    uvicorn_config = config.to_uvicorn()
-    uvicorn.run(app, **uvicorn_config.dict(by_alias=False))
+    app = GunicornApp.from_config(config)
+    app.run()
 
 
 def get_arg_parser():

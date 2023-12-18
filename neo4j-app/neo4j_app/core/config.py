@@ -72,6 +72,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_async_app: str = "neo4j_app.tasks.app"
     neo4j_app_async_dependencies: Optional[str] = "neo4j_app.tasks.WORKER_LIFESPAN_DEPS"
     neo4j_app_host: str = "127.0.0.1"
+    neo4j_app_gunicorn_workers: int = 1
     neo4j_app_log_level: str = "INFO"
     neo4j_app_log_in_json: bool = False
     neo4j_app_max_records_in_memory: int = int(1e6)
@@ -152,9 +153,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
         if cls._global is not None:
             raise ValueError("Can't set config globally twice")
         cls._global = value
-
-    def to_uvicorn(self) -> UviCornModel:
-        return UviCornModel(port=self.neo4j_app_port)
 
     @property
     def neo4j_uri(self) -> str:

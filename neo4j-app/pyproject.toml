@@ -27,6 +27,7 @@ setuptools = "^67.6.1"
 datrie = "^0.8.2"
 tenacity = "^8.2.3"
 aiostream = "^0.5.1"
+gunicorn = "^21.2.0"
 python-json-logger = "^2.0.7"
 
 [tool.poetry.group.dev.dependencies]
