@@ -14,6 +14,7 @@ from .migrations.migrations import (
     migration_v_0_3_0_tx,
     migration_v_0_4_0_tx,
     migration_v_0_5_0_tx,
+    migration_v_0_6_0_tx,
 )
 
 V_0_1_0 = Migration(
@@ -41,7 +42,12 @@ V_0_5_0 = Migration(
     label="Create email user and domain indexes",
     migration_fn=migration_v_0_5_0_tx,
 )
-MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0, V_0_4_0, V_0_5_0]
+V_0_6_0 = Migration(
+    version="0.6.0",
+    label="Add mention counts to named entity document relationships",
+    migration_fn=migration_v_0_6_0_tx,
+)
+MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0, V_0_4_0, V_0_5_0, V_0_6_0]
 
 
 def get_neo4j_csv_reader(
