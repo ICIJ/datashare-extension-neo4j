@@ -11,6 +11,7 @@ from typing import Callable, Dict, List, Optional, TextIO, Tuple, Type, Union
 
 import neo4j
 from pydantic import Field, validator
+from pythonjsonlogger.jsonlogger import JsonFormatter
 
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.client import ESClient, OSClient
@@ -72,6 +73,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_async_dependencies: Optional[str] = "neo4j_app.tasks.WORKER_LIFESPAN_DEPS"
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_log_level: str = "INFO"
+    neo4j_app_log_in_json: bool = False
     neo4j_app_max_records_in_memory: int = int(1e6)
     neo4j_app_migration_timeout_s: float = 60 * 5
     neo4j_app_migration_throttle_s: float = 1
@@ -232,7 +234,11 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
             fmt = STREAM_HANDLER_FMT_WITH_WORKER_ID
         else:
             fmt = STREAM_HANDLER_FMT
-        stream_handler.setFormatter(logging.Formatter(fmt, DATE_FMT))
+        if self.neo4j_app_log_in_json:
+            fmt = JsonFormatter(fmt, DATE_FMT)
+        else:
+            fmt = logging.Formatter(fmt, DATE_FMT)
+        stream_handler.setFormatter(fmt)
         handlers = [stream_handler]
         if self.neo4j_app_syslog_facility is not None:
             syslog_handler = SysLogHandler(

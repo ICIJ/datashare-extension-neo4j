@@ -24,14 +24,19 @@ public class Neo4jResourceCli extends Neo4jResource {
             String desc = option.get(2).toString();
             Object defaultValue = option.get(1);
             if (defaultValue instanceof String) {
-                String defaultAsString = (String) defaultValue;
-                if (!defaultAsString.isEmpty()) {
+                String value = (String) defaultValue;
+                if (!value.isEmpty()) {
                     parser.accepts(opt, desc).withRequiredArg().ofType(String.class)
                         .defaultsTo((String) defaultValue);
                 }
             } else if (defaultValue instanceof Integer) {
+                Integer value = (Integer) defaultValue;
                 parser.accepts(opt, desc).withRequiredArg().ofType(Integer.class)
-                    .defaultsTo((Integer) defaultValue);
+                    .defaultsTo(value);
+            } else if (defaultValue instanceof Boolean) {
+                Boolean value = (Boolean) defaultValue;
+                parser.accepts(opt, desc).withRequiredArg().ofType(Boolean.class)
+                    .defaultsTo(value);
             } else {
                 throw new IllegalArgumentException("Invalid default option " + option);
             }
