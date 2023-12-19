@@ -202,7 +202,13 @@ public class Neo4jResourceWebTest {
         }
     }
 
-    public static class BindNeo4jResourceEnterprise extends BindNeo4jResourceBase {
+    public static class BindNeo4jResourceWithPid extends BindNeo4jResource {
+        protected <T extends Neo4jResourceWeb> Class<T> getResourceClass() {
+            return (Class<T>) Neo4jResourceWithApp.class;
+        }
+    }
+
+    public static class BindNeo4jResourceEnterprise extends BindNeo4jResourceWithPid {
         @Override
         public void beforeAll(ExtensionContext extensionContext)
             throws InvocationTargetException, NoSuchMethodException, InstantiationException,
@@ -211,13 +217,6 @@ public class Neo4jResourceWebTest {
             Neo4jResource.supportNeo4jEnterprise = true;
         }
     }
-
-    public static class BindNeo4jResourceWithPid extends BindNeo4jResource {
-        protected <T extends Neo4jResourceWeb> Class<T> getResourceClass() {
-            return (Class<T>) Neo4jResourceWithApp.class;
-        }
-    }
-
 
     public static class MockNeo4jApp extends ProdWebServerRuleExtension
         implements BeforeAllCallback, AfterAllCallback {
@@ -946,12 +945,11 @@ public class Neo4jResourceWebTest {
         }
 
         @Test
-        public void test_check_extension_project_enterprise() {
+        public void  test_check_extension_project_enterprise() {
             // Given
             String project = "some-project";
             assertThat(project).isNotEqualTo(SINGLE_PROJECT);
             assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(true);
-            neo4jAppResource.startServerProcess(false);
 
             // When
             try {
