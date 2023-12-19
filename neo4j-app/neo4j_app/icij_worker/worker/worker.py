@@ -137,27 +137,33 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     @final
     @asynccontextmanager
     async def acknowledgment_cm(self, task: Task, project: str):
-        async with self._persist_error(task, project):
+        try:
             self._current = task, project
             self.debug('Task(id="%s") locked', task.id)
-            try:
-                event = TaskEvent(
-                    task_id=task.id, progress=0, status=TaskStatus.RUNNING
-                )
-                await self.publish_event(event, project)
-                yield
-                await self.acknowledge(task, project)
-            except asyncio.CancelledError as e:
-                self.error('Task(id="%s") worker cancelled, exiting', task.id)
-                raise e
-            except RecoverableError:
-                self.error('Task(id="%s") encountered error', task.id)
-                await self.negatively_acknowledge(task, project, requeue=True)
-            except Exception as fatal_error:
-                await self.negatively_acknowledge(task, project, requeue=False)
-                raise fatal_error
-            self._current = None
-            self.info('Task(id="%s") successful !', task.id)
+            event = TaskEvent(task_id=task.id, progress=0, status=TaskStatus.RUNNING)
+            await self.publish_event(event, project)
+            yield
+            await self.acknowledge(task, project)
+        except asyncio.CancelledError as e:
+            self.error(
+                'Task(id="%s") worker cancelled, exiting without persisting error',
+                task.id,
+            )
+            raise e
+        except RecoverableError:
+            self.error('Task(id="%s") encountered error', task.id)
+            await self.negatively_acknowledge(task, project, requeue=True)
+        except Exception as fatal_error:
+            if isinstance(fatal_error, MaxRetriesExceeded):
+                self.error('Task(id="%s") exceeded max retries, exiting !', task.id)
+            else:
+                self.error('Task(id="%s") fatal error, exiting !', task.id)
+            task_error = TaskError.from_exception(fatal_error)
+            await self.save_error(error=task_error, task=task, project=project)
+            await self.negatively_acknowledge(task, project, requeue=False)
+            raise fatal_error
+        self._current = None
+        self.info('Task(id="%s") successful !', task.id)
 
     @final
     async def acknowledge(self, task: Task, project: str):
@@ -251,22 +257,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def _publish_progress(self, progress: float, task: Task, project: str):
         event = TaskEvent(progress=progress, task_id=task.id)
         await self.publish_event(event, project)
-
-    @final
-    @asynccontextmanager
-    async def _persist_error(self, task: Task, project: str):
-        try:
-            yield
-        except asyncio.CancelledError as e:  # pylint: disable=broad-except
-            self.debug("worker cancelled, no need to persist error")
-            raise e
-        except Exception as e:  # pylint: disable=broad-except
-            if isinstance(e, MaxRetriesExceeded):
-                self.error('Task(id="%s") exceeded max retries, exiting !', task.id)
-            else:
-                self.error('Task(id="%s") fatal error, exiting !', task.id)
-            error = TaskError.from_exception(e)
-            await self.save_error(error=error, task=task, project=project)
 
     @final
     def parse_task(
