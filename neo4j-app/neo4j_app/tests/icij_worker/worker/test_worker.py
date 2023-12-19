@@ -19,7 +19,7 @@ from neo4j_app.icij_worker import (
     TaskResult,
     TaskStatus,
 )
-from neo4j_app.icij_worker.exceptions import TaskCancelled
+from neo4j_app.icij_worker.exceptions import TaskCancelled, UnregisteredTask
 from neo4j_app.icij_worker.worker.worker import add_missing_args, task_wrapper
 from neo4j_app.tests.conftest import TEST_PROJECT, async_true_after
 from neo4j_app.tests.icij_worker.conftest import MockManager, MockWorker
@@ -250,7 +250,10 @@ async def test_task_wrapper_should_handle_non_recoverable_error(
 
     # When
     await task_manager.enqueue(task, project)
-    await task_wrapper(worker)
+    try:
+        await task_wrapper(worker)
+    except ValueError:
+        pass
     saved_errors = await task_manager.get_task_errors(
         task_id="some-id", project=project
     )
@@ -312,7 +315,10 @@ async def test_task_wrapper_should_handle_unregistered_task(mock_worker: MockWor
 
     # When
     await task_manager.enqueue(task, project)
-    await task_wrapper(worker)
+    try:
+        await task_wrapper(worker)
+    except UnregisteredTask:
+        pass
     saved_task = await task_manager.get_task(task_id="some-id", project=project)
     saved_errors = await task_manager.get_task_errors(
         task_id="some-id", project=project
