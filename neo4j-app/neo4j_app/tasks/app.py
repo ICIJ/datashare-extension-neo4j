@@ -20,8 +20,8 @@ def loggers_enter(config: AppConfig, worker_id: str):
 
 
 WORKER_LIFESPAN_DEPS = [
-    (config_enter, None),
-    (loggers_enter, None),
-    (neo4j_driver_enter, neo4j_driver_exit),
-    (es_client_enter, es_client_exit),
+    ("configuration loading", config_enter, None),
+    ("loggers setup", loggers_enter, None),
+    ("neo4j driver creation", neo4j_driver_enter, neo4j_driver_exit),
+    ("ES client creation", es_client_enter, es_client_exit),
 ]

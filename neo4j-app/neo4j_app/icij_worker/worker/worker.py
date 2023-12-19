@@ -33,7 +33,6 @@ from neo4j_app.icij_worker.exceptions import (
     TaskAlreadyReserved,
     TaskCancelled,
     UnregisteredTask,
-    WorkerCancelled,
 )
 from neo4j_app.icij_worker.task import (
     Task,
@@ -55,12 +54,18 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             raise ValueError("worker requires a configured app, app config is missing")
         self._app = app
         self._id = worker_id
-        self._already_shutdown = False
         self._graceful_shutdown = True
+        self._loop = asyncio.get_event_loop()
+        self._work_forever_task: Optional[asyncio.Task] = None
+        self._already_exiting = False
         self._config = app.config
         self._cancelled_ = defaultdict(set)
         self.__deps_cm = None
         self._current = None
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        return self._loop
 
     @property
     def _cancelled(self) -> List[str]:
@@ -78,29 +83,35 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     @classmethod
     @final
     def work_forever_from_config(cls, config: AppConfig, worker_id: str, **kwargs):
-        asyncio.run(cls.work_forever_from_config_async(config, worker_id, **kwargs))
-
-    @classmethod
-    @final
-    async def work_forever_from_config_async(
-        cls, config: AppConfig, worker_id: str, **kwargs
-    ):
+        """
+        Convenience function to ease multiprocessing serialization and avoid pickle
+         errors
+        """
         worker = cls.from_config(config, worker_id, **kwargs)
-        await worker.work_forever()
+        worker.work_forever()
 
     @final
-    async def work_forever(self):
-        async with self:
+    def work_forever(self):
+        with self:  # The graceful shutdown happens here
             self.info("started working...")
+            self._work_forever_task = self._loop.create_task(self._work_forever())
             try:
-                while True:
-                    await self.work_once()
-            except WorkerCancelled:
+                self._loop.run_until_complete(self._work_forever_task)
+            except asyncio.CancelledError:  # Shutdown let's not reraise
                 self.info("worker cancelled, shutting down...")
             except Exception as e:
                 self.error("error occurred while consuming: %s", _format_error(e))
                 self.info("will try to shutdown gracefully...")
                 raise e
+        self.info(
+            "finally stopped working, nothing lasts forever, "
+            "i'm out of this busy life !"
+        )
+
+    @final
+    async def _work_forever(self):
+        while True:
+            await self._work_once()
 
     @final
     @functools.cached_property
@@ -116,7 +127,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         return self._graceful_shutdown
 
     @final
-    async def work_once(self):
+    async def _work_once(self):
         await task_wrapper(self)
 
     @final
@@ -136,6 +147,9 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
                 await self.publish_event(event, project)
                 yield
                 await self.acknowledge(task, project)
+            except asyncio.CancelledError as e:
+                self.error('Task(id="%s") worker cancelled, exiting', task.id)
+                raise e
             except RecoverableError:
                 self.error('Task(id="%s") encountered error', task.id)
                 await self.negatively_acknowledge(task, project, requeue=True)
@@ -243,6 +257,9 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def _persist_error(self, task: Task, project: str):
         try:
             yield
+        except asyncio.CancelledError as e:  # pylint: disable=broad-except
+            self.debug("worker cancelled, no need to persist error")
+            raise e
         except Exception as e:  # pylint: disable=broad-except
             if isinstance(e, MaxRetriesExceeded):
                 self.error('Task(id="%s") exceeded max retries, exiting !', task.id)
@@ -322,6 +339,10 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             yield
 
     @final
+    def __enter__(self):
+        self._loop.run_until_complete(self.__aenter__())
+
+    @final
     async def __aenter__(self):
         self.__deps_cm = self._deps_cm()
         await self.__deps_cm.__aenter__()
@@ -331,20 +352,29 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         pass
 
     @final
+    def __exit__(self, exc_type, exc_value, tb):
+        self._loop.run_until_complete(self.__aexit__(exc_type, exc_value, tb))
+
+    @final
     async def __aexit__(self, exc_type, exc_value, tb):
-        await self._aexit__(exc_type, exc_value, tb)
-        await self.shutdown()
+        # dependencies might be closed while trying to gracefully shutdown
+        if not self._already_exiting:
+            self._already_exiting = True
+            # Let's try to shut down gracefully
+            await self.shutdown()
+            # Then call any extra context manager exit which is not a global
+            # dependency
+            await self._aexit__(exc_type, exc_value, tb)
+            # Then close global dependencies
+            self.info("closing dependencies...")
+            await self.__deps_cm.__aexit__(None, None, None)
 
     async def _aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
     @final
     async def _shutdown_gracefully(self):
-        self.info("cancelling running task...")
         await self._negatively_acknowledge_running_task(requeue=True)
-        self.info("closing dependencies...")
-        await self.__deps_cm.__aexit__(None, None, None)
-        self.info("work shut down complete !")
 
     async def _negatively_acknowledge_running_task(self, requeue: bool):
         if self._current:
@@ -358,8 +388,8 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             await self._shutdown_gracefully()
             self.info("graceful shut down complete")
         else:
-            self.info("shutting down the hard way...")
-        self._already_shutdown = True
+            self.info("shutting down the hard way, task might not be re-queued...")
+        self.info("worker shut down complete !")
 
 
 def _retrieve_registered_task(

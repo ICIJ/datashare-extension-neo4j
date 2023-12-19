@@ -383,6 +383,8 @@ class ESClientABC(metaclass=abc.ABCMeta):
             res_it = run_with_concurrency(count_tasks, max_concurrency=max_concurrency)
             ne_counts = [c[COUNT] async for c in res_it]
             ne_counts = sum(ne_counts)
+            if not ne_counts:
+                return 0
             raw_progress = to_raw_progress(progress, max_progress=ne_counts)
         gens = [
             self._fill_import_buffer(

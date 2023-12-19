@@ -11,7 +11,7 @@ exclude = ["neo4j_app/tests"]
 
 [tool.black]
 line-length = 88
-target = "py38"
+target = "py39"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -21,12 +21,13 @@ python = "^3.9"
 fastapi = "^0.99.1"
 pyyaml = ">=5.4.0" # For security
 uvicorn = { version = "^0.23.2", extras = ["standard"] }
-elasticsearch = { version = "<7.14", extras = ["async"] }
+elasticsearch = {version = "<7.14", extras = ["async"]}
 neo4j = "^5.5.0"
 setuptools = "^67.6.1"
 datrie = "^0.8.2"
 tenacity = "^8.2.3"
 aiostream = "^0.5.1"
+gunicorn = "^21.2.0"
 python-json-logger = "^2.0.7"
 
 [tool.poetry.group.dev.dependencies]

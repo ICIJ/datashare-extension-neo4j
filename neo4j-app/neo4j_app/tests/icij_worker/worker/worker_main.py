@@ -39,11 +39,12 @@ async def main():
                 #  case of multiple workers
                 MockWorker.fresh_db(db_path)
                 lock = m.Lock()
-                await MockWorker.work_forever_from_config_async(
+                worker = MockWorker.from_config(
                     config, worker_id, db_path=db_path, lock=lock
                 )
             else:
-                await Neo4jAsyncWorker.work_forever_from_config_async(config, worker_id)
+                worker = Neo4jAsyncWorker.from_config(config, worker_id)
+            await worker.work_forever()
 
 
 if __name__ == "__main__":
