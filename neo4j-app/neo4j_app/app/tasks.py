@@ -31,14 +31,14 @@ def tasks_router() -> APIRouter:
 
     @router.post("/tasks", response_model=Task)
     async def _create_task(project: str, job: TaskJob) -> Response:
-        task_task_manager = lifespan_task_manager()
+        task_manager = lifespan_task_manager()
         event_publisher = lifespan_event_publisher()
         task_id = job.task_id
         if task_id is None:
             task_id = job.generate_task_id()
         task = job.to_task(task_id=task_id)
         try:
-            await task_task_manager.enqueue(task, project)
+            await task_manager.enqueue(task, project)
         except TaskAlreadyExists:
             return Response(task.id, status_code=200)
         except TaskQueueIsFull as e:
@@ -55,9 +55,9 @@ def tasks_router() -> APIRouter:
 
     @router.post("/tasks/{task_id}/cancel", response_model=Task)
     async def _cancel_task(project: str, task_id: str) -> Task:
-        task_task_manager = lifespan_task_manager()
+        task_manager = lifespan_task_manager()
         try:
-            cancelled = await task_task_manager.cancel(task_id=task_id, project=project)
+            cancelled = await task_manager.cancel(task_id=task_id, project=project)
         except UnknownTask as e:
             raise HTTPException(status_code=404, detail=e.args[0]) from e
         return cancelled
