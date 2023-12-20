@@ -1,4 +1,6 @@
 import io
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Optional
 
 import neo4j
 import pytest
@@ -131,3 +133,132 @@ RETURN doc, count(*) as numDocs"""
             assert isinstance(doc_property, DateTime)
         else:
             assert doc_property == v
+
+
+_datetime_0 = datetime.utcnow().replace(microsecond=0)
+_datetime_1 = _datetime_0 + timedelta(0, 1)
+_datetime_2 = _datetime_1 + timedelta(0, 1)
+_datetime_3 = _datetime_2 + timedelta(0, 1)
+_datetime_4 = _datetime_3 + timedelta(0, 1)
+
+
+def _tika_iso(dt: datetime) -> str:
+    return dt.replace(microsecond=0).isoformat() + "Z"
+
+
+@pytest.mark.parametrize(
+    "metadata,expected_created_at",
+    [
+        (None, None),
+        (dict(), None),
+        (
+            {
+                "tika_metadata_date_iso8601": _tika_iso(_datetime_0),
+            },
+            _datetime_0.replace(tzinfo=timezone.utc),
+        ),
+        (
+            {
+                "tika_metadata_creation_date_iso8601": _tika_iso(_datetime_0),
+                "tika_metadata_date_iso8601": _tika_iso(_datetime_1),
+            },
+            _datetime_0.replace(tzinfo=timezone.utc),
+        ),
+        (
+            {
+                "tika_metadata_dcterms_created_iso8601": _tika_iso(_datetime_0),
+                "tika_metadata_creation_date_iso8601": _tika_iso(_datetime_1),
+                "tika_metadata_date_iso8601": _tika_iso(_datetime_2),
+            },
+            _datetime_0.replace(tzinfo=timezone.utc),
+        ),
+    ],
+)
+async def test_import_documents_should_add_created_at(
+    neo4j_test_session: neo4j.AsyncSession,
+    metadata: Optional[Dict],
+    expected_created_at: Optional[datetime],
+):
+    # Given
+    transaction_batch_size = 10
+    docs = list(make_docs(n=1))
+    if metadata is not None:
+        for d in docs:
+            d["_source"].update({"metadata": metadata})
+
+    # When
+    records = [row for doc in docs for row in es_to_neo4j_doc_row(doc)]
+    await import_document_rows(
+        neo4j_session=neo4j_test_session,
+        records=records,
+        transaction_batch_size=transaction_batch_size,
+    )
+
+    # Then
+    query = "MATCH (doc:Document) RETURN doc"
+    res = await neo4j_test_session.run(query)
+    doc = await res.single(strict=True)
+    doc = doc["doc"]
+    created_at = doc.get("createdAt")
+    if created_at is not None:
+        created_at = created_at.to_native()
+    assert created_at == expected_created_at
+
+
+@pytest.mark.parametrize(
+    "metadata,expected_modified_at",
+    [
+        (None, None),
+        (dict(), None),
+        (
+            {
+                "tika_metadata_date_iso8601": _tika_iso(_datetime_0),
+            },
+            _datetime_0.replace(tzinfo=timezone.utc),
+        ),
+        (
+            {
+                "tika_metadata_modified_iso8601": _tika_iso(_datetime_0),
+                "tika_metadata_date_iso8601": _tika_iso(_datetime_1),
+            },
+            _datetime_0.replace(tzinfo=timezone.utc),
+        ),
+        (
+            {
+                "tika_metadata_dcterms_modified_iso8601": _tika_iso(_datetime_0),
+                "tika_metadata_modified_iso8601": _tika_iso(_datetime_1),
+                "tika_metadata_date_iso8601": _tika_iso(_datetime_2),
+            },
+            _datetime_0.replace(tzinfo=timezone.utc),
+        ),
+    ],
+)
+async def test_import_documents_should_add_modified_at(
+    neo4j_test_session: neo4j.AsyncSession,
+    metadata: Optional[Dict],
+    expected_modified_at: Optional[datetime],
+):
+    # Given
+    transaction_batch_size = 10
+    docs = list(make_docs(n=1))
+    if metadata is not None:
+        for d in docs:
+            d["_source"].update({"metadata": metadata})
+
+    # When
+    records = [row for doc in docs for row in es_to_neo4j_doc_row(doc)]
+    await import_document_rows(
+        neo4j_session=neo4j_test_session,
+        records=records,
+        transaction_batch_size=transaction_batch_size,
+    )
+
+    # Then
+    query = "MATCH (doc:Document) RETURN doc"
+    res = await neo4j_test_session.run(query)
+    doc = await res.single(strict=True)
+    doc = doc["doc"]
+    modified_at = doc.get("modifiedAt")
+    if modified_at is not None:
+        modified_at = modified_at.to_native()
+    assert modified_at == expected_modified_at

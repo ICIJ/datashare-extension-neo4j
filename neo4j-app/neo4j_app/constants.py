@@ -6,10 +6,13 @@ NEO4J_CSV_COL = "node_col"
 DOC_NODE = "Document"
 DOC_CONTENT_LENGTH = "contentLength"
 DOC_CONTENT_TYPE = "contentType"
+DOC_CREATED_AT = "createdAt"
 DOC_DIRNAME = "dirname"
 DOC_ID = "id"
 DOC_ID_CSV = f"ID({DOC_NODE})"
 DOC_EXTRACTION_DATE = "extractionDate"
+DOC_METADATA = "metadata"
+DOC_MODIFIED_AT = "modifiedAt"
 DOC_PATH = "path"
 DOC_URL_SUFFIX = "urlSuffix"
 DOC_ROOT_ID = "rootDocument"
@@ -20,11 +23,29 @@ DOC_COLUMNS = {
     DOC_CONTENT_TYPE: {},
     DOC_CONTENT_LENGTH: {NEO4J_CSV_COL: "LONG"},
     DOC_EXTRACTION_DATE: {NEO4J_CSV_COL: "DATETIME"},
+    DOC_METADATA: {},
     DOC_PATH: {},
     DOC_URL_SUFFIX: {},
 }
 
 DOC_ES_SOURCES = list(DOC_COLUMNS) + ["join", DOC_ROOT_ID]
+
+# Order matters here, we're taking the cdterms create in priority to be consistent
+# with datashare-api which sets the creationDate as from tika_metadata_dcterms_created
+# we fall back to other metadata if this one is missing
+DOC_CREATED_AT_META = [
+    "tika_metadata_dcterms_created_iso8601",
+    "tika_metadata_creation_date_iso8601",
+    "tika_metadata_date_iso8601",
+]
+DOC_MODIFIED_AT_META = [
+    "tika_metadata_dcterms_modified_iso8601",
+    "tika_metadata_last_modified_iso8601",
+    "tika_metadata_modified_iso8601",
+    "tika_metadata_last_save_date_iso8601",
+    "tika_metadata_pdf_docinfo_modified_iso8601",
+    "tika_metadata_date_iso8601",
+]
 
 PROJECT_RUNS_MIGRATION = "_RUNS"
 PROJECT_NAME = "name"
