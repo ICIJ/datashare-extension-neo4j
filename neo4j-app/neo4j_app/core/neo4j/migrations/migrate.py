@@ -7,7 +7,8 @@ from collections.abc import Coroutine
 from datetime import datetime
 from distutils.version import StrictVersion
 from enum import Enum, unique
-from typing import Any, Callable, List, Optional, Sequence
+from inspect import signature
+from typing import Any, Callable, List, Optional, Sequence, Union
 
 import neo4j
 from neo4j.exceptions import ConstraintError
@@ -32,7 +33,9 @@ from neo4j_app.core.utils.pydantic import NoEnumModel
 
 logger = logging.getLogger(__name__)
 
-MigrationFn = Callable[[neo4j.AsyncTransaction], Coroutine]
+TransactionFn = Callable[[neo4j.AsyncTransaction], Coroutine]
+ExplicitTransactionFn = Callable[[neo4j.Session], Coroutine]
+MigrationFn = Union[TransactionFn, ExplicitTransactionFn]
 
 _MIGRATION_TIMEOUT_MSG = """Migration timeout expired !
 Please check that a migration is indeed in progress. If the application is in a \
@@ -118,7 +121,14 @@ async def _migrate_with_lock(
     )
     # Then run to migration
     logger.debug("Acquired write lock for %s !", migration.label)
-    await project_session.execute_write(migration.migration_fn)
+    sig = signature(migration.migration_fn)
+    first_param = list(sig.parameters)[0]
+    if first_param == "tx":
+        await project_session.execute_write(migration.migration_fn)
+    elif first_param == "sess":
+        await migration.migration_fn(project_session)
+    else:
+        raise ValueError(f"Invalid migration function: {migration.migration_fn}")
     # Finally free the lock
     await registry_session.execute_write(
         complete_migration_tx,
