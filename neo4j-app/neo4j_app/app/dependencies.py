@@ -154,10 +154,7 @@ def _lifespan_test_lock() -> multiprocessing.Lock:
 
 def process_executor_enter(**_):
     # pylint: disable=consider-using-with
-    config = lifespan_config()
     global _PROCESS_EXECUTOR
-    _PROCESS_EXECUTOR = multiprocessing.Pool(processes=config.neo4j_app_n_async_workers)
-    _PROCESS_EXECUTOR.__enter__()  # pylint: disable=unnecessary-dunder-call
     process_id = os.getpid()
     config = lifespan_config()
     n_workers = min(config.neo4j_app_n_async_workers, config.neo4j_app_task_queue_size)
@@ -165,7 +162,6 @@ def process_executor_enter(**_):
     # TODO: let the process choose they ID and set it with the worker process ID,
     #  this will help debugging
     worker_ids = [f"worker-{process_id}-{i}" for i in range(n_workers)]
-
     _PROCESS_EXECUTOR = concurrent.futures.ProcessPoolExecutor(  # pylint: disable=unnecessary-dunder-call
         max_workers=n_workers,
         mp_context=multiprocessing.get_context("spawn"),
