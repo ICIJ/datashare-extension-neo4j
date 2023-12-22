@@ -176,8 +176,8 @@ def test_create_task_should_return_429_when_too_many_tasks(
 
     # Then
     assert res_0.status_code == 201, res_0.json()
-    # This one is queued or rejected depending on if the first one is processed or still
-    # in the queue
+    # This one is queued or rejected depending on whether the first one is processed or
+    # still in the queue
     assert res_1.status_code in [201, 429], res_1.json()
     assert res_2.status_code == 429, res_1.json()
 
