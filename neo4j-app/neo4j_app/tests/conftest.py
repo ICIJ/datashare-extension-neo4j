@@ -354,15 +354,17 @@ async def neo4j_test_session(
 def make_docs(n: int, add_dates: bool = False) -> Generator[Dict, None, None]:
     random.seed(a=777)
     for i in random.sample(list(range(n)), k=n):
+        root = f"doc-{i - 1}" if i else None
         doc = {
             "_index": TEST_PROJECT,
             "_id": f"doc-{i}",
             "_source": {
-                "rootDocument": f"doc-{i - 1}" if i else None,
+                "rootDocument": root,
                 "dirname": f"dirname-{i}",
                 "contentType": f"content-type-{i}",
                 "contentLength": i**2,
                 "extractionDate": "2023-02-06T13:48:22.3866",
+                "extractionLevel": int(bool(root)),
                 "path": f"dirname-{i}",
                 "type": "Document",
                 "join": {"name": "Document"},

@@ -1,16 +1,21 @@
 import hashlib
 from typing import Any, Dict, List, Optional, TextIO
+from urllib.parse import unquote_plus
 
 from neo4j_app.constants import (
     DOC_COLUMNS,
+    DOC_CONTENT_TYPE,
     DOC_CREATED_AT,
     DOC_CREATED_AT_META,
+    DOC_EXTRACTION_LEVEL,
     DOC_ID,
     DOC_METADATA,
     DOC_MODIFIED_AT,
     DOC_MODIFIED_AT_META,
     DOC_NODE,
+    DOC_PATH,
     DOC_ROOT_ID,
+    DOC_TITLE,
     DOC_URL_SUFFIX,
     EMAIL_HEADER,
     EMAIL_RECEIVED_TYPE,
@@ -39,7 +44,7 @@ from neo4j_app.constants import (
     RECEIVED_EMAIL_HEADERS,
     SENT_EMAIL_HEADERS,
 )
-from neo4j_app.core.elasticsearch.utils import INDEX_, JOIN, PARENT, SOURCE
+from neo4j_app.core.elasticsearch.utils import ID_, INDEX_, JOIN, PARENT, SOURCE
 from neo4j_app.core.neo4j import write_neo4j_csv
 
 _DS_DOC_URL = "ds/"
@@ -57,7 +62,89 @@ def es_to_neo4j_doc_row(document_hit: Dict) -> List[Dict[str, Any]]:
         f"{_DS_DOC_URL}{document_hit[INDEX_]}/{doc_id}/{doc.get(DOC_ROOT_ID, doc_id)}"
     )
     doc[DOC_URL_SUFFIX] = doc_url
+    doc_title = _parse_doc_title(document_hit)
+    doc[DOC_TITLE] = doc_title
     return [doc]
+
+
+def _is_email(doc_hit: Dict) -> bool:
+    content_type = doc_hit[SOURCE].get(DOC_CONTENT_TYPE, "")
+    return (
+        content_type.startswith("message/")
+        or content_type == "application/vnd.ms-outlook"
+    )
+
+
+def _email_titles(doc_hit: Dict) -> List[str]:
+    metadata = doc_hit[SOURCE].get(DOC_METADATA, {})
+    titles = [metadata.get("tika_metadata_dc_title", "").strip()]
+    subject = metadata.get(
+        "tika_metadata_subject", metadata.get("tika_metadata_dc_subject", "")
+    )
+    titles.append(subject.strip())
+    return titles
+
+
+def _is_tweet(doc_hit: Dict) -> bool:
+    content_type = doc_hit[SOURCE].get(DOC_CONTENT_TYPE, "")
+    return content_type == "application/json; twint"
+
+
+def _tweet_title(doc_hit: Dict) -> str:
+    metadata = doc_hit[SOURCE].get(DOC_METADATA, dict())
+    return metadata.get("tika_metadata_dc_title", "").strip()
+
+
+def _short_doc_id(doc_hit: Dict) -> str:
+    return doc_hit[ID_][:10]
+
+
+def _doc_base_name(doc_hit: Dict) -> str:
+    path = doc_hit[SOURCE].get(DOC_PATH, "")
+    return path.split("/")[-1]
+
+
+def _doc_resource_name(doc_hit: Dict) -> str:
+    source = doc_hit[SOURCE]
+    extraction_level = source.get(DOC_EXTRACTION_LEVEL, 0)
+    if not extraction_level:
+        return ""
+    resource_name = (
+        source.get(DOC_METADATA, dict()).get("tika_metadata_resourcename", "").strip()
+    )
+    if resource_name.startswith("=?") and resource_name.endswith("?="):
+        resource_name = resource_name.split("?")[-2]
+        resource_name = unquote_plus(resource_name.replace("=", "%"))
+    return resource_name
+
+
+def _doc_title(doc_hit: Dict) -> str:
+    return doc_hit[SOURCE].get(DOC_TITLE, "").strip()
+
+
+def _default_title(doc_hit: Dict) -> str:
+    titles = [
+        _short_doc_id(doc_hit),
+        _doc_base_name(doc_hit),
+        _doc_resource_name(doc_hit),
+        _doc_title(doc_hit),
+    ]
+    for t in titles[::-1]:
+        if t:
+            return t
+    raise ValueError("couldn't find any valid default title")
+
+
+def _parse_doc_title(doc_hit: Dict) -> str:
+    titles = [_default_title(doc_hit)]
+    if _is_email(doc_hit):
+        titles.extend(_email_titles(doc_hit))
+    elif _is_tweet(doc_hit):
+        titles.append(_tweet_title(doc_hit))
+    for t in titles[::-1]:
+        if t:
+            return t
+    raise ValueError("couldn't find any valid title")
 
 
 def _coalesce(item: Dict[str, Any], columns: List[str]) -> Optional[Any]:

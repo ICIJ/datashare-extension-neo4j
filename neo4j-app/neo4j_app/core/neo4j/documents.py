@@ -10,13 +10,16 @@ from neo4j_app.constants import (
     DOC_CREATED_AT_META,
     DOC_DIRNAME,
     DOC_EXTRACTION_DATE,
+    DOC_EXTRACTION_LEVEL,
     DOC_ID,
+    DOC_METADATA,
     DOC_MODIFIED_AT,
     DOC_MODIFIED_AT_META,
     DOC_NODE,
     DOC_PATH,
     DOC_ROOT_ID,
     DOC_ROOT_TYPE,
+    DOC_TITLE,
     DOC_URL_SUFFIX,
 )
 from neo4j_app.typing_ import LightCounters
@@ -24,13 +27,16 @@ from neo4j_app.typing_ import LightCounters
 logger = logging.getLogger(__name__)
 
 
-_DOC_CREATED_AT_META = ["metadata." + c for c in DOC_CREATED_AT_META]
-_DOC_MODIFIED_AT_META = ["metadata." + c for c in DOC_MODIFIED_AT_META]
+def _access_attributes(*, variable: str, attributes: List[str]) -> List[str]:
+    return [f"{variable}.{a}" for a in attributes]
 
 
-def _coalesce(*, variable: str, attributes: List[str]) -> str:
-    values = ", ".join(f"{variable}.{a}" for a in attributes)
-    return f"coalesce({values})"
+def _coalesce(values: List[str]) -> str:
+    return f"coalesce({', '.join(values)})"
+
+
+_DOC_CREATED_AT_META = [f"{DOC_METADATA}." + c for c in DOC_CREATED_AT_META]
+_DOC_MODIFIED_AT_META = [f"{DOC_METADATA}." + c for c in DOC_MODIFIED_AT_META]
 
 
 async def import_document_rows(
@@ -48,13 +54,15 @@ CALL {{
         doc.{DOC_CONTENT_TYPE} = row.{DOC_CONTENT_TYPE},
         doc.{DOC_CONTENT_LENGTH} = toInteger(row.{DOC_CONTENT_LENGTH}),
         doc.{DOC_EXTRACTION_DATE} = datetime(row.{DOC_EXTRACTION_DATE}),
+        doc.{DOC_EXTRACTION_LEVEL} = toInteger(row.{DOC_EXTRACTION_LEVEL}),
         doc.{DOC_DIRNAME} = row.{DOC_DIRNAME},
         doc.{DOC_PATH} = row.{DOC_PATH},
         doc.{DOC_URL_SUFFIX} = row.{DOC_URL_SUFFIX},
         doc.{DOC_CREATED_AT} = datetime({
-    _coalesce(variable="row", attributes=_DOC_CREATED_AT_META)}), 
+    _coalesce(_access_attributes(variable="row", attributes=_DOC_CREATED_AT_META))}), 
         doc.{DOC_MODIFIED_AT} = datetime({
-    _coalesce(variable="row", attributes=_DOC_MODIFIED_AT_META)}) 
+    _coalesce(_access_attributes(variable="row", attributes=_DOC_MODIFIED_AT_META))}),
+        doc.{DOC_TITLE} = row.{DOC_TITLE}
     WITH doc, row
     WHERE doc.{DOC_ID} = row.{DOC_ID} and row.{DOC_ROOT_ID} IS NOT NULL
     MERGE (root:{DOC_NODE} {{{DOC_ID}: row.{DOC_ROOT_ID}}})
