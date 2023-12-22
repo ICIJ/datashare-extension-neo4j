@@ -11,20 +11,24 @@ DOC_DIRNAME = "dirname"
 DOC_ID = "id"
 DOC_ID_CSV = f"ID({DOC_NODE})"
 DOC_EXTRACTION_DATE = "extractionDate"
+DOC_EXTRACTION_LEVEL = "extractionLevel"
 DOC_METADATA = "metadata"
 DOC_MODIFIED_AT = "modifiedAt"
 DOC_PATH = "path"
 DOC_URL_SUFFIX = "urlSuffix"
 DOC_ROOT_ID = "rootDocument"
 DOC_ROOT_TYPE = "HAS_PARENT"
+DOC_TITLE = "title"
 DOC_COLUMNS = {
     DOC_ID: {NEO4J_CSV_COL: DOC_ID_CSV},
     DOC_DIRNAME: {},
     DOC_CONTENT_TYPE: {},
     DOC_CONTENT_LENGTH: {NEO4J_CSV_COL: "LONG"},
     DOC_EXTRACTION_DATE: {NEO4J_CSV_COL: "DATETIME"},
+    DOC_EXTRACTION_LEVEL: {NEO4J_CSV_COL: "LONG"},
     DOC_METADATA: {},
     DOC_PATH: {},
+    DOC_TITLE: {},
     DOC_URL_SUFFIX: {},
 }
 
@@ -67,7 +71,6 @@ EMAIL_REL_HEADER_FIELDS = "fields"
 EMAIL_REL_COLS = {
     EMAIL_REL_HEADER_FIELDS: {NEO4J_CSV_COL: "STRING[]"},
 }
-
 
 # TODO: check that this list is exhaustive, we know it isn't !!!
 SENT_EMAIL_HEADERS = {"tika_metadata_message_from", "tika_metadata_dc_creator"}

@@ -28,6 +28,8 @@ async def test_write_neo4j_csv():
         "contentType",
         "contentLength",
         "extractionDate",
+        "extractionLevel",
+        "title",
         "urlSuffix",
         "path",
     ]
@@ -39,12 +41,12 @@ async def test_write_neo4j_csv():
 
     # Then
     expected_csv = """id,rootDocument,dirname,contentType,contentLength,\
-extractionDate,urlSuffix,path
-doc-0,,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,\
+extractionDate,extractionLevel,title,urlSuffix,path
+doc-0,,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,0,dirname-0,\
 ds/test_project/doc-0/doc-0,dirname-0
-doc-1,doc-0,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,\
+doc-1,doc-0,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,1,dirname-1,\
 ds/test_project/doc-1/doc-0,dirname-1
-doc-2,doc-1,dirname-2,content-type-2,4,2023-02-06T13:48:22.3866,\
+doc-2,doc-1,dirname-2,content-type-2,4,2023-02-06T13:48:22.3866,1,dirname-2,\
 ds/test_project/doc-2/doc-1,dirname-2
 """
     assert csv == expected_csv
@@ -118,7 +120,7 @@ RETURN doc, count(*) as numDocs"""
     assert count == 1
     doc = dict(doc["doc"])
     expected_doc = docs[0]
-    assert len(doc) == 7
+    assert len(doc) == 9
     assert doc["id"] == expected_doc["_id"]
     ignored = {"type", "join"}
     # TODO: test the document directly
@@ -262,3 +264,32 @@ async def test_import_documents_should_add_modified_at(
     if modified_at is not None:
         modified_at = modified_at.to_native()
     assert modified_at == expected_modified_at
+
+
+async def test_import_documents_should_add_title(
+    neo4j_test_session: neo4j.AsyncSession,
+):
+    # Given
+    transaction_batch_size = 10
+    source = {"path": "/some/path"}
+    docs = list(make_docs(n=1))
+    for i, d in enumerate(docs):
+        d["_id"] = f"document-id-{i}"
+        d["_source"].pop("path")
+        d["_source"].update(source)
+
+    # When
+    records = [row for doc in docs for row in es_to_neo4j_doc_row(doc)]
+    await import_document_rows(
+        neo4j_session=neo4j_test_session,
+        records=records,
+        transaction_batch_size=transaction_batch_size,
+    )
+
+    # Then
+    query = "MATCH (doc:Document) RETURN doc"
+    res = await neo4j_test_session.run(query)
+    doc = await res.single(strict=True)
+    doc = doc["doc"]
+    title = doc.get("title")
+    assert title == "path"
