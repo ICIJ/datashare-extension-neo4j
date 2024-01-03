@@ -85,7 +85,9 @@ async def test_import_named_entities_should_update_named_entity(
     transaction_batch_size = 3
     ents = list(make_named_entities(n=num_ents))
     query = """
-CREATE (n:NamedEntity {id: 'named-entity-0', offsets: [1, 2], documentId: 'doc-0'})
+CREATE (n:NamedEntity { 
+    id: 'named-entity-0', mentionIds: ['id-0', 'id-1'], documentId: 'doc-0'
+})
 """
     await neo4j_test_session.run(query)
 
@@ -104,7 +106,11 @@ RETURN ent as ent"""
     res = await neo4j_test_session.run(query)
     ent = await res.single()
     ent = dict(ent["ent"])
-    expected_ent = {"id": "named-entity-0", "offsets": [1, 2], "documentId": "doc-0"}
+    expected_ent = {
+        "id": "named-entity-0",
+        "mentionIds": ["id-0", "id-1"],
+        "documentId": "doc-0",
+    }
     assert ent == expected_ent
 
 

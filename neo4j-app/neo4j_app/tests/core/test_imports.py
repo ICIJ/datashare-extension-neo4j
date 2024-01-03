@@ -352,7 +352,7 @@ async def test_should_aggregate_named_entities_attributes_on_relationship(
             "offsets": [0, 1, 2],
             "mentionExtractors": ["core-nlp", "spacy"],
             "mentionIds": ["named-entity-1", "named-entity-2"],
-            "mentionCount": 3,
+            "mentionCount": 2,
             "extractorLanguage": "en",
         },
     ]

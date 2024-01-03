@@ -49,18 +49,28 @@ async def _create_indexes_tx(tx: neo4j.AsyncTransaction):
     await tx.run(index_query_1)
 
 
+async def _create_indexes(sess: neo4j.AsyncSession):
+    index_query_0 = "CREATE INDEX index0 IF NOT EXISTS FOR (n:Node) ON (n.attribute0)"
+    await sess.run(index_query_0)
+    index_query_1 = "CREATE INDEX index1 IF NOT EXISTS FOR (n:Node) ON (n.attribute1)"
+    await sess.run(index_query_1)
+
+
 async def _drop_constraint_tx(tx: neo4j.AsyncTransaction):
     drop_index_query = "DROP INDEX index0 IF EXISTS"
     await tx.run(drop_index_query)
 
 
-# noinspection PyTypeChecker
 _MIGRATION_0 = Migration(
     version="0.2.0",
     label="create index and constraint",
     migration_fn=_create_indexes_tx,
 )
-# noinspection PyTypeChecker
+_MIGRATION_0_EXPLICIT = Migration(
+    version="0.2.0",
+    label="create index and constraint",
+    migration_fn=_create_indexes,
+)
 _MIGRATION_1 = Migration(
     version="0.3.0",
     label="drop constraint",
@@ -75,6 +85,8 @@ _MIGRATION_1 = Migration(
         ([], set(), set()),
         # Single
         ([_MIGRATION_0], {"index0", "index1"}, set()),
+        # Single as explicit_transaction
+        ([_MIGRATION_0_EXPLICIT], {"index0", "index1"}, set()),
         # Multiple ordered
         ([_MIGRATION_0, _MIGRATION_1], {"index1"}, {"index0"}),
         # Multiple unordered

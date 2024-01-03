@@ -6,7 +6,7 @@ from neo4j_app.core.neo4j.migrations.migrations import (
     migration_v_0_3_0_tx,
     migration_v_0_4_0_tx,
     migration_v_0_5_0_tx,
-    migration_v_0_6_0_tx,
+    migration_v_0_6_0,
     migration_v_0_7_0_tx,
 )
 
@@ -105,11 +105,11 @@ async def test_migration_v_0_5_0_tx(neo4j_test_session: neo4j.AsyncSession):
 
 async def test_migration_v_0_6_0_tx(neo4j_test_session: neo4j.AsyncSession):
     # Given
-    create_path = """CREATE (:NamedEntity)-[:APPEARS_IN {offsets: [0, 1]}
+    create_path = """CREATE (:NamedEntity)-[:APPEARS_IN {mentionIds: ['id-0', 'id-1']}
 ]->(:Document)"""
     await neo4j_test_session.run(create_path)
     # When
-    await neo4j_test_session.execute_write(migration_v_0_6_0_tx)
+    await migration_v_0_6_0(neo4j_test_session)
     # Then
     match_path = "MATCH  (:NamedEntity)-[rel:APPEARS_IN]->(:Document) RETURN rel"
     res = await neo4j_test_session.run(match_path)

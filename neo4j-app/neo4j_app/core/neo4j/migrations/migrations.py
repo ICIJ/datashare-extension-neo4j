@@ -14,10 +14,10 @@ from neo4j_app.constants import (
     MIGRATION_VERSION,
     NE_APPEARS_IN_DOC,
     NE_ID,
+    NE_IDS,
     NE_MENTION_COUNT,
     NE_MENTION_NORM,
     NE_NODE,
-    NE_OFFSETS,
     PROJECT_NAME,
     PROJECT_NODE,
     TASK_CREATED_AT,
@@ -55,8 +55,13 @@ async def migration_v_0_5_0_tx(tx: neo4j.AsyncTransaction):
     await _create_email_user_and_domain_indexes(tx)
 
 
-async def migration_v_0_6_0_tx(tx: neo4j.AsyncTransaction):
-    await _add_mention_count_to_named_entity_relationship(tx)
+async def migration_v_0_6_0(sess: neo4j.AsyncSession):
+    query = f"""MATCH (:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->(:{DOC_NODE})
+    CALL {{
+        WITH rel
+        SET rel.{NE_MENTION_COUNT} = size(rel.{NE_IDS})
+    }} IN TRANSACTIONS OF 10000 ROWS"""
+    await sess.run(query)
 
 
 async def migration_v_0_7_0_tx(tx: neo4j.AsyncTransaction):
@@ -168,7 +173,10 @@ ON (ne.{EMAIL_DOMAIN})"""
 
 async def _add_mention_count_to_named_entity_relationship(tx: neo4j.AsyncTransaction):
     query = f"""MATCH (:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->(:{DOC_NODE})
-SET rel.{NE_MENTION_COUNT} = size(rel.{NE_OFFSETS})"""
+CALL {{
+    WITH rel
+    SET rel.{NE_MENTION_COUNT} = size(rel.{NE_IDS})
+}} IN TRANSACTIONS OF 10000 ROWS"""
     await tx.run(query)
 
 
