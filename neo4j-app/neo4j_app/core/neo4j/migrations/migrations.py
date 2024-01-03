@@ -2,7 +2,9 @@ import neo4j
 
 from neo4j_app.constants import (
     DOC_CONTENT_TYPE,
+    DOC_CREATED_AT,
     DOC_ID,
+    DOC_MODIFIED_AT,
     DOC_NODE,
     DOC_PATH,
     EMAIL_DOMAIN,
@@ -55,6 +57,10 @@ async def migration_v_0_5_0_tx(tx: neo4j.AsyncTransaction):
 
 async def migration_v_0_6_0_tx(tx: neo4j.AsyncTransaction):
     await _add_mention_count_to_named_entity_relationship(tx)
+
+
+async def migration_v_0_7_0_tx(tx: neo4j.AsyncTransaction):
+    await _create_document_created_and_modified_at_indexes(tx)
 
 
 async def _create_document_and_ne_id_unique_constraint_tx(tx: neo4j.AsyncTransaction):
@@ -164,3 +170,14 @@ async def _add_mention_count_to_named_entity_relationship(tx: neo4j.AsyncTransac
     query = f"""MATCH (:{NE_NODE})-[rel:{NE_APPEARS_IN_DOC}]->(:{DOC_NODE})
 SET rel.{NE_MENTION_COUNT} = size(rel.{NE_OFFSETS})"""
     await tx.run(query)
+
+
+async def _create_document_created_and_modified_at_indexes(tx: neo4j.AsyncTransaction):
+    created_at_index = f"""CREATE INDEX index_document_created_at IF NOT EXISTS
+FOR (doc:{DOC_NODE})
+ON (doc.{DOC_CREATED_AT})"""
+    await tx.run(created_at_index)
+    modified_at_index = f"""CREATE INDEX index_document_modified_at IF NOT EXISTS
+FOR (doc:{DOC_NODE})
+ON (doc.{DOC_MODIFIED_AT})"""
+    await tx.run(modified_at_index)

@@ -1,9 +1,14 @@
 import hashlib
-from typing import Dict, List, Optional, TextIO
+from typing import Any, Dict, List, Optional, TextIO
 
 from neo4j_app.constants import (
     DOC_COLUMNS,
+    DOC_CREATED_AT,
+    DOC_CREATED_AT_META,
     DOC_ID,
+    DOC_METADATA,
+    DOC_MODIFIED_AT,
+    DOC_MODIFIED_AT_META,
     DOC_NODE,
     DOC_ROOT_ID,
     DOC_URL_SUFFIX,
@@ -40,7 +45,7 @@ from neo4j_app.core.neo4j import write_neo4j_csv
 _DS_DOC_URL = "ds/"
 
 
-def es_to_neo4j_doc_row(document_hit: Dict) -> List[Dict[str, str]]:
+def es_to_neo4j_doc_row(document_hit: Dict) -> List[Dict[str, Any]]:
     doc_id = document_hit["_id"]
     doc = {DOC_ID: doc_id}
     hit_source = document_hit[SOURCE]
@@ -55,11 +60,23 @@ def es_to_neo4j_doc_row(document_hit: Dict) -> List[Dict[str, str]]:
     return [doc]
 
 
+def _coalesce(item: Dict[str, Any], columns: List[str]) -> Optional[Any]:
+    for c in columns:
+        value = item.get(c)
+        if value is not None:
+            return value
+    return None
+
+
 def es_to_neo4j_doc_csv(
     document_hit: Dict, *, prop_to_col_header: Dict[str, str]
 ) -> List[Dict[str, str]]:
     doc = es_to_neo4j_doc_row(document_hit)[0]
     doc.pop(DOC_ROOT_ID, None)
+    metadata = doc.pop(DOC_METADATA, None)
+    if metadata is not None:
+        doc[DOC_CREATED_AT] = _coalesce(metadata, DOC_CREATED_AT_META)
+        doc[DOC_MODIFIED_AT] = _coalesce(metadata, DOC_MODIFIED_AT_META)
     doc = {prop_to_col_header[prop]: value for prop, value in doc.items()}
     doc[NEO4J_CSV_LABEL] = DOC_NODE
     return [doc]

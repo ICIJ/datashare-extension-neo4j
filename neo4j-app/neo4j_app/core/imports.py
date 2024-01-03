@@ -31,9 +31,12 @@ from datrie import BaseTrie
 from neo4j_app import ROOT_DIR
 from neo4j_app.constants import (
     DOC_COLUMNS,
+    DOC_CREATED_AT,
     DOC_ES_SOURCES,
     DOC_ID,
     DOC_ID_CSV,
+    DOC_METADATA,
+    DOC_MODIFIED_AT,
     DOC_NODE,
     DOC_ROOT_TYPE,
     EMAIL_HEADER,
@@ -375,6 +378,18 @@ _DOC_REL_END_CSV_COL = f"{NEO4J_CSV_END_ID}({DOC_NODE})"
 _DOC_ROOT_REL_HEADER = [f"{NEO4J_CSV_START_ID}({DOC_NODE})", _DOC_REL_END_CSV_COL]
 
 
+def _doc_nodes_header_and_mapping() -> Tuple[List[str], Dict[str, str]]:
+    doc_nodes_header, doc_nodes_mapping = _make_header_and_mapping(DOC_COLUMNS)
+    doc_nodes_header = [h for h in doc_nodes_header if h != DOC_METADATA]
+    doc_nodes_mapping.pop(DOC_METADATA)
+    doc_created_at_h = f"{DOC_CREATED_AT}:DATETIME"
+    doc_modified_at_h = f"{DOC_MODIFIED_AT}:DATETIME"
+    doc_nodes_header.extend([doc_created_at_h, doc_modified_at_h])
+    doc_nodes_mapping[DOC_CREATED_AT] = doc_modified_at_h
+    doc_nodes_mapping[DOC_MODIFIED_AT] = doc_created_at_h
+    return doc_nodes_header, doc_nodes_mapping
+
+
 async def _to_neo4j_doc_csvs(
     *,
     export_dir: Path,
@@ -388,7 +403,7 @@ async def _to_neo4j_doc_csvs(
 ) -> Tuple[NodeCSVs, RelationshipCSVs]:
     doc_nodes_path = export_dir.joinpath("docs.csv")
     doc_nodes_header_path = export_dir.joinpath("docs-header.csv")
-    doc_nodes_header, doc_nodes_mapping = _make_header_and_mapping(DOC_COLUMNS)
+    doc_nodes_header, doc_nodes_mapping = _doc_nodes_header_and_mapping()
     doc_nodes_header.append(NEO4J_CSV_LABEL)
     with doc_nodes_header_path.open("w") as f:
         get_neo4j_csv_writer(f, doc_nodes_header).writeheader()

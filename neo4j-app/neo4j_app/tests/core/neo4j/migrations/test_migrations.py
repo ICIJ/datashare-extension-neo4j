@@ -7,6 +7,7 @@ from neo4j_app.core.neo4j.migrations.migrations import (
     migration_v_0_4_0_tx,
     migration_v_0_5_0_tx,
     migration_v_0_6_0_tx,
+    migration_v_0_7_0_tx,
 )
 
 
@@ -116,3 +117,20 @@ async def test_migration_v_0_6_0_tx(neo4j_test_session: neo4j.AsyncSession):
     rel = res["rel"]
     mention_counts = rel.get("mentionCount")
     assert mention_counts == 2
+
+
+async def test_migration_v_0_7_0_tx(neo4j_test_session: neo4j.AsyncSession):
+    # When
+    await neo4j_test_session.execute_write(migration_v_0_7_0_tx)
+
+    # Then
+    indexes_res = await neo4j_test_session.run("SHOW INDEXES")
+    existing_indexes = set()
+    async for rec in indexes_res:
+        existing_indexes.add(rec["name"])
+    expected_indexes = [
+        "index_document_created_at",
+        "index_document_modified_at",
+    ]
+    for index in expected_indexes:
+        assert index in expected_indexes

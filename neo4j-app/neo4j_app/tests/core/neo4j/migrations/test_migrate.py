@@ -376,7 +376,7 @@ async def test_init_project_should_raise_for_reserved_name(
         )
 
 
-@pytest.mark.regression("131")
+@pytest.mark.pull("131")
 async def test_migrate_project_db_schema_should_read_migrations_from_registry(
     neo4j_test_driver_session: neo4j.AsyncDriver,
     monkeypatch,

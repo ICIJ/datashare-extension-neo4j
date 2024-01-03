@@ -91,7 +91,7 @@ async def _populate_es(
     index_name = TEST_PROJECT
     n = 20
     # Index some Documents
-    async for _ in index_docs(es_client, n=n):
+    async for _ in index_docs(es_client, n=n, add_dates=True):
         pass
     # Index entities
     async for _ in index_named_entities(es_client, n=n):
@@ -515,19 +515,19 @@ async def test_to_neo4j_csvs(
 
     expected_doc_header = """\
 id:ID(Document),dirname,contentType,contentLength:LONG,extractionDate:DATETIME,path,\
-urlSuffix,:LABEL
+urlSuffix,createdAt:DATETIME,modifiedAt:DATETIME,:LABEL
 """
     doc_nodes_header_path = archive_dir / doc_nodes_export.header_path
     assert_content(doc_nodes_header_path, expected_doc_header)
 
     expected_doc_nodes = """doc-0,dirname-0,content-type-0,0,2023-02-06T13:48:22.3866,\
-dirname-0,ds/test_project/doc-0/doc-0,Document
+dirname-0,ds/test_project/doc-0/doc-0,2022-04-08T11:41:34Z,2022-04-08T11:41:34Z,Document
 doc-1,dirname-1,content-type-1,1,2023-02-06T13:48:22.3866,dirname-1,\
-ds/test_project/doc-1/doc-0,Document
+ds/test_project/doc-1/doc-0,2022-04-08T11:41:34Z,2022-04-08T11:41:34Z,Document
 doc-3,dirname-3,content-type-3,9,2023-02-06T13:48:22.3866,dirname-3,\
-ds/test_project/doc-3/doc-2,Document
+ds/test_project/doc-3/doc-2,2022-04-08T11:41:34Z,2022-04-08T11:41:34Z,Document
 doc-6,dirname-6,content-type-6,36,2023-02-06T13:48:22.3866,dirname-6,\
-ds/test_project/doc-6/doc-5,Document
+ds/test_project/doc-6/doc-5,2022-04-08T11:41:34Z,2022-04-08T11:41:34Z,Document
 """
     doc_root_rels_path = archive_dir / doc_nodes_export.node_paths[0]
     assert_content(doc_root_rels_path, expected_doc_nodes, sort_lines=True)

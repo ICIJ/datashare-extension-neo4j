@@ -15,6 +15,9 @@ target = "py39"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "pull",
+]
 
 [tool.poetry.dependencies]
 python = "^3.9"

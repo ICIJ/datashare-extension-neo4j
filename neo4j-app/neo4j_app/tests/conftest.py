@@ -351,10 +351,10 @@ async def neo4j_test_session(
     return session
 
 
-def make_docs(n: int) -> Generator[Dict, None, None]:
+def make_docs(n: int, add_dates: bool = False) -> Generator[Dict, None, None]:
     random.seed(a=777)
     for i in random.sample(list(range(n)), k=n):
-        yield {
+        doc = {
             "_index": TEST_PROJECT,
             "_id": f"doc-{i}",
             "_source": {
@@ -368,6 +368,12 @@ def make_docs(n: int) -> Generator[Dict, None, None]:
                 "join": {"name": "Document"},
             },
         }
+        if add_dates:
+            doc["_source"]["metadata"] = {
+                "tika_metadata_dcterms_created_iso8601": "2022-04-08T11:41:34Z",
+                "tika_metadata_modified_iso8601": "2022-04-08T11:41:34Z",
+            }
+        yield doc
 
 
 def make_named_entities(n: int) -> Generator[Dict, None, None]:
@@ -393,8 +399,10 @@ def make_named_entities(n: int) -> Generator[Dict, None, None]:
         }
 
 
-def index_docs_ops(*, index_name: str, n: int) -> Generator[Dict, None, None]:
-    for doc in make_docs(n):
+def index_docs_ops(
+    *, index_name: str, n: int, add_dates: bool = False
+) -> Generator[Dict, None, None]:
+    for doc in make_docs(n, add_dates):
         op = {
             "_op_type": "index",
             "_index": index_name,
@@ -426,9 +434,9 @@ def index_named_entities_ops(*, index_name: str, n: int) -> Generator[Dict, None
 
 
 async def index_docs(
-    client: ESClient, *, n: int, index_name: str = TEST_PROJECT
+    client: ESClient, *, n: int, index_name: str = TEST_PROJECT, add_dates: bool = False
 ) -> AsyncGenerator[Dict, None]:
-    ops = index_docs_ops(index_name=index_name, n=n)
+    ops = index_docs_ops(index_name=index_name, n=n, add_dates=add_dates)
     # Let's wait to make this operation visible to the search
     refresh = "wait_for"
     async for res in async_streaming_bulk(client, actions=ops, refresh=refresh):
