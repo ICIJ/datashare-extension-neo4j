@@ -162,7 +162,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             await self.save_error(error=task_error, task=task, project=project)
             await self.negatively_acknowledge(task, project, requeue=False)
             raise fatal_error
-        self._current = None
         self.info('Task(id="%s") successful !', task.id)
 
     @final
@@ -170,6 +169,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         completed_at = datetime.now()
         self.info('Task(id="%s") acknowledging...', task.id)
         await self._acknowledge(task, project, completed_at)
+        self._current = None
         self.info('Task(id="%s") acknowledged', task.id)
         self.debug('Task(id="%s") publishing acknowledgement event', task.id)
         event = TaskEvent(
@@ -197,6 +197,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             requeue,
         )
         nacked = await self._negatively_acknowledge(task, project, requeue=requeue)
+        self._current = None
         self.info("Task(id=%s) negatively acknowledged (requeue=%s)!", task.id, requeue)
         return nacked
 
