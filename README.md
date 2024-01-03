@@ -6,7 +6,7 @@
 
 Users are expected to have the following dependencies on their file system:
 
-- [Python](https://www.python.org/downloads/) `>3.9,<4.0`
+- [Python](https://www.python.org/downloads/) `>3.10.8,<4.0`
 - [poetry](https://python-poetry.org/) (see `./neo4j install_peotry`)
 - JDK `>= 11`
 
