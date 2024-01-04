@@ -60,7 +60,8 @@ function _helpers() {
         fi
         poetry install"$groups"
         _poetry_shell
-        command -v pyinstaller 1>/dev/null 2>&1 || python3 -m pip install pyinstaller==5.10.1
+
+        command -v pyinstaller 1>/dev/null 2>&1 || python3 -m pip install pyinstaller==6.3.0
 
         local app_dir
         app_dir="$ROOT_DIR"/bins
