@@ -80,6 +80,7 @@ function _helpers() {
             --specpath "$app_dir" \
             --add-data "$app_dir"/../neo4j-app/neo4j_app/scripts/bulk-import.sh:neo4j_app/scripts \
             --hidden-import neo4j_app.tasks \
+            --hidden-import gunicorn.glogging \
             -p neo4j_app \
             -p "$site_packages_path"
 
