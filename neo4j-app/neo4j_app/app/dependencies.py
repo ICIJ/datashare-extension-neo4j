@@ -2,7 +2,6 @@ import inspect
 import logging
 import multiprocessing
 import os
-import platform
 import sys
 import tempfile
 import traceback
@@ -66,14 +65,7 @@ def lifespan_config() -> AppConfig:
 
 def mp_context_enter(**__):
     global _MP_CONTEXT
-    platform_system = platform.system()
-    if platform_system == "Darwin":
-        ctx = "spawn"
-    elif platform_system == "Linux":
-        ctx = "fork"
-    else:
-        raise ValueError(f"Unsupported OS: {platform_system}")
-    _MP_CONTEXT = multiprocessing.get_context(ctx)
+    _MP_CONTEXT = multiprocessing.get_context("spawn")
 
 
 def lifespan_mp_context():
@@ -187,7 +179,7 @@ def worker_pool_enter(**_):
     # TODO: let the process choose they ID and set it with the worker process ID,
     #  this will help debugging
     worker_ids = [f"worker-{process_id}-{i}" for i in range(n_workers)]
-    _WORKER_POOL = multiprocessing.Pool(
+    _WORKER_POOL = lifespan_mp_context().Pool(
         processes=config.neo4j_app_n_async_workers, maxtasksperchild=1
     )
     _WORKER_POOL.__enter__()  # pylint: disable=unnecessary-dunder-call
