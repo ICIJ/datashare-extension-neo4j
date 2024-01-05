@@ -21,7 +21,7 @@ from neo4j_app.icij_worker import (
 )
 from neo4j_app.icij_worker.exceptions import TaskCancelled, UnregisteredTask
 from neo4j_app.icij_worker.worker.worker import add_missing_args, task_wrapper
-from neo4j_app.tests.conftest import TEST_PROJECT, async_true_after
+from neo4j_app.tests.conftest import TEST_PROJECT, async_true_after, fail_if_exception
 from neo4j_app.tests.icij_worker.conftest import MockManager, MockWorker
 
 
@@ -463,3 +463,32 @@ def test_add_missing_args(
             TypeError,
         ):
             fn(**all_args)
+
+
+@pytest.mark.pull("146")
+async def test_worker_acknowledgment_cm_should_not_raise_for_fatal_error(
+    mock_worker: MockWorker,
+):
+    # Given
+    worker = mock_worker
+    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    project = TEST_PROJECT
+    created_at = datetime.now()
+    task = Task(
+        id="some-id",
+        type="hello_world",
+        created_at=created_at,
+        status=TaskStatus.CREATED,
+        inputs={"greeted": "world"},
+    )
+
+    # When/Then
+    await task_manager.enqueue(task, project)
+    with fail_if_exception("worker should not raise on fatal error"):
+        async with worker.acknowledgment_cm(task, project):
+            with patch.object(worker, "__aexit__") as mocked_exit, patch.object(
+                worker, "shutdown"
+            ) as mocked_shutdown:
+                raise ValueError("i am fatal")
+            assert mocked_exit.assert_not_called()
+            assert mocked_shutdown.assert_not_called()
