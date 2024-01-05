@@ -161,7 +161,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             task_error = TaskError.from_exception(fatal_error)
             await self.save_error(error=task_error, task=task, project=project)
             await self.negatively_acknowledge(task, project, requeue=False)
-            raise fatal_error
         self.info('Task(id="%s") successful !', task.id)
 
     @final
