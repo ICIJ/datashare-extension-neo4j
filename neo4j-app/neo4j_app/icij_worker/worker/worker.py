@@ -144,6 +144,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             await self.publish_event(event, project)
             yield
             await self.acknowledge(task, project)
+            self.info('Task(id="%s") successful !', task.id)
         except asyncio.CancelledError as e:
             self.error(
                 'Task(id="%s") worker cancelled, exiting without persisting error',
@@ -161,7 +162,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             task_error = TaskError.from_exception(fatal_error)
             await self.save_error(error=task_error, task=task, project=project)
             await self.negatively_acknowledge(task, project, requeue=False)
-        self.info('Task(id="%s") successful !', task.id)
 
     @final
     async def acknowledge(self, task: Task, project: str):
