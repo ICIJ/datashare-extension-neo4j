@@ -7,6 +7,13 @@ from datetime import datetime
 from functools import wraps
 from typing import Optional, final
 
+TRACE = 5
+logging.TRACE = TRACE
+logging.addLevelName(logging.TRACE, "TRACE")
+logging.Logger.trace = lambda inst, msg, *args, **kwargs: inst.log(
+    logging.TRACE, msg, *args, **kwargs
+)
+
 
 class DifferedLoggingMessage:
     def __init__(self, fn, *args, **kwargs):
