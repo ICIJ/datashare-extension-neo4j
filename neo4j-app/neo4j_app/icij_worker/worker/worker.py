@@ -154,7 +154,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         except RecoverableError:
             self.error('Task(id="%s") encountered error', task.id)
             await self.negatively_acknowledge(task, project, requeue=True)
-        except Exception as fatal_error:
+        except Exception as fatal_error:  # pylint: disable=broad-exception-caught
             if isinstance(fatal_error, MaxRetriesExceeded):
                 self.error('Task(id="%s") exceeded max retries, exiting !', task.id)
             else:
