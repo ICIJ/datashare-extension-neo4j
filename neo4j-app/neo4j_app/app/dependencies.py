@@ -89,7 +89,7 @@ async def neo4j_driver_exit(exc_type, exc_value, trace):
     already_closed = False
     try:
         await _NEO4J_DRIVER.verify_connectivity()
-    except:
+    except:  # pylint: disable=bare-except
         already_closed = True
     if not already_closed:
         await _NEO4J_DRIVER.__aexit__(exc_type, exc_value, trace)
