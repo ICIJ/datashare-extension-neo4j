@@ -87,16 +87,20 @@ public class Neo4jResource implements AutoCloseable {
             "Name of the single project which will be able to user the extension when using neo4j"
                 + " Community Edition"
         ),
-        List.of("neo4jHost", "neo4j", "Hostname of the neo4j DB."),
+        List.of("neo4jHost", "127.0.0.1", "Hostname of the neo4j DB."),
         List.of("neo4jPort", 7687, "Port of the neo4j DB."),
         List.of(
             "neo4jUriScheme",
-            "",
+            "bolt",
             "URI scheme used to connect to the neo4j DB (can be: bolt, neo4j, bolt+s, neo4j+s,"
                 + " ....)"
         ),
-        List.of("neo4jUser", "", "User name used to connect to the neo4j DB"),
-        List.of("neo4jPassword", "", "Password used to connect to the neo4j DB"),
+        List.of("neo4jUser", "neo4j", "User name used to connect to the neo4j DB"),
+        List.of(
+            "neo4jPassword",
+            "please-change-this-password",
+            "Password used to connect to the neo4j DB"
+        ),
         List.of(
             TASK_POLL_INTERVAL_S,
             2,
@@ -226,10 +230,11 @@ public class Neo4jResource implements AutoCloseable {
         logger.debug("Copying Datashare properties to temporary location {}",
             lazy(propertiesFile::getAbsolutePath));
 
+        Properties setProperties = filterUnset(this.propertiesProvider.getProperties());
+
         try {
-            this.propertiesProvider
-                .getProperties()
-                .store(Files.newOutputStream(propertiesFile.toPath().toAbsolutePath()), null);
+            setProperties.store(
+                Files.newOutputStream(propertiesFile.toPath().toAbsolutePath()), null);
         } catch (IOException e) {
             throw new RuntimeException("Failed to write properties in temporary location", e);
         }
@@ -305,6 +310,7 @@ public class Neo4jResource implements AutoCloseable {
             throw new RuntimeException("Failed to dump app PID in " + TMP_ROOT, e);
         }
     }
+
 
     protected boolean supportsNeo4jEnterprise() {
         checkNeo4jAppStarted();
@@ -611,6 +617,16 @@ public class Neo4jResource implements AutoCloseable {
             .get("neo4jDocumentNodesLimit")
             .map(Long::parseLong)
             .orElse(NEO4J_DEFAULT_DUMPED_DOCUMENTS);
+    }
+
+    static Properties filterUnset(Properties properties) {
+        Properties filtered = new Properties(properties.size());
+        properties.forEach((key, value) -> {
+            if (!((String) value).isEmpty()) {
+                filtered.setProperty(key.toString(), value.toString());
+            }
+        });
+        return filtered;
     }
 
     @Override
