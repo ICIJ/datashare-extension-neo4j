@@ -96,7 +96,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_transaction_batch_size = 50000
     neo4j_user: Optional[str] = None
     # Other supported schemes are neo4j+ssc, neo4j+s, bolt, bolt+ssc, bolt+s
-    neo4j_uri_scheme: str = "neo4j"
+    neo4j_uri_scheme: str = "bolt"
     supports_neo4j_enterprise: Optional[bool] = None
     test: bool = False
 
