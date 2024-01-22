@@ -361,7 +361,7 @@ function _helpers() {
 
         local transform
         if [ "$PLATFORM" == "Darwin" ]; then
-            transform="-s/package/$package_name/g"
+            transform="-s,package/,$package_name/,g"
         elif [ "$PLATFORM" == "Linux" ]; then
             transform="--transform=s,package/,$package_name/,"
         else
