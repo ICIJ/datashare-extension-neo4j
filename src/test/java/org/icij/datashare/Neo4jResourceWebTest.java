@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import net.codestory.http.annotations.Prefix;
 import net.codestory.http.filters.basic.BasicAuthFilter;
 import net.codestory.http.payload.Payload;
@@ -198,7 +199,10 @@ public class Neo4jResourceWebTest {
             throws InvocationTargetException, NoSuchMethodException, InstantiationException,
             IllegalAccessException {
             super.beforeAll(extensionContext);
-            Neo4jResource.supportNeo4jEnterprise = false;
+            Neo4jResource.appConfig = Map.of(
+                "neo4jAppMaxDumpedDocuments", 100L,
+                "supportsNeo4jEnterprise", false
+            );
         }
     }
 
@@ -214,7 +218,10 @@ public class Neo4jResourceWebTest {
             throws InvocationTargetException, NoSuchMethodException, InstantiationException,
             IllegalAccessException {
             super.beforeAll(extensionContext);
-            Neo4jResource.supportNeo4jEnterprise = true;
+            Neo4jResource.appConfig = Map.of(
+                "neo4jAppMaxDumpedDocuments", 100L,
+                "supportsNeo4jEnterprise", true
+            );
         }
     }
 
@@ -689,69 +696,11 @@ public class Neo4jResourceWebTest {
         }
 
         @Test
-        public void test_post_sorted_graph_dump_should_return_200() {
-            // Given
-            neo4jApp.configure(
-                routes -> routes.post("/graphs/dump",
-                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
-                )
-            );
-            // When
-            String body = "{"
-                + "\"format\": \"graphml\", "
-                + "\"query\": {\"sort\": [{\"property\": \"path\", \"direction\": \"DESC\"}],"
-                + " \"limit\": 10}"
-                + "}";
-            Response response = post("/api/neo4j/graphs/sorted-dump?project=foo-datashare",
-                body).withPreemptiveAuthentication("foo", "null").response();
-            // Then
-            assertThat(response.code()).isEqualTo(200);
-            String dumpAsString = response.content();
-            assertThat(dumpAsString).isEqualTo("somedump");
-        }
-
-        @Test
-        public void test_post_sorted_graph_dump_should_return_401_for_unauthorized_user() {
-            // Given
-            neo4jApp.configure(
-                routes -> routes.post("/graphs/dump",
-                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
-                )
-            );
-            // When
-            String body = "{"
-                + "\"format\": \"graphml\", "
-                + "\"sort\": [{\"property\": \"path\", \"direction\": \"DESC\"}]"
-                + "}";
-            Response response = post("/api/neo4j/graphs/sorted-dump?project=foo-datashare",
-                body).withPreemptiveAuthentication("unauthorized", "null").response();
-            // Then
-            assertThat(response.code()).isEqualTo(401);
-        }
-
-        @Test
-        public void test_post_sorted_graph_dump_should_return_403_for_forbidden_mask() {
-            // Given
-            neo4jApp.configure(
-                routes -> routes.post("/graphs/dump",
-                    context -> new Payload("binary/octet-stream", "somedump".getBytes())
-                )
-            );
-            // When
-            when(parentRepository.getProject("foo-datashare"))
-                .thenReturn(new Project("foo-datashare", "1.2.3.4"));
-            String body = "{\"format\": \"graphml\"}";
-            Response response = post("/api/neo4j/graphs/sorted-dump?project=foo-datashare",
-                body).withPreemptiveAuthentication("foo", "null").response();
-            // Then
-            assertThat(response.code()).isEqualTo(403);
-        }
-
-        @Test
         public void test_check_extension_project_community() {
             // Given
             String project = "foo-datashare";
-            assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(false);
+            assertThat(Neo4jResource.appConfig.get("supportsNeo4jEnterprise"))
+                .isEqualTo(false);
 
             // When
             try {
@@ -765,7 +714,8 @@ public class Neo4jResourceWebTest {
         public void test_check_extension_project_community_should_throw() {
             // Given
             String project = "not-the-neo4j-project";
-            assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(false);
+            assertThat(Neo4jResource.appConfig.get("supportsNeo4jEnterprise"))
+                .isEqualTo(false);
 
             // When
             String expected = "Invalid project\n"
@@ -930,6 +880,16 @@ public class Neo4jResourceWebTest {
             // Then
             assertThat(response.code()).isEqualTo(403);
         }
+
+        @Test
+        public void test_get_node_limit_should_return_200() {
+            // When
+            Response response = get("/api/neo4j/graphs/dump/node-limit"
+            ).withPreemptiveAuthentication("foo", "null").response();
+            // Then
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(Long.parseLong(response.content())).isEqualTo(100L);
+        }
     }
 
 
@@ -945,11 +905,12 @@ public class Neo4jResourceWebTest {
         }
 
         @Test
-        public void  test_check_extension_project_enterprise() {
+        public void test_check_extension_project_enterprise() {
             // Given
             String project = "some-project";
             assertThat(project).isNotEqualTo(SINGLE_PROJECT);
-            assertThat(Neo4jResource.supportNeo4jEnterprise).isEqualTo(true);
+            assertThat(Neo4jResource.appConfig.get("supportsNeo4jEnterprise"))
+                .isEqualTo(true);
 
             // When
             try {

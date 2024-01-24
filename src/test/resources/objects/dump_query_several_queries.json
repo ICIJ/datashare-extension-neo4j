@@ -16,23 +16,25 @@
                 }
               }
             ]
-        }}
-      ],
-      "where": {
-        "and": [
-          {
-            "startsWith": {
-              "property": {
-                "variable": "doc",
-                "name": "path"
-              },
-              "value": {
-                "literal": "some/path/prefix"
-              }
-            }
           }
-        ]
-      }
+        }
+      ]
+    },
+    {
+      "matches": [
+        {
+          "path": {
+            "nodes": [
+              {
+                "name": "ne",
+                "labels": [
+                  "NamedEnity"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

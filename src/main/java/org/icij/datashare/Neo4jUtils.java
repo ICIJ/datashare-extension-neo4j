@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -15,21 +16,37 @@ import java.util.stream.Collectors;
 import org.neo4j.cypherdsl.core.Condition;
 import org.neo4j.cypherdsl.core.Conditions;
 import org.neo4j.cypherdsl.core.Cypher;
+import org.neo4j.cypherdsl.core.ExposesMatch;
 import org.neo4j.cypherdsl.core.ExposesPatternLengthAccessors;
 import org.neo4j.cypherdsl.core.ExposesRelationships;
-import org.neo4j.cypherdsl.core.ExposesReturning;
 import org.neo4j.cypherdsl.core.Expression;
 import org.neo4j.cypherdsl.core.Node;
 import org.neo4j.cypherdsl.core.PatternElement;
 import org.neo4j.cypherdsl.core.Property;
 import org.neo4j.cypherdsl.core.RelationshipPattern;
+import org.neo4j.cypherdsl.core.ResultStatement;
 import org.neo4j.cypherdsl.core.SortItem;
 import org.neo4j.cypherdsl.core.Statement;
-import org.neo4j.cypherdsl.core.StatementBuilder;
+import org.neo4j.cypherdsl.core.StatementBuilder.BuildableStatement;
+import org.neo4j.cypherdsl.core.StatementBuilder.ExposesOrderBy;
+import org.neo4j.cypherdsl.core.StatementBuilder.OngoingMatchAndReturnWithOrder;
+import org.neo4j.cypherdsl.core.StatementBuilder.OngoingReading;
+import org.neo4j.cypherdsl.core.StatementBuilder.OngoingReadingAndReturn;
+import org.neo4j.cypherdsl.core.StatementBuilder.OngoingReadingAndWith;
+import org.neo4j.cypherdsl.core.StatementBuilder.OngoingReadingWithoutWhere;
+import org.neo4j.cypherdsl.core.StatementBuilder.OrderableOngoingReadingAndWith;
+import org.neo4j.cypherdsl.core.StatementBuilder.OrderableOngoingReadingAndWithWithWhere;
+import org.neo4j.cypherdsl.core.StatementBuilder.OrderableOngoingReadingAndWithWithoutWhere;
+import org.neo4j.cypherdsl.core.StatementBuilder.TerminalExposesLimit;
+import org.neo4j.cypherdsl.core.StatementBuilder.TerminalExposesOrderBy;
 
 public class Neo4jUtils {
 
     protected static final String DOC_NODE = "Document";
+    protected static final String NE_NODE = "NamedEntity";
+    protected static final String APPEARS_IN_REL = "APPEARS_IN";
+    protected static final String RECEIVED_REL = "RECEIVED";
+    protected static final String SENT_REL = "SENT";
     protected static final String DOC_PATH = "path";
 
     @JsonTypeInfo(
@@ -109,57 +126,69 @@ public class Neo4jUtils {
             this.limit = limit;
         }
 
-        public Statement asValidated() {
-            return this.validated(null);
-        }
-
-        public Statement asValidated(long defaultLimit) {
-            return this.validated(defaultLimit);
-        }
-
-        protected Statement validated(Long defaultLimit) {
-            StatementBuilder.OngoingReadingWithoutWhere statement = buildMatch(this.matches);
-            ExposesReturning returned;
-            if (this.where != null) {
-                // OK here since this.match can't be empty, hence statement != null
-                returned = statement.where(this.where.into());
+        protected Statement singleStatementQuery(Long limit,  Collection<Expression> returning) {
+            OngoingReadingWithoutWhere statement = buildMatch(null, this.matches);
+            OngoingReadingAndReturn withWhereAndReturn;
+            if (returning == null || returning.isEmpty()) {
+                withWhereAndReturn = this.addWhere(statement).returning(Cypher.asterisk());
             } else {
-                returned = statement;
+                withWhereAndReturn = this.addWhere(statement).returning(returning);
             }
-            Long limit;
-            if (defaultLimit != null) {
-                limit = defaultLimit;
-                if (this.limit != null) {
-                    limit = Math.min(this.limit, defaultLimit);
-                }
-            } else {
-                limit = this.limit;
-            }
-
-            StatementBuilder.OngoingMatchAndReturnWithOrder returnedWithOrder =
-                returned
-                    .returning(Cypher.asterisk())
-                    .orderBy(this.orderBy
-                        .stream()
-                        .map(Neo4jUtils.Into::into)
-                        .collect(Collectors.toList()));
-            if (limit == null) {
-                return returnedWithOrder.build();
-            }
-            return returnedWithOrder
-                .limit(limit)
-                .build();
+            OngoingMatchAndReturnWithOrder withOrderBy = this.addOrderBy(withWhereAndReturn);
+            return this.addLimit(withOrderBy, limit).build();
         }
 
-        protected static StatementBuilder.OngoingReadingWithoutWhere buildMatch(
-            List<Neo4jUtils.Match> matches
+        protected Statement finishQuery(
+            ExposesMatch previous, Long limit, Collection<Expression> returning
         ) {
-            StatementBuilder.OngoingReadingWithoutWhere statement = null;
+            OngoingReadingWithoutWhere statement = buildMatch(previous, this.matches);
+            OngoingReadingAndReturn withWhereAndReturn;
+            if (returning == null || returning.isEmpty()) {
+                withWhereAndReturn = this.addWhere(statement).returning(Cypher.asterisk());
+            } else {
+                withWhereAndReturn = this.addWhere(statement).returning(returning);
+            }
+            OngoingMatchAndReturnWithOrder withOrderBy = this.addOrderBy(withWhereAndReturn);
+            return this.addLimit(withOrderBy, limit).build();
+        }
+
+        protected ExposesMatch startStatement(Long defaultLimit) {
+            OngoingReadingWithoutWhere statement = buildMatch(null, this.matches);
+            ExposesOrderBy withWhereAndWith = this.addWhere(statement).with(Cypher.asterisk());
+            OrderableOngoingReadingAndWithWithWhere withOrderBy = this.addOrderBy(withWhereAndWith);
+            if (defaultLimit != null) {
+                return withOrderBy.limit(defaultLimit);
+            }
+            return this.addLimit(withOrderBy);
+        }
+
+        protected OngoingReading continueStatement(
+            ExposesMatch previous, Collection<Expression> continueWith
+        ) {
+            OngoingReadingWithoutWhere statement = buildMatch(previous, this.matches);
+            OrderableOngoingReadingAndWithWithoutWhere withWhereAndWith;
+            if (continueWith == null || continueWith.isEmpty()) {
+                withWhereAndWith = this.addWhere(statement).with(Cypher.asterisk());
+            } else {
+                withWhereAndWith = this.addWhere(statement).with(continueWith);
+            }
+            return this.addLimit(this.addOrderBy(withWhereAndWith));
+        }
+
+        private static OngoingReadingWithoutWhere buildMatch(
+            ExposesMatch previousStatement, List<Neo4jUtils.Match> matches
+        ) {
+            OngoingReadingWithoutWhere statement = null;
             for (Match match : matches) {
                 PatternElement pattern = match.into();
                 if (statement == null) {
-                    statement = match.isOptional() ? Cypher.optionalMatch(pattern) :
-                        Cypher.match(pattern);
+                    if (previousStatement == null) {
+                        statement = match.isOptional() ? Cypher.optionalMatch(pattern) :
+                            Cypher.match(pattern);
+                    } else {
+                        statement = match.isOptional() ? previousStatement.optionalMatch(pattern) :
+                            previousStatement.match(pattern);
+                    }
                 } else {
                     statement = match.isOptional() ? statement.optionalMatch(pattern) :
                         statement.match(pattern);
@@ -167,6 +196,53 @@ public class Neo4jUtils {
             }
             return statement;
         }
+
+        private OngoingReading addWhere(OngoingReadingWithoutWhere statement) {
+            if (this.where != null) {
+                // OK here since this.match can't be empty, hence statement != null
+                return statement.where(this.where.into());
+            } else {
+                return statement;
+            }
+        }
+
+        private OngoingMatchAndReturnWithOrder addOrderBy(TerminalExposesOrderBy statement) {
+            return statement.orderBy(
+                this.orderBy.stream().map(Into::into).collect(Collectors.toList()));
+        }
+
+        private OrderableOngoingReadingAndWithWithWhere addOrderBy(ExposesOrderBy statement) {
+            return statement.orderBy(
+                this.orderBy.stream().map(Into::into).collect(Collectors.toList()));
+        }
+
+        private OngoingReadingAndWith addLimit(OrderableOngoingReadingAndWith statement) {
+            if (this.limit == null) {
+                return statement;
+            }
+            return statement.limit(this.limit);
+        }
+
+        private BuildableStatement<ResultStatement> addLimit(
+            TerminalExposesLimit statement, Long limit
+        ) {
+            Long l = this.getLimit(limit);
+            if (l == null) {
+                return statement;
+            }
+            return statement.limit(l);
+        }
+
+        private Long getLimit(Long defaultLimit) {
+            if (defaultLimit != null) {
+                if (this.limit != null) {
+                    return Math.min(this.limit, defaultLimit);
+                }
+                return defaultLimit;
+            }
+            return this.limit;
+        }
+
 
         @Override
         public boolean equals(Object o) {

@@ -4,7 +4,7 @@
       <h4 class="m-0 mr-2">neo4j</h4>
       <neo4j-status-badge :status="neo4jAppStatus"></neo4j-status-badge>
     </div>
-    <b-form flex-column @submit.prevent="dumpGraph" @reset="clear">
+    <b-form flex-column @submit.prevent="displayConfirmOverlay" @reset="clear">
       <div class="project-view-insights card-body pb-0">
         <div class="row">
           <div class="d-flex flex-column col-12 col-md-6 justify-content-between">
@@ -71,11 +71,34 @@
           <div class="col-12 d-flex justify-content-end align-items-end">
             <b-button type="reset" variant="danger" class="mr-2">Reset</b-button>
             <span id="disabled-wrapper">
-              <b-button type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Export graph</b-button>
+              <b-button ref="submit" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Export
+                graph</b-button>
             </span>
             <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">{{ dumpButtonToolTip }}</b-tooltip>
           </div>
         </div>
+        <b-overlay :show="showOverlay" no-wrap @shown="onShowingOverlay" @hidden="onHidingOverlay" opacity=0.95>
+          <template #overlay>
+            <div
+              ref="dialog"
+              tabindex="-1"
+              role="dialog"
+              aria-modal="false"
+              class="p-3">
+              <p>
+                A maximum of {{ neo4jDumpLimit }} documents and their related named entities will be exported.
+                <br>To export the entire graph, proceed to a <a :href="dumpDocUrl">full DB dump</a> or ask the system administrator for it.
+              </p>
+              <p>Download can take some time to start, <strong>please don't close the opened tab</strong> until then !</p>
+              <div class="d-flex align-items-center">
+                <b-button variant="danger" class="mr-3" @click="onCancellingExport">
+                  Cancel
+                </b-button>
+                <b-button variant="primary" @click="onExportConfirmation">Export graph</b-button>
+              </div>
+            </div>
+          </template>
+        </b-overlay>
       </div>
     </b-form>
     <b-form ref="form" method="POST" :action=dumpUrl target="_blank">
@@ -96,8 +119,19 @@ import { default as Neo4jGraphImport } from '../components/Neo4jGraphImport.vue'
 import { default as polling } from '../core/mixin/polling'
 
 const SHOULD_START_APP_STATUSES = new Set([AppStatus.Error, AppStatus.Stopped].map(x => AppStatus[x]))
+const DUMP_DOC_URL = 'https://neo4j.com/docs/operations-manual/current/backup-restore/offline-backup/'
 const CYPHER_SHELL = 'cypher-shell'
 const GRAPHML = 'graphml'
+const MATCH_DOC_NODE = {
+  "path": {
+    "nodes": [
+      {
+        "name": "doc",
+        "labels": ["Document"]
+      }
+    ]
+  }
+}
 
 export default {
   name: 'WidgetNeo4jGraph',
@@ -120,17 +154,20 @@ export default {
         { value: GRAPHML, text: 'GraphML' },
       ],
       dumpFormat: null,
+      dumpDocUrl: null,
       fileType: null,
       fileTypes: [],
       initializedProject: false,
       selectedFileTypes: [],
       selectedPath: this.$config.get('mountedDataDir') || this.$config.get('dataDir'),
+      showOverlay: null,
     }
   },
   async mounted() {
     this.getFileTypes()
     await this.resfreshNeo4jAppStatus()
     await this.startNeo4jAppIfNeed()
+    this.dumpDocUrl = DUMP_DOC_URL
     const fn = this.resfreshNeo4jAppStatus
     const timeout = () => random(5000, 10000)
     this.registerPollOnce({ fn, timeout })
@@ -169,9 +206,9 @@ export default {
         where.push(this.filePathToWhere(this.selectedPath))
       }
       if (where.length === 1) {
-        return { where: where[0] }
+        return { queries: [{ matches: [MATCH_DOC_NODE], where: where[0] }] }
       } else if (where.length) {
-        return { where: { and: where } }
+        return { queries: [{ matches: [MATCH_DOC_NODE], where: { and: where } }] }
       }
       return {}
     },
@@ -193,7 +230,7 @@ export default {
     neo4jAppIsRunning() {
       return this.neo4jAppStatus === AppStatus.Running
     },
-    ...mapState('neo4j', ['neo4jAppStatus'])
+    ...mapState('neo4j', ['neo4jAppStatus', 'neo4jDumpLimit'])
   },
   methods: {
     async aggregate(field, name) {
@@ -216,13 +253,16 @@ export default {
       }
       return result
     },
-    async dumpGraph() {
-      this.$refs.form.submit();
-    },
     clear() {
       this.dumpFormat = null
       this.selectedPath = this.$config.get('mountedDataDir') || this.$config.get('dataDir')
       this.selectedFileTypes = []
+    },
+    async dumpGraph() {
+      this.$refs.form.submit();
+    },
+    displayConfirmOverlay() {
+      this.showOverlay = true
     },
     fileTypeToWhere(type) {
       return {
@@ -250,14 +290,27 @@ export default {
         }
       }
     },
-    async initProject() {
-      await this.$neo4jCore.request(`/api/neo4j/init?project=${this.project}`, { method: 'POST' })
-      this.$store.commit('neo4j/projectInit', { project: this.project, initialized: true })
-    },
     async getFileTypes() {
       this.$wait.start('load all file types')
       this.fileTypes = await this.aggregate('contentType', 'contentType')
       this.$wait.end('load all file types')
+    },
+    async initProject() {
+      await this.$neo4jCore.request(`/api/neo4j/init?project=${this.project}`, { method: 'POST' })
+      this.$store.commit('neo4j/projectInit', { project: this.project, initialized: true })
+    },
+    onCancellingExport() {
+      this.showOverlay = false
+    },
+    onExportConfirmation() {
+      this.dumpGraph()
+      this.showOverlay = false
+    },
+    onHidingOverlay() {
+      this.$refs.submit.focus()
+    },
+    onShowingOverlay() {
+      this.$refs.dialog.focus()
     },
     async startNeo4jAppIfNeed() {
       const shouldStart = SHOULD_START_APP_STATUSES;

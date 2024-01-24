@@ -21,6 +21,9 @@ function actionBuilder(extension) {
       if (isRunning) {
         if (state.neo4jAppStatus !== AppStatus.Running) {
           commit('status', AppStatus.Running)
+          const res = await extension.request('/api/neo4j/graphs/dump/node-limit', { method: 'GET' })
+          const dumpLimit = await res.text()
+          commit('dumpLimit', parseInt(dumpLimit))
         }
       } else if (state.neo4jAppStatus === AppStatus.Running) {
         commit('status', AppStatus.Stopped)
@@ -39,6 +42,7 @@ function actionBuilder(extension) {
 function initialState() {
   return {
     neo4jAppStatus: AppStatus.Stopped,
+    neo4jDumpLimit: null,
     neo4jInitializedProjects: {},
     neo4jImportTasks: null,
     neo4jGraphCounts: {},
@@ -47,6 +51,9 @@ function initialState() {
 
 const state = initialState()
 const mutations = {
+  dumpLimit(state, newDumpLimit) {
+    state.neo4jDumpLimit = newDumpLimit
+  },
   importTasks(state, tasks) {
     window.datashare.localVue.set(state, 'neo4jImportTasks', tasks)
   },
@@ -61,6 +68,9 @@ const mutations = {
   },
 }
 const getters = {
+  dumpLimit(state) {
+    return state.neo4jDumpLimit
+  },
   importTasks(state) {
     return state.neo4jImportTasks
   },

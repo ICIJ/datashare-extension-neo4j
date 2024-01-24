@@ -1,10 +1,11 @@
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from starlette.responses import StreamingResponse
 
 from neo4j_app.app.dependencies import lifespan_neo4j_driver
 from neo4j_app.app.doc import DOC_GRAPH_DUMP, DOC_GRAPH_DUMP_DESC, GRAPH_TAG
+from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j.graphs import count_documents_and_named_entities, dump_graph
 from neo4j_app.core.objects import DumpRequest, GraphCounts
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
@@ -24,30 +25,50 @@ def graphs_router() -> APIRouter:
     async def _graph_dump(
         project: str,
         payload: DumpRequest,
+        request: Request,
     ) -> StreamingResponse:
-        with log_elapsed_time_cm(
-            logger, logging.INFO, "Dumped graph in {elapsed_time} !"
-        ):
-            res = StreamingResponse(
-                dump_graph(
-                    project=project,
-                    dump_format=payload.format,
-                    neo4j_driver=lifespan_neo4j_driver(),
-                    query=payload.query,
-                ),
-                media_type="binary/octet-stream",
+        config: AppConfig = request.app.state.config
+        if config.supports_neo4j_parallel_runtime is None:
+            msg = (
+                "parallel support has not been set, config has not been properly"
+                " initialized using AppConfig.with_neo4j_support"
             )
+            raise ValueError(msg)
+        parallel = False  # Parallel seem to slow down export let's deactivate it
+        res = StreamingResponse(
+            dump_graph(
+                project=project,
+                dump_format=payload.format,
+                neo4j_driver=lifespan_neo4j_driver(),
+                query=payload.query,
+                default_docs_limit=config.neo4j_app_max_dumped_documents,
+                parallel=parallel,
+                export_batch_size=config.neo4j_export_batch_size,
+            ),
+            media_type="binary/octet-stream",
+        )
         return res
 
     @router.get("/counts", response_model=GraphCounts)
-    async def _count_documents_and_named_entities(project: str) -> GraphCounts:
+    async def _count_documents_and_named_entities(
+        project: str, request: Request
+    ) -> GraphCounts:
+        config: AppConfig = request.app.state.config
+        if config.supports_neo4j_parallel_runtime is None:
+            msg = (
+                "parallel support has not been set, config has not been properly"
+                " initialized using AppConfig.with_neo4j_support"
+            )
+            raise ValueError(msg)
         with log_elapsed_time_cm(
             logger,
             logging.INFO,
             "Counted documents and named entities in {elapsed_time} !",
         ):
             count = await count_documents_and_named_entities(
-                project=project, neo4j_driver=lifespan_neo4j_driver()
+                project=project,
+                neo4j_driver=lifespan_neo4j_driver(),
+                parallel=config.supports_neo4j_parallel_runtime,
             )
         return count
 

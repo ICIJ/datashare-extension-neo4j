@@ -2,10 +2,10 @@ package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -25,8 +25,10 @@ public class ObjectsTest {
     public static class TestResources implements BeforeAllCallback {
         protected static final List<String> TEST_FILE_NAMES = List.of(
             "dump_query",
-            "dump_query_without_matches",
-            "dump_query_with_empty_matches"
+            "dump_query_empty_queries",
+            "dump_query_several_queries",
+            "dump_query_without_queries",
+            "dump_query_without_matches"
         );
 
         @Override
@@ -49,48 +51,15 @@ public class ObjectsTest {
         // Given
         long limit = 10L;
         // When
-        String defaultQuery = Objects.DumpQuery.defaultQueryStatement(limit).getCypher();
+        String defaultQuery = new Objects.DumpQuery(null).asValidated(limit).getCypher();
         // Then
-        String expectedQuery = "MATCH (doc:`Document`) "
-            + "OPTIONAL MATCH (doc)-[rel]-(other) "
-            + "RETURN doc, other, rel "
+        String expected = "MATCH (doc:`Document`) "
+            + "WITH * "
             + "ORDER BY doc.path ASC "
-            + "LIMIT 10";
-        assertThat(defaultQuery).isEqualTo(expectedQuery);
-    }
-
-    @Test
-    public void test_sorted_dump_query_default_query_statement_should_override_limit() {
-        // Given
-        List<Objects.DocumentSortItem> sort = List.of(
-            new Objects.DocumentSortItem("path", Objects.SortDirection.DESC));
-        Long limit = 100L;
-        long defaultLimit = 10L;
-        Objects.SortedDumpQuery query = new Objects.SortedDumpQuery(sort, limit);
-        // When
-        String defaultQuery = query.defaultQueryStatement(defaultLimit).getCypher();
-        // Then
-        String expected = "MATCH (doc:`Document`)-[rel]-(other) "
-            + "RETURN doc, other, rel "
-            + "ORDER BY doc.path DESC "
-            + "LIMIT 10";
-        assertThat(defaultQuery).isEqualTo(expected);
-    }
-
-    @Test
-    public void test_sorted_dump_query_default_query_statement_should_override_null_limit() {
-        // Given
-        List<Objects.DocumentSortItem> sort = List.of(
-            new Objects.DocumentSortItem("path", Objects.SortDirection.DESC));
-        long defaultLimit = 10L;
-        Objects.SortedDumpQuery query = new Objects.SortedDumpQuery(sort, null);
-        // When
-        String defaultQuery = query.defaultQueryStatement(defaultLimit).getCypher();
-        // Then
-        String expected = "MATCH (doc:`Document`)-[rel]-(other) "
-            + "RETURN doc, other, rel "
-            + "ORDER BY doc.path DESC "
-            + "LIMIT 10";
+            + "LIMIT 10 "
+            + "OPTIONAL MATCH (doc)-[rel:`APPEARS_IN`|`SENT`|`RECEIVED`]-(ne:`NamedEntity`)"
+            + " RETURN apoc.coll.toSet(((collect(doc) + collect(ne)) + collect(rel)))"
+            + " AS values";
         assertThat(defaultQuery).isEqualTo(expected);
     }
 
@@ -98,66 +67,6 @@ public class ObjectsTest {
     @DisplayName("object test using test resources")
     @Nested
     class WithTestFiles {
-
-        @Test
-        public void test_dump_query_should_deserialize()
-            throws IOException {
-            // When
-            try (FileInputStream fileInputStream = new FileInputStream(
-                TEST_FILES.get("dump_query"))) {
-
-                Objects.DumpQuery query = MAPPER.readValue(
-                    fileInputStream, Objects.DumpQuery.class);
-                // Then
-                // match
-                Neo4jUtils.PatternNode node0 =
-                    new Neo4jUtils.PatternNode("doc", List.of("Document", "Important"),
-                        new HashMap<>() {
-                            {
-                                put("created", "someDate");
-                            }
-                        });
-                Neo4jUtils.PatternNode node1 =
-                    new Neo4jUtils.PatternNode("person", List.of("NamedEntity", "Person"), null);
-                Neo4jUtils.PatternRelationship rel =
-                    new Neo4jUtils.PatternRelationship(
-                        "rel", Neo4jUtils.PatternRelationship.Direction.FROM,
-                        List.of("APPEARS_IN"));
-                List<Neo4jUtils.PatternNode> expectedNodes = List.of(node0, node1);
-                List<Neo4jUtils.Match> matches = List.of(
-                    new Neo4jUtils.PathPattern(expectedNodes, List.of(rel), false));
-
-                // where
-                Neo4jUtils.LiteralWrapper prefix = new Neo4jUtils.LiteralWrapper(
-                    "some/path/prefix"
-                );
-                Neo4jUtils.StartsWith docHasPath = new Neo4jUtils.StartsWith(
-                    new Neo4jUtils.VariableProperty("doc", "path"),
-                    prefix
-                );
-                Neo4jUtils.IsEqualTo personHasDoc = new Neo4jUtils.IsEqualTo(
-                    new Neo4jUtils.VariableProperty("person", "docId"),
-                    new Neo4jUtils.VariableProperty("doc", "id")
-                );
-                Neo4jUtils.Where where = new Neo4jUtils.And(docHasPath, personHasDoc);
-
-                // orderBy
-                List<Neo4jUtils.OrderBy> orderBy = List.of(
-                    new Neo4jUtils.SortByProperty(
-                        new Neo4jUtils.VariableProperty("doc", "path"),
-                        Objects.SortDirection.DESC
-                    )
-                );
-
-                // Limit
-                Long limit = 100L;
-
-                Objects.DumpQuery expected = Objects.DumpQuery.createDumpQuery(
-                    matches, where, orderBy, limit
-                );
-                assertThat(query).isEqualTo(expected);
-            }
-        }
 
         @Test
         public void test_dump_query_as_validated() throws IOException {
@@ -169,18 +78,31 @@ public class ObjectsTest {
                     fileInputStream, Objects.DumpQuery.class);
 
                 // When
-                String cypher = query.asValidated().getCypher();
+                String cypher = query.asValidated(null).getCypher();
 
                 // Then
-                String expected =
-                    "MATCH (doc:`Document`:`Important` {created: 'someDate'})"
-                        + "<-[rel:`APPEARS_IN`]-(person:`NamedEntity`:`Person`) "
-                        + "WHERE (doc.path STARTS WITH 'some/path/prefix'"
-                        + " AND person.docId = doc.id) "
-                        + "RETURN * "
-                        + "ORDER BY doc.path DESC "
-                        + "LIMIT 100";
+                String expected = "MATCH (doc:`Document`:`Important` {created: 'someDate'}) "
+                    + "WHERE doc.path STARTS WITH 'some/path/prefix' "
+                    + "WITH * "
+                    + "OPTIONAL MATCH (doc)-[rel:`APPEARS_IN`|`SENT`|`RECEIVED`]-(ne:`NamedEntity`)"
+                    + " RETURN apoc.coll.toSet(((collect(doc) + collect(ne)) + collect(rel)))"
+                    + " AS values";
                 assertThat(cypher).isEqualTo(expected);
+            }
+        }
+
+        @Test
+        public void test_dump_query_several_queries() throws IOException {
+            // Given
+            try (FileInputStream fileInputStream = new FileInputStream(
+                TEST_FILES.get("dump_query_several_queries"))) {
+                Objects.DumpQuery query = MAPPER.readValue(
+                    fileInputStream, Objects.DumpQuery.class);
+                String expected = "expected a single query matching documents to be specified";
+                assertThat(
+                    assertThrows(IllegalArgumentException.class,
+                        () -> query.asValidated(null)).getMessage()
+                ).isEqualTo(expected);
             }
         }
 
@@ -192,30 +114,57 @@ public class ObjectsTest {
                 Objects.DumpQuery query = MAPPER.readValue(
                     fileInputStream, Objects.DumpQuery.class);
                 // When
-                String cypher = query.asValidated().getCypher();
+                String cypher = query.asValidated(null).getCypher();
 
                 // Then
                 String expected = "MATCH (doc:`Document`) "
-                    + "OPTIONAL MATCH (doc)-[rel]-(other) "
-                    + "RETURN *";
+                    + "WITH * "
+                    + "ORDER BY doc.path ASC "
+                    + "OPTIONAL MATCH (doc)-[rel:`APPEARS_IN`|`SENT`|`RECEIVED`]-(ne:`NamedEntity`)"
+                    + " RETURN apoc.coll.toSet(((collect(doc) + collect(ne)) + collect(rel)))"
+                    + " AS values";
                 assertThat(cypher).isEqualTo(expected);
             }
         }
 
         @Test
-        public void test_dump_query_with_empty_match() throws IOException {
+        public void test_dump_query_empty_queries() throws IOException {
             // Given
             try (FileInputStream fileInputStream = new FileInputStream(
-                TEST_FILES.get("dump_query_with_empty_matches"))) {
+                TEST_FILES.get("dump_query_empty_queries"))) {
                 Objects.DumpQuery query = MAPPER.readValue(
                     fileInputStream, Objects.DumpQuery.class);
                 // When
-                String cypher = query.asValidated().getCypher();
+                String cypher = query.asValidated(null).getCypher();
 
                 // Then
                 String expected = "MATCH (doc:`Document`) "
-                    + "OPTIONAL MATCH (doc)-[rel]-(other) "
-                    + "RETURN *";
+                    + "WITH * "
+                    + "ORDER BY doc.path ASC "
+                    + "OPTIONAL MATCH (doc)-[rel:`APPEARS_IN`|`SENT`|`RECEIVED`]-(ne:`NamedEntity`)"
+                    + " RETURN apoc.coll.toSet(((collect(doc) + collect(ne)) + collect(rel)))"
+                    + " AS values";
+                assertThat(cypher).isEqualTo(expected);
+            }
+        }
+
+        @Test
+        public void test_without_dump_queries() throws IOException {
+            // Given
+            try (FileInputStream fileInputStream = new FileInputStream(
+                TEST_FILES.get("dump_query_without_queries"))) {
+                Objects.DumpQuery query = MAPPER.readValue(
+                    fileInputStream, Objects.DumpQuery.class);
+                // When
+                String cypher = query.asValidated(null).getCypher();
+
+                // Then
+                String expected = "MATCH (doc:`Document`) "
+                    + "WITH * "
+                    + "ORDER BY doc.path ASC "
+                    + "OPTIONAL MATCH (doc)-[rel:`APPEARS_IN`|`SENT`|`RECEIVED`]-(ne:`NamedEntity`)"
+                    + " RETURN apoc.coll.toSet(((collect(doc) + collect(ne)) + collect(rel)))"
+                    + " AS values";
                 assertThat(cypher).isEqualTo(expected);
             }
         }
