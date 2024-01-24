@@ -1,28 +1,32 @@
 package org.icij.datashare;
 
-import static java.lang.Math.min;
 import static java.util.UUID.randomUUID;
+import static org.icij.datashare.Neo4jUtils.APPEARS_IN_REL;
 import static org.icij.datashare.Neo4jUtils.DOC_NODE;
 import static org.icij.datashare.Neo4jUtils.DOC_PATH;
+import static org.icij.datashare.Neo4jUtils.NE_NODE;
+import static org.icij.datashare.Neo4jUtils.RECEIVED_REL;
+import static org.icij.datashare.Neo4jUtils.SENT_REL;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.icij.datashare.text.NamedEntity;
 import org.neo4j.cypherdsl.core.Cypher;
-import org.neo4j.cypherdsl.core.Node;
-import org.neo4j.cypherdsl.core.Relationship;
+import org.neo4j.cypherdsl.core.ExposesMatch;
+import org.neo4j.cypherdsl.core.Expression;
+import org.neo4j.cypherdsl.core.Functions;
 import org.neo4j.cypherdsl.core.SortItem;
 import org.neo4j.cypherdsl.core.Statement;
-import org.neo4j.cypherdsl.core.SymbolicName;
 
 //CHECKSTYLE.OFF: MemberName
 //CHECKSTYLE.OFF: ParameterName
@@ -56,54 +60,87 @@ public class Objects {
         }
     }
 
-    protected static class DumpQuery extends Neo4jUtils.Query {
-        private DumpQuery(
-            List<Neo4jUtils.Match> matches,
-            Neo4jUtils.Where where,
-            List<Neo4jUtils.OrderBy> orderBy,
-            Long limit
-        ) {
-            super(matches, where, orderBy, limit);
-        }
+    protected static class DumpQuery {
+        List<Neo4jUtils.Query> queries;
 
         @JsonCreator
-        protected static DumpQuery createDumpQuery(
-            @JsonProperty("matches") List<Neo4jUtils.Match> matches,
-            @JsonProperty("where") Neo4jUtils.Where where,
-            @JsonProperty("orderBy") List<Neo4jUtils.OrderBy> orderBy,
-            @JsonProperty("limit") Long limit
-        ) {
-            if (matches == null || matches.isEmpty()) {
-                matches = defaultMatchClause();
+        protected DumpQuery(@JsonProperty("queries") List<Neo4jUtils.Query> queries) {
+            if (queries == null || queries.isEmpty()) {
+                queries = List.of(defaultMatchQuery());
             }
-            return new DumpQuery(matches, where, orderBy, limit);
+            this.queries = queries;
         }
 
-        protected static Statement defaultQueryStatement(long defaultLimit) {
-            SymbolicName doc = Cypher.name("doc");
-            return buildMatch(defaultMatchClause())
-                .returning(doc, Cypher.name("other"), Cypher.name("rel"))
-                .orderBy(doc.property(DOC_PATH).ascending())
-                .limit(defaultLimit)
-                .build();
+        protected Statement asValidated(Long defaultLimit) {
+            if (this.queries.size() != 1) {
+                throw new IllegalArgumentException(
+                    "expected a single query matching documents to be specified"
+                );
+            }
+
+            List<Neo4jUtils.Query> validated = new ArrayList<>(this.queries);
+            validated.add(optionalNamedEntityMatch());
+            ListIterator<Neo4jUtils.Query> it = validated.listIterator();
+            int numQueries = validated.size();
+
+            Statement statement = null;
+            ExposesMatch ongoing = null;
+            while (it.hasNext()) {
+                int i = it.nextIndex();
+                Neo4jUtils.Query query = it.next();
+                if (ongoing == null) {
+                    ongoing = query.startStatement(defaultLimit);
+                } else if (i == numQueries - 1) {
+                    statement = query.finishQuery(ongoing, null, exportedValues());
+                } else {
+                    ongoing = query.continueStatement(ongoing, null);
+                }
+            }
+            return statement;
         }
 
-        private static List<Neo4jUtils.Match> defaultMatchClause() {
+        protected static Neo4jUtils.Query defaultMatchQuery() {
             Neo4jUtils.PatternNode doc = new Neo4jUtils.PatternNode(
                 "doc", List.of(DOC_NODE), null);
-            Neo4jUtils.PatternNode other =
-                new Neo4jUtils.PatternNode(
-                    "other", null, null);
-            Neo4jUtils.PathPattern match = new Neo4jUtils.PathPattern(
+            Neo4jUtils.PathPattern firstMatch = new Neo4jUtils.PathPattern(
                 List.of(doc), null, false
             );
-            Neo4jUtils.PatternRelationship rel = new Neo4jUtils.PatternRelationship(
-                "rel", Neo4jUtils.PatternRelationship.Direction.BETWEEN, null);
-            Neo4jUtils.PathPattern optionalMatch = new Neo4jUtils.PathPattern(
-                List.of(doc, other), List.of(rel), true
+            Neo4jUtils.SortByProperty orderBy = new Neo4jUtils.SortByProperty(
+                new Neo4jUtils.VariableProperty("doc", DOC_PATH), SortDirection.ASC
             );
-            return List.of(match, optionalMatch);
+            return new Neo4jUtils.Query(
+                List.of(firstMatch), null, List.of(orderBy), null);
+
         }
+
+        protected static Neo4jUtils.Query optionalNamedEntityMatch() {
+            Neo4jUtils.PatternNode doc = new Neo4jUtils.PatternNode(
+                "doc", null, null);
+            Neo4jUtils.PatternNode ne = new Neo4jUtils.PatternNode(
+                "ne", List.of(NE_NODE), null);
+            Neo4jUtils.PatternRelationship rel = new Neo4jUtils.PatternRelationship(
+                "rel",
+                Neo4jUtils.PatternRelationship.Direction.BETWEEN,
+                List.of(APPEARS_IN_REL, SENT_REL, RECEIVED_REL)
+            );
+            Neo4jUtils.PathPattern secondMatch = new Neo4jUtils.PathPattern(
+                List.of(doc, ne), List.of(rel), true
+            );
+            return new Neo4jUtils.Query(List.of(secondMatch), null, null, null);
+        }
+
+        private static List<Expression> exportedValues() {
+            Expression values = Cypher.call("apoc.coll.toSet")
+                .withArgs(
+                    Functions.collect(Cypher.name("doc"))
+                        .add(Functions.collect(Cypher.name("ne")))
+                        .add(Functions.collect(Cypher.name("rel")))
+                )
+                .asFunction()
+                .as("values");
+            return List.of(values);
+        }
+
     }
 
 
@@ -283,58 +320,6 @@ public class Objects {
             }
         }
     }
-
-    protected static class SortedDumpQuery {
-        protected final List<DocumentSortItem> sort;
-        protected final Long limit;
-
-        @JsonCreator
-        protected SortedDumpQuery(
-            @JsonProperty("sort") List<DocumentSortItem> sort,
-            @JsonProperty("limit") Long limit
-        ) {
-            this.sort = java.util.Objects.requireNonNull(sort, "missing sort");
-            this.limit = limit;
-        }
-
-        protected Statement defaultQueryStatement(long defaultLimit) {
-            Node doc = Cypher.node(DOC_NODE).named("doc");
-            Node other = Cypher.anyNode().named("other");
-            Relationship rel = doc.relationshipBetween(other).named("rel");
-            SortItem[] orderBy = this.sort.stream().map(item -> {
-                if (item.direction == Objects.SortDirection.ASC) {
-                    return doc.property(item.property).ascending();
-                } else {
-                    return doc.property(item.property).descending();
-                }
-            }).toArray(SortItem[]::new);
-            long limit = defaultLimit;
-            if (this.limit != null) {
-                limit = min(this.limit, defaultLimit);
-            }
-            return Cypher.match(rel)
-                .returning(doc, other, rel)
-                .orderBy(orderBy)
-                .limit(limit)
-                .build();
-        }
-    }
-
-
-    protected static class SortedDumpRequest {
-        protected final DumpFormat format;
-        protected final SortedDumpQuery query;
-
-        @JsonCreator
-        protected SortedDumpRequest(
-            @JsonProperty("format") DumpFormat format,
-            @JsonProperty("query") SortedDumpQuery query
-        ) {
-            this.format = java.util.Objects.requireNonNull(format, "missing dump format");
-            this.query = java.util.Objects.requireNonNull(query, "missing query");
-        }
-    }
-
 
     static class StartNeo4jAppRequest {
         protected boolean forceMigration;

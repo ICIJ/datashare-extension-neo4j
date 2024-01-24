@@ -38,21 +38,22 @@ async def _mocked_run(
             "data",
             None,
             call(
-                """CALL apoc.export.graphml.query($query_filter, null, $config)
-YIELD data
+                """
+CALL apoc.export.graphml.query($query_filter, null, $config) YIELD data
 RETURN data;
 """,
                 config={
                     "format": "gephi",
-                    "batchSize": 20000,
                     "stream": True,
+                    "streamStatements": True,
                     "readLabels": False,
                     "storeNodeIds": False,
                 },
-                query_filter="""MATCH (node)
-OPTIONAL MATCH (node)-[r]-(other)
-RETURN *
-""",
+                query_filter="""MATCH (doc:Document)
+WITH doc
+ORDER BY doc.path ASC
+OPTIONAL MATCH (doc)-[rel:APPEARS_IN|SENT|RECEIVED]-(ne:NamedEntity)
+RETURN apoc.coll.toSet(collect(doc) + collect(ne) + collect(rel)) AS values""",
             ),
         ),
         (
@@ -60,18 +61,19 @@ RETURN *
             "cypherStatements",
             "MATCH doc:Document RETURN doc;",
             call(
-                """CALL apoc.export.cypher.query($query_filter, null, $config)
-YIELD cypherStatements
+                """
+CALL apoc.export.cypher.query($query_filter, null, $config) YIELD cypherStatements
 RETURN cypherStatements;
 """,
                 config={
                     "stream": True,
+                    "streamStatements": True,
                     "writeNodeProperties": True,
                     "format": "cypher-shell",
                     "cypherFormat": "create",
                     "useOptimizations": {
                         "type": "UNWIND_BATCH",
-                        "unwindBatchSize": 100,
+                        "unwindBatchSize": 1000,
                     },
                 },
                 query_filter="MATCH doc:Document RETURN doc;",
@@ -82,24 +84,26 @@ RETURN cypherStatements;
             "cypherStatements",
             None,
             call(
-                """CALL apoc.export.cypher.query($query_filter, null, $config)
-YIELD cypherStatements
+                """
+CALL apoc.export.cypher.query($query_filter, null, $config) YIELD cypherStatements
 RETURN cypherStatements;
 """,
                 config={
                     "stream": True,
+                    "streamStatements": True,
                     "writeNodeProperties": True,
                     "format": "cypher-shell",
                     "cypherFormat": "create",
                     "useOptimizations": {
                         "type": "UNWIND_BATCH",
-                        "unwindBatchSize": 100,
+                        "unwindBatchSize": 1000,
                     },
                 },
-                query_filter="""MATCH (node)
-OPTIONAL MATCH (node)-[r]-(other)
-RETURN *
-""",
+                query_filter="""MATCH (doc:Document)
+WITH doc
+ORDER BY doc.path ASC
+OPTIONAL MATCH (doc)-[rel:APPEARS_IN|SENT|RECEIVED]-(ne:NamedEntity)
+RETURN apoc.coll.toSet(collect(doc) + collect(ne) + collect(rel)) AS values""",
             ),
         ),
         (
@@ -107,18 +111,19 @@ RETURN *
             "cypherStatements",
             "MATCH doc:Document RETURN doc;",
             call(
-                """CALL apoc.export.cypher.query($query_filter, null, $config)
-YIELD cypherStatements
+                """
+CALL apoc.export.cypher.query($query_filter, null, $config) YIELD cypherStatements
 RETURN cypherStatements;
 """,
                 config={
                     "stream": True,
+                    "streamStatements": True,
                     "writeNodeProperties": True,
                     "format": "cypher-shell",
                     "cypherFormat": "create",
                     "useOptimizations": {
                         "type": "UNWIND_BATCH",
-                        "unwindBatchSize": 100,
+                        "unwindBatchSize": 1000,
                     },
                 },
                 query_filter="MATCH doc:Document RETURN doc;",

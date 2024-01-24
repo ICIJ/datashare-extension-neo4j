@@ -58,7 +58,56 @@ public class Neo4jUtilsTest {
     }
 
     @Test
-    public void test_query_as_validated_should_set_limit() {
+    public void test_query_single_statement() {
+        // Given
+        List<Neo4jUtils.PatternNode> nodes = List.of(
+            new Neo4jUtils.PatternNode("doc", List.of("Document"), Map.of()));
+        Neo4jUtils.PathPattern pattern = new Neo4jUtils.PathPattern(
+            nodes,
+            null,
+            false
+        );
+        List<Neo4jUtils.Match> matches = List.of(pattern);
+        Neo4jUtils.VariableProperty docPath = new Neo4jUtils.VariableProperty("doc", "path");
+        Neo4jUtils.SortByProperty orderBy = new Neo4jUtils.SortByProperty(
+            docPath,
+            org.icij.datashare.Objects.SortDirection.ASC);
+        Neo4jUtils.IsEqualTo where = new Neo4jUtils.IsEqualTo(
+            docPath, new Neo4jUtils.LiteralWrapper("some-path"));
+        Neo4jUtils.Query query = new Neo4jUtils.Query(matches, where, List.of(orderBy), null);
+
+        // When
+        String validatedWithLimit = query.singleStatementQuery(null, null).getCypher();
+
+        // Then
+        assertThat(validatedWithLimit).isEqualTo(
+            "MATCH (doc:`Document`) WHERE doc.path = 'some-path' "
+                + "RETURN * ORDER BY doc.path ASC"
+        );
+    }
+
+    @Test
+    public void test_query_single_statement_optional() {
+        // Given
+        List<Neo4jUtils.PatternNode> nodes = List.of(
+            new Neo4jUtils.PatternNode("doc", List.of("Document"), Map.of()));
+        Neo4jUtils.PathPattern pattern = new Neo4jUtils.PathPattern(
+            nodes,
+            null,
+            true
+        );
+        List<Neo4jUtils.Match> matches = List.of(pattern);
+        Neo4jUtils.Query query = new Neo4jUtils.Query(matches, null, null, null);
+
+        // When
+        String validatedWithLimit = query.singleStatementQuery(null, null).getCypher();
+
+        // Then
+        assertThat(validatedWithLimit).endsWith("OPTIONAL MATCH (doc:`Document`) RETURN *");
+    }
+
+    @Test
+    public void test_query_single_statement_should_set_limit() {
         // Given
         long limit = 100;
         List<Neo4jUtils.PatternNode> nodes = List.of(
@@ -72,14 +121,14 @@ public class Neo4jUtilsTest {
         Neo4jUtils.Query query = new Neo4jUtils.Query(matches, null, null, null);
 
         // When
-        String validatedWithLimit = query.asValidated(limit).getCypher();
+        String validatedWithLimit = query.singleStatementQuery(limit, null).getCypher();
 
         // Then
         assertThat(validatedWithLimit).endsWith("LIMIT 100");
     }
 
     @Test
-    public void test_dump_query_as_validated_should_override_limit() {
+    public void test_query_single_statement_query_should_override_limit() {
         // Given
         long limit = 1000;
         long defaultLimit = 100;
@@ -94,16 +143,59 @@ public class Neo4jUtilsTest {
         Neo4jUtils.Query query = new Neo4jUtils.Query(matches, null, null, limit);
 
         // When
-        String validatedWithLimit = query.asValidated(defaultLimit).getCypher();
+        String validatedWithLimit = query.singleStatementQuery(defaultLimit, null).getCypher();
 
         // Then
         assertThat(validatedWithLimit).endsWith("LIMIT 100");
     }
 
     @Test
-    public void test_dump_query_should_override_limit() {
+    public void test_query_finish_query() {
         // Given
+        List<Neo4jUtils.PatternNode> nodes = List.of(
+            new Neo4jUtils.PatternNode("doc", List.of("Document"), Map.of())
+        );
+        Neo4jUtils.PathPattern pattern = new Neo4jUtils.PathPattern(
+            nodes,
+            null,
+            false
+        );
+        List<Neo4jUtils.Match> matches = List.of(pattern);
+        Neo4jUtils.Query query = new Neo4jUtils.Query(matches, null, null, null);
 
+        // When
+        String validatedWithLimit = query.finishQuery(null, null, null).getCypher();
+
+        // Then
+        assertThat(validatedWithLimit).isEqualTo("MATCH (doc:`Document`) RETURN *");
+    }
+
+    @Test
+    public void test_query_finish_query_returning() {
+        // Given
+        List<Neo4jUtils.PatternNode> nodes = List.of(
+            new Neo4jUtils.PatternNode("doc", List.of("Document"), Map.of())
+        );
+        Neo4jUtils.PathPattern pattern = new Neo4jUtils.PathPattern(
+            nodes,
+            null,
+            false
+        );
+        List<Neo4jUtils.Match> matches = List.of(pattern);
+        Neo4jUtils.Query query = new Neo4jUtils.Query(matches, null, null, null);
+
+        // When
+        String validatedWithLimit = query.finishQuery(
+            null, null, List.of(Cypher.name("doc"))
+        ).getCypher();
+
+        // Then
+        assertThat(validatedWithLimit).isEqualTo("MATCH (doc:`Document`) RETURN doc");
+    }
+
+    @Test
+    public void test_query_finish_query_should_override_limit() {
+        // Given
         long limit = 1000;
         long defaultLimit = 100;
         List<Neo4jUtils.PatternNode> nodes = List.of(
@@ -117,10 +209,12 @@ public class Neo4jUtilsTest {
         Neo4jUtils.Query query = new Neo4jUtils.Query(matches, null, null, limit);
 
         // When
-        String validatedWithLimit = query.asValidated(defaultLimit).getCypher();
+        String validatedWithLimit = query.finishQuery(
+            query.startStatement(defaultLimit), null, List.of(Cypher.node("doc").asExpression())
+        ).getCypher();
 
         // Then
-        assertThat(validatedWithLimit).endsWith("LIMIT 100");
+        assertThat(validatedWithLimit).startsWith("MATCH (doc:`Document`) WITH * LIMIT 100 ");
     }
 
     @ExtendWith(TestResources.class)
@@ -235,14 +329,14 @@ public class Neo4jUtilsTest {
         }
 
         @Test
-        public void test_query_optional_match() throws IOException {
+        public void test_query_single_statement_optional_match() throws IOException {
             // Given
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("query_optional_match"))) {
                 Neo4jUtils.Query query = MAPPER.readValue(stream, Neo4jUtils.Query.class);
                 // When
-                cypher = query.asValidated().getCypher();
+                cypher = query.singleStatementQuery(null, null).getCypher();
             }
             // Then
             String expected = "OPTIONAL MATCH (person:`Person`) RETURN *";
@@ -378,6 +472,7 @@ public class Neo4jUtilsTest {
                 "MATCH (doc:`Document`) WHERE doc.id ENDS WITH 'someSuffix' RETURN *";
             assertThat(cypher).isEqualTo(expected);
         }
+
     }
 
 }

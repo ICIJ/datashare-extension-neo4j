@@ -307,6 +307,7 @@ def _log_exceptions():
 @asynccontextmanager
 async def run_app_deps(app: FastAPI, dependencies: List) -> AsyncGenerator[None, None]:
     async with run_deps(dependencies, config=app.state.config):
+        app.state.config = await app.state.config.with_neo4j_support()
         yield
 
 

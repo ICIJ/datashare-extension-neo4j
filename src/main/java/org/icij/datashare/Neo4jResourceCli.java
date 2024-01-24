@@ -33,6 +33,10 @@ public class Neo4jResourceCli extends Neo4jResource {
                 Integer value = (Integer) defaultValue;
                 parser.accepts(opt, desc).withRequiredArg().ofType(Integer.class)
                     .defaultsTo(value);
+            } else if (defaultValue instanceof Long) {
+                Long value = (Long) defaultValue;
+                parser.accepts(opt, desc).withRequiredArg().ofType(Long.class)
+                    .defaultsTo(value);
             } else if (defaultValue instanceof Boolean) {
                 Boolean value = (Boolean) defaultValue;
                 parser.accepts(opt, desc).withRequiredArg().ofType(Boolean.class)

@@ -15,7 +15,7 @@ from pythonjsonlogger.jsonlogger import JsonFormatter
 
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.elasticsearch.client import ESClient, OSClient
-from neo4j_app.core.neo4j.projects import is_enterprise
+from neo4j_app.core.neo4j.projects import is_enterprise, supports_parallel_runtime
 from neo4j_app.core.utils.logging import (
     DATE_FMT,
     STREAM_HANDLER_FMT,
@@ -75,6 +75,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_app_gunicorn_workers: int = 1
     neo4j_app_log_level: str = "INFO"
     neo4j_app_log_in_json: bool = False
+    neo4j_app_max_dumped_documents: Optional[int] = None
     neo4j_app_max_records_in_memory: int = int(1e6)
     neo4j_app_migration_timeout_s: float = 60 * 5
     neo4j_app_migration_throttle_s: float = 1
@@ -91,6 +92,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     neo4j_connection_timeout: float = 5.0
     neo4j_host: str = "127.0.0.1"
     neo4j_import_batch_size: int = int(5e5)
+    neo4j_export_batch_size: int = int(1e3)
     neo4j_password: Optional[str] = None
     neo4j_port: int = 7687
     neo4j_transaction_batch_size = 50000
@@ -98,6 +100,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     # Other supported schemes are neo4j+ssc, neo4j+s, bolt, bolt+ssc, bolt+s
     neo4j_uri_scheme: str = "bolt"
     supports_neo4j_enterprise: Optional[bool] = None
+    supports_neo4j_parallel_runtime: Optional[bool] = None
     test: bool = False
 
     # Ugly but hard to do differently if we want to avoid to retrieve the config on a
@@ -192,8 +195,15 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
 
     async def with_neo4j_support(self) -> AppConfig:
         async with self.to_neo4j_driver() as neo4j_driver:  # pylint: disable=not-async-context-manager
-            support = await is_enterprise(neo4j_driver)
-        copied = safe_copy(self, update={"supports_neo4j_enterprise": support})
+            enterprise_support = await is_enterprise(neo4j_driver)
+            parallel_support = await supports_parallel_runtime(neo4j_driver)
+        copied = safe_copy(
+            self,
+            update={
+                "supports_neo4j_enterprise": enterprise_support,
+                "supports_neo4j_parallel_runtime": parallel_support,
+            },
+        )
         return copied
 
     def setup_loggers(self, worker_id: Optional[str] = None):

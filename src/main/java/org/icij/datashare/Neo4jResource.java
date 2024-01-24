@@ -12,7 +12,6 @@ import static org.icij.datashare.Objects.IncrementalImportResponse;
 import static org.icij.datashare.Objects.Neo4jAppDumpRequest;
 import static org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest;
 import static org.icij.datashare.Objects.Neo4jCSVResponse;
-import static org.icij.datashare.Objects.SortedDumpRequest;
 import static org.icij.datashare.Objects.Task;
 import static org.icij.datashare.Objects.TaskError;
 import static org.icij.datashare.Objects.TaskSearch;
@@ -51,7 +50,6 @@ import java.util.stream.Stream;
 import net.codestory.http.Context;
 import net.codestory.http.errors.ForbiddenException;
 import net.codestory.http.errors.UnauthorizedException;
-import org.neo4j.cypherdsl.core.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,10 +58,11 @@ public class Neo4jResource implements AutoCloseable {
     private static final String NEO4J_APP_BIN = "neo4j-app";
     private static final Path TMP_ROOT = Path.of(
         FileSystems.getDefault().getSeparator(), "tmp");
-    private static final long NEO4J_DEFAULT_DUMPED_DOCUMENTS = 1000;
     private static final String SYSLOG_SPLIT_CHAR = "@";
     protected static final String TASK_POLL_INTERVAL_S = "neo4jCliTaskPollIntervalS";
     protected static final String NEO4J_PROCESS_INHERIT_OUTPUTS = "neo4jProcessInheritOutputs";
+    protected static final String NEO4J_APP_MAX_DUMPED_DOCUMENTS = "neo4jAppMaxDumpedDocuments";
+    private static final String NEO4J_APP_SUPPORTS_NEO4J_ENTERPRISE = "supportsNeo4jEnterprise";
     protected static final String NEO4J_APP_LOG_IN_JSON = "neo4jAppLogInJson";
 
     private static final String PID_FILE_PATTERN = "glob:" + NEO4J_APP_BIN + "_*" + ".pid";
@@ -110,11 +109,17 @@ public class Neo4jResource implements AutoCloseable {
             NEO4J_PROCESS_INHERIT_OUTPUTS,
             true,
             "Should the Python process outputs be redirected to the Java process outputs ?"
+        ),
+        List.of(
+            NEO4J_APP_MAX_DUMPED_DOCUMENTS,
+            10000L,
+            "Maximum number for document nodes allowed during export on SERVER mode"
         )
     );
     //CHECKSTYLE.OFF: MemberName
     //CHECKSTYLE.OFF: AbbreviationAsWordInName
-    Map<String, String> DEFAULT_NEO4J_PROPERTIES_MAP = DEFAULT_CLI_OPTIONS.stream()
+    Map<String, String> DEFAULT_NEO4J_PROPERTIES_MAP = DEFAULT_CLI_OPTIONS
+        .stream()
         .collect(
             Collectors.toMap((item) -> item.get(0).toString(), (item) -> item.get(1).toString())
         );
@@ -126,7 +131,7 @@ public class Neo4jResource implements AutoCloseable {
     private static final TaskSearch FULL_IMPORT_SEARCH = new TaskSearch(
         TaskType.FULL_IMPORT, null);
 
-    protected static Boolean supportNeo4jEnterprise;
+    protected static Map<String, Object> appConfig;
 
     protected static final Logger logger = LoggerFactory.getLogger(Neo4jResource.class);
     // TODO: not sure that we want to delete the process when this deleted...
@@ -311,17 +316,32 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-
-    protected boolean supportsNeo4jEnterprise() {
+    protected Map<String, Object> getNeo4jAppConfig() {
         checkNeo4jAppStarted();
         synchronized (Neo4jResource.class) {
-            if (supportNeo4jEnterprise == null) {
-                Boolean support = (Boolean) client.config().get("supportsNeo4jEnterprise");
-                supportNeo4jEnterprise = Objects.requireNonNull(support,
-                    "Couldn't read enterprise support from config");
+            if (appConfig == null) {
+                appConfig = client.config();
             }
         }
-        return Neo4jResource.supportNeo4jEnterprise;
+        return appConfig;
+    }
+
+    protected Long getDocumentNodesLimit() {
+        Object limit = Objects.requireNonNull(
+            getNeo4jAppConfig().get(NEO4J_APP_MAX_DUMPED_DOCUMENTS),
+            "Couldn't read node limit from config"
+        );
+        if (limit instanceof Integer) {
+            return Long.valueOf((Integer) limit);
+        }
+        return (Long) limit;
+    }
+
+    protected boolean supportsNeo4jEnterprise() {
+        return (Boolean) Objects.requireNonNull(
+            getNeo4jAppConfig().get(NEO4J_APP_SUPPORTS_NEO4J_ENTERPRISE),
+            "Couldn't read enterprise support from config"
+        );
     }
 
     protected void checkServerCommand(List<String> startServerCmd) {
@@ -528,17 +548,6 @@ public class Neo4jResource implements AutoCloseable {
         return client.dumpGraph(projectId, neo4jAppRequest);
     }
 
-    protected InputStream sortedDumpGraph(
-        String projectId, SortedDumpRequest request
-    ) throws URISyntaxException, IOException, InterruptedException {
-        checkProject(projectId);
-        checkNeo4jAppStarted();
-        Statement statement = request.query.defaultQueryStatement(getDocumentNodesLimit());
-        Neo4jAppDumpRequest neo4jAppRequest = new Neo4jAppDumpRequest(
-            request.format, statement.getCypher());
-        return client.dumpGraph(projectId, neo4jAppRequest);
-    }
-
     protected void checkTaskAccess(String taskId, String project, Context context)
         throws UnauthorizedException {
         if (!isServer()) {
@@ -579,22 +588,9 @@ public class Neo4jResource implements AutoCloseable {
         }
     }
 
-    protected Neo4jAppDumpRequest validateDumpRequest(
-        DumpRequest request) {
-        String validated = null;
-        if (isLocal()) {
-            if (request.query != null) {
-                validated = request.query.asValidated().getCypher();
-            }
-        } else {
-            long defaultLimit = getDocumentNodesLimit();
-            if (request.query == null) {
-                validated = DumpQuery.defaultQueryStatement(
-                    defaultLimit).getCypher();
-            } else {
-                validated = request.query.asValidated(getDocumentNodesLimit()).getCypher();
-            }
-        }
+    protected Neo4jAppDumpRequest validateDumpRequest(DumpRequest request) {
+        String validated = Objects.requireNonNullElseGet(request.query, () -> new DumpQuery(null))
+            .asValidated(getDocumentNodesLimit()).getCypher();
         return new Neo4jAppDumpRequest(request.format, validated);
     }
 
@@ -610,13 +606,6 @@ public class Neo4jResource implements AutoCloseable {
 
     private String getMode() {
         return propertiesProvider.get("mode").orElse("SERVER");
-    }
-
-    private long getDocumentNodesLimit() {
-        return propertiesProvider
-            .get("neo4jDocumentNodesLimit")
-            .map(Long::parseLong)
-            .orElse(NEO4J_DEFAULT_DUMPED_DOCUMENTS);
     }
 
     static Properties filterUnset(Properties properties) {

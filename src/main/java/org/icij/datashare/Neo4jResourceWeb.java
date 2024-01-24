@@ -6,7 +6,6 @@ import static org.icij.datashare.HttpUtils.parseRequestContent;
 import static org.icij.datashare.Objects.DumpRequest;
 import static org.icij.datashare.Objects.IncrementalImportRequest;
 import static org.icij.datashare.Objects.Neo4jAppNeo4jCSVRequest;
-import static org.icij.datashare.Objects.SortedDumpRequest;
 import static org.icij.datashare.Objects.StartNeo4jAppRequest;
 import static org.icij.datashare.text.Project.isAllowed;
 
@@ -109,7 +108,7 @@ public class Neo4jResourceWeb extends Neo4jResource {
             checkProjectAccess(project, context);
             Neo4jAppNeo4jCSVRequest
                 request = parseRequestContent(
-                    context.request().content(), Neo4jAppNeo4jCSVRequest.class);
+                context.request().content(), Neo4jAppNeo4jCSVRequest.class);
             return this.exportNeo4jCSVs(project, request);
         });
     }
@@ -121,21 +120,16 @@ public class Neo4jResourceWeb extends Neo4jResource {
             checkProjectAccess(project, context);
             DumpRequest request = parseRequestContent(
                 context.get("dumpRequest"), DumpRequest.class);
-            InputStream is =  this.dumpGraph(project, request);
+            InputStream is = this.dumpGraph(project, request);
             String fileName = "datashare-graph" + request.dumpExtension();
             return new Payload(is)
                 .withHeader("Content-Disposition", "attachment;filename=\"" + fileName + "\"");
         });
     }
 
-    @Post("/graphs/sorted-dump?project=:project")
-    public Payload postSortedGraphDump(String project, Context context) {
-        return wrapNeo4jAppCall(() -> {
-            checkProjectAccess(project, context);
-            SortedDumpRequest request = parseRequestContent(
-                context.request().content(), SortedDumpRequest.class);
-            return this.sortedDumpGraph(project, request);
-        });
+    @Get("/graphs/dump/node-limit")
+    public Payload getDumpNodeLimit() {
+        return wrapNeo4jAppCall(this::getDocumentNodesLimit);
     }
 
     @Get("/tasks/:taskId?project=:project")

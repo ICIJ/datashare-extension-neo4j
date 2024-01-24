@@ -32,10 +32,15 @@ def main_router() -> APIRouter:
 
     @router.get("/config", response_model=AppConfig, response_model_exclude_unset=True)
     async def config(request: Request) -> AppConfig:
-        if request.app.state.config.supports_neo4j_enterprise is None:
-            conf = request.app.state.config
-            with_support = await conf.with_neo4j_support()
-            request.app.state.config = with_support
+        if (
+            request.app.state.config.supports_neo4j_enterprise is None
+            or request.app.state.config.supports_neo4j_parallel_runtime is None
+        ):
+            msg = (
+                "neo4j support has not been set, config has not been properly"
+                " initialized using AppConfig.with_neo4j_support"
+            )
+            raise ValueError(msg)
         return request.app.state.config
 
     @router.get("/version")

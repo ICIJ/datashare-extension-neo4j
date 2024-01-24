@@ -113,7 +113,10 @@ public class Neo4jCliExtensionTest {
             neo4jApp = this;
             this.configure(routes -> routes.get("/ping", "pong"));
             Neo4jResourceWithApp.projects.add(SINGLE_PROJECT);
-            Neo4jResourceWithApp.supportNeo4jEnterprise = false;
+            Neo4jResource.appConfig = Map.of(
+                "neo4jAppMaxDumpedDocuments", 100,
+                "supportsNeo4jEnterprise", false
+            );
 
             PropertiesProvider propertiesProvider = new PropertiesProvider(new HashMap<>() {
                 {
@@ -130,7 +133,7 @@ public class Neo4jCliExtensionTest {
         @Override
         public void afterAll(ExtensionContext extensionContext) {
             Neo4jResourceWithApp.projects.remove(SINGLE_PROJECT);
-            Neo4jResourceWithApp.supportNeo4jEnterprise = null;
+            Neo4jResource.appConfig = null;
         }
 
         @Override
