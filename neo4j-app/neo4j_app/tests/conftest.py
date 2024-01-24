@@ -5,6 +5,7 @@ import contextlib
 import os
 import random
 import traceback
+from copy import copy
 from datetime import datetime
 from pathlib import Path
 from time import monotonic, sleep
@@ -653,3 +654,13 @@ async def sleep_for(
 @pytest.fixture(scope="session")
 def test_async_app(test_config: AppConfig) -> ICIJApp:
     return test_config.to_async_app()
+
+
+@pytest.fixture()
+def reset_env():
+    old_env = copy(dict(os.environ))
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(old_env)
