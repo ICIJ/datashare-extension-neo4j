@@ -14,7 +14,7 @@ function _export_global_variables() {
     DOCKER_GID="$(id -g)"
     export DOCKER_GID
     export ELASTICSEARCH_PORT=9201
-    export NEO4J_VERSION=4.4.17
+    export NEO4J_VERSION=4.4.29
     export TEST_APP_PORT=8002
     BIN_ARCHI="$(arch)"
     if [ "$BIN_ARCHI" == "x86_64" ] || [ "$BIN_ARCHI" == "i386" ] || [ "$BIN_ARCHI" == "amd64" ]; then
@@ -702,7 +702,6 @@ function _main() {
     PRINT_VERSION=
     PROJECT=
     PROJECTS=
-    PORT=8081
 
     # Define sub projects here
     PROJECTS=(
@@ -762,7 +761,6 @@ function _main() {
                     elif [[ $TYPE_ARG = "--sha" ]]; then
                         PRINT_SHA=1
                     elif [[ $TYPE_ARG = "--port" ]]; then
-                        PORT=$VALUE_ARG
                         SKIP_NEXT_TYPE_ARG=true
                     fi
                 else
