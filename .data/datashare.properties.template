@@ -28,7 +28,7 @@ batchDownloadMaxSize=100M
 parallelism=8
 batchQueueType=MEMORY
 scrollSlices=1
-neo4jHost=neo4j
+neo4jHost=127.0.0.1
 nlpParallelism=1
 dataSourceUrl=jdbc\:sqlite\:file\:memorydb.db?mode\=memory&cache\=shared
 batchDownloadMaxNbFiles=10000
@@ -50,3 +50,4 @@ neo4jUser=neo4j
 neo4jUriScheme=bolt
 neo4jPassword=changeme
 neo4jCliTaskPollIntervalS=2
+neo4jAppMaxDumpedDocuments=10000
