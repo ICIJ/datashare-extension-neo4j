@@ -91,8 +91,8 @@
               </p>
               <p>Download can take some time to start, <strong>please don't close the opened tab</strong> until then !</p>
               <div class="d-flex align-items-center justify-content-right">
-                <b-button variant="danger" class="mr-3" @click="onCancellingExport">
-                  Cancel
+                <b-button variant="outline-primary" class="mr-3" @click="onCancellingExport">
+                  Back
                 </b-button>
                 <b-button variant="primary" @click="onExportConfirmation">Export graph</b-button>
               </div>
