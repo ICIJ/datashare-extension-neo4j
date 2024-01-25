@@ -90,7 +90,7 @@
                 <br>To export the entire graph, proceed to a <a :href="dumpDocUrl">full DB dump</a> or ask the system administrator for it.
               </p>
               <p>Download can take some time to start, <strong>please don't close the opened tab</strong> until then !</p>
-              <div class="d-flex align-items-center">
+              <div class="d-flex align-items-center justify-content-right">
                 <b-button variant="danger" class="mr-3" @click="onCancellingExport">
                   Cancel
                 </b-button>
