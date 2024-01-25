@@ -137,7 +137,8 @@ export default {
   name: 'WidgetNeo4jGraph',
   props: {
     widget: {
-      type: Object
+      type: Object,
+      default: () => {}
     }
   },
   mixins: [polling],
