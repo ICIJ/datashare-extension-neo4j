@@ -116,7 +116,7 @@ import { AppStatus } from '../store/Neo4jModule'
 import { default as Neo4jGraphCount } from '../components/Neo4jGraphCount.vue'
 import { default as Neo4jStatusBadge } from '../components/Neo4jStatusBadge.vue'
 import { default as Neo4jGraphImport } from '../components/Neo4jGraphImport.vue'
-import { default as polling } from '../core/mixin/polling'
+import polling from '../core/mixin/polling'
 
 const SHOULD_START_APP_STATUSES = new Set([AppStatus.Error, AppStatus.Stopped].map(x => AppStatus[x]))
 const DUMP_DOC_URL = 'https://neo4j.com/docs/operations-manual/current/backup-restore/offline-backup/'
