@@ -8,27 +8,29 @@ from _pytest.fixtures import FixtureRequest
 from starlette.testclient import TestClient
 
 from neo4j_app.app.utils import create_app
-from neo4j_app.core import AppConfig
-from neo4j_app.core.config import WorkerType
+from neo4j_app.app.config import ServiceConfig, WorkerType
 from neo4j_app.core.objects import TaskJob
 from neo4j_app.core.utils.logging import DifferedLoggingMessage
 from neo4j_app.core.utils.pydantic import safe_copy
-from neo4j_app.icij_worker import ICIJApp, Task, TaskStatus
+from neo4j_app.icij_worker import AsyncApp, Task, TaskStatus
 from neo4j_app.tests.conftest import TEST_PROJECT, test_error_router, true_after
 
 
 @pytest.fixture(scope="function")
 def test_client_prod(
-    test_config: AppConfig,
-    test_async_app: ICIJApp,
+    test_config: ServiceConfig,
+    test_async_app: AsyncApp,
     # Wipe neo4j and init project
     neo4j_app_driver: neo4j.AsyncSession,
 ) -> TestClient:
     # pylint: disable=unused-argument
     config = safe_copy(
-        test_config, update={"neo4j_app_worker_type": WorkerType.NEO4J, "test": False}
+        test_config, update={"neo4j_app_worker_type": WorkerType.neo4j, "test": False}
     )
-    new_async_app = ICIJApp(name=test_async_app.name, config=config)
+    new_async_app = AsyncApp(
+        name=test_async_app.name,
+        dependencies=test_async_app._dependencies,  # pylint: disable=protected-access
+    )
     new_async_app._registry = (  # pylint: disable=protected-access
         test_async_app.registry
     )
@@ -147,10 +149,13 @@ def test_cancel_task(test_client: TestClient):
 
 @pytest.fixture(scope="function")
 def test_client_limited_queue(
-    test_config: AppConfig, test_async_app: ICIJApp
+    test_config: ServiceConfig, test_async_app: AsyncApp
 ) -> TestClient:
     config = safe_copy(test_config, update={"neo4j_app_task_queue_size": 0})
-    new_async_app = ICIJApp(name=test_async_app.name, config=config)
+    new_async_app = AsyncApp(
+        name=test_async_app.name,
+        dependencies=test_async_app._dependencies,  # pylint: disable=protected-access
+    )
     new_async_app._registry = (  # pylint: disable=protected-access
         test_async_app.registry
     )

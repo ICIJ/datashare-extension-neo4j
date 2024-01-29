@@ -1,14 +1,15 @@
+from __future__ import annotations
+
 import asyncio
 import json
-import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
-from functools import cached_property
 from typing import AsyncGenerator, Dict, List, Optional, Tuple
 
 import neo4j
 from fastapi.encoders import jsonable_encoder
 from neo4j.exceptions import ConstraintError, ResultNotSingleError
+from pydantic import Field
 
 from neo4j_app.constants import (
     TASK_ERROR_NODE,
@@ -27,38 +28,67 @@ from neo4j_app.constants import (
 from neo4j_app.core.neo4j.migrations.migrate import retrieve_projects
 from neo4j_app.core.neo4j.projects import project_db_session
 from neo4j_app.icij_worker import (
-    ICIJApp,
+    AsyncApp,
     Task,
     TaskError,
     TaskResult,
     TaskStatus,
+    Worker,
+    WorkerConfig,
+    WorkerType,
 )
 from neo4j_app.icij_worker.event_publisher.neo4j import Neo4jEventPublisher
 from neo4j_app.icij_worker.exceptions import TaskAlreadyReserved, UnknownTask
-from neo4j_app.icij_worker.worker.process import ProcessWorkerMixin
 
 _TASK_MANDATORY_FIELDS_BY_ALIAS = {
     f for f in Task.schema(by_alias=True)["required"] if f != "id"
 }
 
 
-class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
+class Neo4jWorkerConfig(WorkerConfig):
+    type: str = Field(const=True, default=WorkerType.neo4j)
+
+    neo4j_connection_timeout: float = 5.0
+    neo4j_host: str = "127.0.0.1"
+    neo4j_password: Optional[str] = None
+    neo4j_port: int = 7687
+    neo4j_uri_scheme: str = "bolt"
+    neo4j_user: Optional[str] = None
+
+    @property
+    def neo4j_uri(self) -> str:
+        return f"{self.neo4j_uri_scheme}://{self.neo4j_host}:{self.neo4j_port}"
+
+    def to_neo4j_driver(self) -> neo4j.AsyncDriver:
+        auth = None
+        if self.neo4j_password:
+            # TODO: add support for expiring and auto renew auth:
+            #  https://neo4j.com/docs/api/python-driver/current/api.html
+            #  #neo4j.auth_management.AuthManagers.expiration_based
+            auth = neo4j.basic_auth(self.neo4j_user, self.neo4j_password)
+        driver = neo4j.AsyncGraphDatabase.driver(
+            self.neo4j_uri,
+            connection_timeout=self.neo4j_connection_timeout,
+            connection_acquisition_timeout=self.neo4j_connection_timeout,
+            max_transaction_retry_time=self.neo4j_connection_timeout,
+            auth=auth,
+        )
+        return driver
+
+
+@Worker.register(WorkerType.neo4j)
+class Neo4jWorker(Worker, Neo4jEventPublisher):
     def __init__(
-        self,
-        app: ICIJApp,
-        worker_id: str,
-        driver: Optional[neo4j.AsyncDriver] = None,
-        logger: Optional[logging.Logger] = None,
+        self, app: AsyncApp, worker_id: str, driver: neo4j.AsyncDriver, **kwargs
     ):
-        super().__init__(app, worker_id)
-        self._inherited_driver = False
-        if driver is None:
-            self._inherited_driver = True
-            driver = app.config.to_neo4j_driver()
-        Neo4jEventPublisher.__init__(self, driver)
-        if logger is None:
-            logger = logging.getLogger(__name__)
-        self._logger_ = logger
+        super().__init__(app, worker_id, **kwargs)
+        self._driver = driver
+
+    @classmethod
+    def _from_config(cls, config: Neo4jWorkerConfig, **extras) -> Neo4jWorker:
+        worker = cls(driver=config.to_neo4j_driver(), **extras)
+        worker.set_config(config)
+        return worker
 
     async def _consume(self) -> Tuple[Task, str]:
         projects = []
@@ -75,7 +105,7 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
                     )
                     if received is not None:
                         return received, p.name
-            await asyncio.sleep(self._app.config.neo4j_app_task_queue_poll_interval_s)
+            await asyncio.sleep(self.config.cancelled_tasks_refresh_interval_s)
             refresh_projects_i += 1
 
     async def _negatively_acknowledge(
@@ -132,19 +162,8 @@ class Neo4jAsyncWorker(ProcessWorkerMixin, Neo4jEventPublisher):
         async with project_db_session(self._driver, project) as sess:
             yield sess
 
-    @cached_property
-    def logged_named(self) -> str:
-        from neo4j_app.icij_worker import Worker
-
-        return Worker.logged_name(self)
-
-    @property
-    def _logger(self) -> logging.Logger:
-        return self._logger_
-
     async def _aexit__(self, exc_type, exc_val, exc_tb):
-        if not self._inherited_driver:
-            await self._driver.__aexit__(exc_type, exc_val, exc_tb)
+        await self._driver.__aexit__(exc_type, exc_val, exc_tb)
 
 
 async def _consume_task_tx(

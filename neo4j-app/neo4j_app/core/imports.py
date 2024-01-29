@@ -28,7 +28,6 @@ from typing import (
 import neo4j
 from datrie import BaseTrie
 
-from neo4j_app import ROOT_DIR
 from neo4j_app.constants import (
     DOC_COLUMNS,
     DOC_CREATED_AT,
@@ -878,6 +877,8 @@ def _ne_trie_key(ne: Dict) -> str:
 def _compress_csvs_destructively(
     export_dir: Path, metadata: Neo4jCSVs, *, targz_path: Path
 ):
+    from neo4j_app import ROOT_DIR
+
     with tarfile.open(targz_path, "w:gz") as tar:
         # Index
         json_index = json.dumps(metadata.dict(by_alias=True)).encode()

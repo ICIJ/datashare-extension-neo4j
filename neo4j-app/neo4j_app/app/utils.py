@@ -1,4 +1,3 @@
-import functools
 import logging
 import traceback
 from typing import Dict, Iterable, List, Optional
@@ -12,8 +11,9 @@ from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
+from neo4j_app.app import ServiceConfig
 from neo4j_app.app.admin import admin_router
-from neo4j_app.app.dependencies import FASTAPI_LIFESPAN_DEPS, run_app_deps
+from neo4j_app.app.dependencies import run_app_deps
 from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
 from neo4j_app.app.documents import documents_router
 from neo4j_app.app.graphs import graphs_router
@@ -21,8 +21,7 @@ from neo4j_app.app.main import main_router
 from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.app.projects import projects_router
 from neo4j_app.app.tasks import tasks_router
-from neo4j_app.core import AppConfig
-from neo4j_app.icij_worker import ICIJApp
+from neo4j_app.icij_worker import AsyncApp
 
 INTERNAL_SERVER_ERROR = "Internal Server Error"
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
@@ -84,18 +83,14 @@ def _debug():
     logger.info("im here")
 
 
-def create_app(config: AppConfig, async_app: Optional[ICIJApp] = None) -> FastAPI:
+def create_app(config: ServiceConfig, async_app: Optional[AsyncApp] = None) -> FastAPI:
     app = FastAPI(
         title=config.doc_app_name,
         openapi_tags=_make_open_api_tags([DOCUMENT_TAG, NE_TAG, OTHER_TAG]),
-        lifespan=functools.partial(run_app_deps, dependencies=FASTAPI_LIFESPAN_DEPS),
+        lifespan=run_app_deps,
     )
     app.state.config = config
     if async_app is not None:
-        if async_app.config is not None and async_app.config is not config:
-            msg = f"HTTP app async app must share the same {AppConfig.__name__}"
-            raise ValueError(msg)
-        async_app.config = config
         app.state.async_app = async_app
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)

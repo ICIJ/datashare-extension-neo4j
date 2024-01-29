@@ -9,7 +9,7 @@ import pytest
 from neo4j_app.core.neo4j.projects import project_db_session
 from neo4j_app.core.utils.pydantic import safe_copy
 from neo4j_app.icij_worker import (
-    ICIJApp,
+    AsyncApp,
     Task,
     TaskError,
     TaskEvent,
@@ -17,7 +17,7 @@ from neo4j_app.icij_worker import (
     TaskStatus,
 )
 from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
-from neo4j_app.icij_worker.worker.neo4j import Neo4jAsyncWorker
+from neo4j_app.icij_worker.worker.neo4j import Neo4jWorker
 from neo4j_app.tests.conftest import (
     TEST_PROJECT,
     fail_if_exception,
@@ -25,8 +25,8 @@ from neo4j_app.tests.conftest import (
 
 
 @pytest.fixture(scope="function")
-def worker(test_app: ICIJApp, neo4j_app_driver: neo4j.AsyncDriver) -> Neo4jAsyncWorker:
-    worker = Neo4jAsyncWorker(test_app, "test-worker", neo4j_app_driver)
+def worker(test_app: AsyncApp, neo4j_app_driver: neo4j.AsyncDriver) -> Neo4jWorker:
+    worker = Neo4jWorker(test_app, "test-worker", neo4j_app_driver)
     return worker
 
 
@@ -39,9 +39,7 @@ async def _count_locks(driver: neo4j.AsyncDriver, project: str) -> int:
     return counts["nLocks"]
 
 
-async def test_worker_consume_task(
-    populate_tasks: List[Task], worker: Neo4jAsyncWorker
-):
+async def test_worker_consume_task(populate_tasks: List[Task], worker: Neo4jWorker):
     # pylint: disable=unused-argument
     # Given
     project = TEST_PROJECT
@@ -61,7 +59,7 @@ async def test_worker_consume_task(
 
 
 async def test_worker_negatively_acknowledge(
-    populate_tasks: List[Task], worker: Neo4jAsyncWorker
+    populate_tasks: List[Task], worker: Neo4jWorker
 ):
     # pylint: disable=unused-argument
     # When
@@ -79,7 +77,7 @@ async def test_worker_negatively_acknowledge(
 
 
 async def test_worker_negatively_acknowledge_and_requeue(
-    populate_tasks: List[Task], worker: Neo4jAsyncWorker
+    populate_tasks: List[Task], worker: Neo4jWorker
 ):
     # pylint: disable=unused-argument
     # Given
@@ -115,7 +113,7 @@ async def test_worker_negatively_acknowledge_and_requeue(
     assert n_locks == 0
 
 
-async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jAsyncWorker):
+async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jWorker):
     # Given
     task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
     project = TEST_PROJECT
@@ -135,7 +133,7 @@ async def test_worker_save_result(populate_tasks: List[Task], worker: Neo4jAsync
 
 
 async def test_worker_should_raise_when_saving_existing_result(
-    populate_tasks: List[Task], worker: Neo4jAsyncWorker
+    populate_tasks: List[Task], worker: Neo4jWorker
 ):
     # Given
     project = TEST_PROJECT
@@ -152,33 +150,8 @@ async def test_worker_should_raise_when_saving_existing_result(
         await worker.save_result(result=task_result, project=project)
 
 
-async def test_worker_save_error(populate_tasks: List[Task], worker: Neo4jAsyncWorker):
-    # pylint: disable=unused-argument
-    # Given
-    task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
-    project = TEST_PROJECT
-    error = TaskError(
-        id="error-id",
-        title="someErrorTitle",
-        detail="with_details",
-        occurred_at=datetime.now(),
-    )
-
-    # When
-    task, _ = await worker.consume()
-    await worker.save_error(error=error, task=task, project=project)
-    saved_task = await task_manager.get_task(task_id=task.id, project=project)
-    saved_errors = await task_manager.get_task_errors(task_id=task.id, project=project)
-
-    # Then
-    # We don't expect the task status to be updated by saving the error, the negative
-    # acknowledgment will do it
-    assert saved_task == task
-    assert saved_errors == [error]
-
-
 async def test_worker_acknowledgment_cm(
-    populate_tasks: List[Task], worker: Neo4jAsyncWorker
+    populate_tasks: List[Task], worker: Neo4jWorker
 ):
     # Given
     created = populate_tasks[0]
@@ -204,3 +177,28 @@ async def test_worker_acknowledgment_cm(
     count_locks_query = "MATCH (lock:_TaskLock) RETURN count(*) as nLocks"
     recs, _, _ = await worker.driver.execute_query(count_locks_query)
     assert recs[0]["nLocks"] == 0
+
+
+async def test_worker_save_error(populate_tasks: List[Task], worker: Neo4jWorker):
+    # pylint: disable=unused-argument
+    # Given
+    task_manager = Neo4JTaskManager(worker.driver, max_queue_size=10)
+    project = TEST_PROJECT
+    error = TaskError(
+        id="error-id",
+        title="someErrorTitle",
+        detail="with_details",
+        occurred_at=datetime.now(),
+    )
+
+    # When
+    task, _ = await worker.consume()
+    await worker.save_error(error=error, task=task, project=project)
+    saved_task = await task_manager.get_task(task_id=task.id, project=project)
+    saved_errors = await task_manager.get_task_errors(task_id=task.id, project=project)
+
+    # Then
+    # We don't expect the task status to be updated by saving the error, the negative
+    # acknowledgment will do it
+    assert saved_task == task
+    assert saved_errors == [error]

@@ -30,20 +30,19 @@ from neo4j import AsyncGraphDatabase
 from starlette.testclient import TestClient
 
 import neo4j_app
+from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import (
     config_enter,
     loggers_enter,
 )
 from neo4j_app.app.utils import create_app
-from neo4j_app.core import AppConfig
-from neo4j_app.core.config import WorkerType
 from neo4j_app.core.elasticsearch import ESClient, ESClientABC
 from neo4j_app.core.elasticsearch.client import PointInTime
 from neo4j_app.core.neo4j import MIGRATIONS
 from neo4j_app.core.neo4j.migrations.migrate import init_project
 from neo4j_app.core.neo4j.projects import NEO4J_COMMUNITY_DB
 from neo4j_app.core.utils.pydantic import BaseICIJModel
-from neo4j_app.icij_worker import ICIJApp
+from neo4j_app.icij_worker import AsyncApp, WorkerType
 from neo4j_app.typing_ import PercentProgress
 
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
@@ -51,7 +50,7 @@ from neo4j_app.typing_ import PercentProgress
 #  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
 
 
-APP = ICIJApp(name="test-app")
+APP = AsyncApp(name="test-app")
 
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
 TEST_PROJECT = "test_project"
@@ -142,15 +141,15 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-def test_config() -> AppConfig:
-    config = AppConfig(
+def test_config() -> ServiceConfig:
+    config = ServiceConfig(
         elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
         es_default_page_size=5,
         neo4j_app_host="127.0.0.1",
         neo4j_port=NEO4J_TEST_PORT,
         neo4j_user=NEO4J_TEST_USER,
         neo4j_password=NEO4J_TEST_PASSWORD,
-        neo4j_app_worker_type=WorkerType.MOCK,
+        neo4j_app_worker_type=WorkerType.mock,
         test=True,
         neo4j_app_async_app=f"{__name__}.APP",
         neo4j_app_async_dependencies=f"{__name__}.TEST_WORKER_DEPS",
@@ -165,7 +164,7 @@ TEST_WORKER_DEPS = [
 
 
 @pytest.fixture(scope="session")
-def test_app_session(test_config: AppConfig) -> FastAPI:
+def test_app_session(test_config: ServiceConfig) -> FastAPI:
     return create_app(test_config)
 
 
@@ -208,8 +207,8 @@ def test_client_with_async(
     es_test_client: ESClient,
     # Same for neo4j
     neo4j_test_session: neo4j.AsyncSession,
-    test_async_app: ICIJApp,
-    test_config: AppConfig,
+    test_async_app: AsyncApp,
+    test_config: ServiceConfig,
 ) -> Generator[TestClient, None, None]:
     # pylint: disable=unused-argument
     # pylint: disable=unused-argument
@@ -652,8 +651,8 @@ async def sleep_for(
 
 
 @pytest.fixture(scope="session")
-def test_async_app(test_config: AppConfig) -> ICIJApp:
-    return test_config.to_async_app()
+def test_async_app(test_config: ServiceConfig) -> AsyncApp:
+    return AsyncApp.load(test_config.neo4j_app_async_app)
 
 
 @pytest.fixture()

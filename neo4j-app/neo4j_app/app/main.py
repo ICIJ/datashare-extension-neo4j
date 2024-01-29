@@ -4,15 +4,14 @@ from fastapi import APIRouter, HTTPException, Response
 from neo4j.exceptions import DriverError
 from starlette.requests import Request
 
+from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import (
     DependencyInjectionError,
-    lifespan_es_client,
-    lifespan_neo4j_driver,
     lifespan_task_manager,
-    lifespan_worker_pool,
+    lifespan_worker_pool_is_running,
 )
 from neo4j_app.app.doc import OTHER_TAG
-from neo4j_app.core import AppConfig
+from neo4j_app.tasks.dependencies import lifespan_es_client, lifespan_neo4j_driver
 
 
 def main_router() -> APIRouter:
@@ -25,13 +24,15 @@ def main_router() -> APIRouter:
             await driver.verify_connectivity()
             lifespan_es_client()
             lifespan_task_manager()
-            lifespan_worker_pool()
+            lifespan_worker_pool_is_running()
         except (DriverError, DependencyInjectionError) as e:
             raise HTTPException(503, detail="Service Unavailable") from e
         return "pong"
 
-    @router.get("/config", response_model=AppConfig, response_model_exclude_unset=True)
-    async def config(request: Request) -> AppConfig:
+    @router.get(
+        "/config", response_model=ServiceConfig, response_model_exclude_unset=True
+    )
+    async def config(request: Request) -> ServiceConfig:
         if (
             request.app.state.config.supports_neo4j_enterprise is None
             or request.app.state.config.supports_neo4j_parallel_runtime is None

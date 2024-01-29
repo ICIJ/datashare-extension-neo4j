@@ -11,13 +11,13 @@ from fastapi import FastAPI
 from gunicorn.app.base import BaseApplication
 
 import neo4j_app
+from neo4j_app.app import ServiceConfig
 from neo4j_app.app.utils import create_app
-from neo4j_app.core.config import AppConfig
 from neo4j_app.core.utils.logging import DATE_FMT, STREAM_HANDLER_FMT
 
 
 def debug_app():
-    config = AppConfig()
+    config = ServiceConfig()
     app = create_app(config)
     return app
 
@@ -32,7 +32,7 @@ def _start_app_(ns):
 
 
 class GunicornApp(BaseApplication):  # pylint: disable=abstract-method
-    def __init__(self, app: FastAPI, config: AppConfig, **kwargs):
+    def __init__(self, app: FastAPI, config: ServiceConfig, **kwargs):
         self.application = app
         self._app_config = config
         super().__init__(**kwargs)
@@ -47,7 +47,7 @@ class GunicornApp(BaseApplication):  # pylint: disable=abstract-method
         return self.application
 
     @classmethod
-    def from_config(cls, config: AppConfig) -> GunicornApp:
+    def from_config(cls, config: ServiceConfig) -> GunicornApp:
         fast_api = create_app(config)
         return cls(fast_api, config)
 
@@ -58,11 +58,11 @@ def _start_app(config_path: Optional[str] = None, force_migrations: bool = False
         if not config_path.exists():
             raise ValueError(f"Provided config path does not exists: {config_path}")
         with config_path.open() as f:
-            config = AppConfig.from_java_properties(
+            config = ServiceConfig.from_java_properties(
                 f, force_migrations=force_migrations
             )
     else:
-        config = AppConfig()
+        config = ServiceConfig()
     app = GunicornApp.from_config(config)
     app.run()
 
