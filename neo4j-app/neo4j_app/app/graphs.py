@@ -3,9 +3,9 @@ import logging
 from fastapi import APIRouter, Request
 from starlette.responses import StreamingResponse
 
+from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import lifespan_neo4j_driver
 from neo4j_app.app.doc import DOC_GRAPH_DUMP, DOC_GRAPH_DUMP_DESC, GRAPH_TAG
-from neo4j_app.core import AppConfig
 from neo4j_app.core.neo4j.graphs import count_documents_and_named_entities, dump_graph
 from neo4j_app.core.objects import DumpRequest, GraphCounts
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
@@ -27,7 +27,7 @@ def graphs_router() -> APIRouter:
         payload: DumpRequest,
         request: Request,
     ) -> StreamingResponse:
-        config: AppConfig = request.app.state.config
+        config: ServiceConfig = request.app.state.config
         if config.supports_neo4j_parallel_runtime is None:
             msg = (
                 "parallel support has not been set, config has not been properly"
@@ -53,7 +53,7 @@ def graphs_router() -> APIRouter:
     async def _count_documents_and_named_entities(
         project: str, request: Request
     ) -> GraphCounts:
-        config: AppConfig = request.app.state.config
+        config: ServiceConfig = request.app.state.config
         if config.supports_neo4j_parallel_runtime is None:
             msg = (
                 "parallel support has not been set, config has not been properly"

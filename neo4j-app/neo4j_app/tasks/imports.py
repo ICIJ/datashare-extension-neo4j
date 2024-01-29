@@ -1,10 +1,5 @@
 import logging
 
-from neo4j_app.app.dependencies import (
-    lifespan_config,
-    lifespan_es_client,
-    lifespan_neo4j_driver,
-)
 from neo4j_app.core.imports import import_documents, import_named_entities
 from neo4j_app.core.objects import IncrementalImportResponse
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
@@ -12,6 +7,7 @@ from neo4j_app.core.utils.progress import to_scaled_progress
 from neo4j_app.core.utils.pydantic import LowerCamelCaseModel
 from neo4j_app.typing_ import PercentProgress
 from .app import app
+from .dependencies import lifespan_config, lifespan_es_client, lifespan_neo4j_driver
 
 logger = logging.getLogger(__name__)
 

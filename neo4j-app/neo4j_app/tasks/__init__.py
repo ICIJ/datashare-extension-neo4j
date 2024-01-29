@@ -1,2 +1,2 @@
-from .app import app, WORKER_LIFESPAN_DEPS
+from .app import WORKER_LIFESPAN_DEPS, app
 from .imports import *

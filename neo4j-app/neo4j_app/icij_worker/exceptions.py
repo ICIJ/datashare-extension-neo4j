@@ -1,8 +1,12 @@
-import abc
+from abc import ABC
 from typing import Optional, Sequence
 
 
-class ICIJWorkerError(metaclass=abc.ABCMeta):
+class ICIJWorkerError(ABC):
+    ...
+
+
+class UnknownApp(ICIJWorkerError, ValueError, ABC):
     ...
 
 

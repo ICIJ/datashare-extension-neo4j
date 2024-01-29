@@ -4,13 +4,11 @@ from signal import Signals
 
 import pytest
 
-from neo4j_app.icij_worker.worker import ProcessWorkerMixin
+from neo4j_app.icij_worker import Worker
 
 
 @pytest.mark.parametrize("signal", [Signals.SIGINT, Signals.SIGTERM])
-def test_worker_signal_handler(
-    mock_worker: ProcessWorkerMixin, signal: Signals, caplog
-):
+def test_worker_signal_handler(mock_worker: Worker, signal: Signals, caplog):
     # pylint: disable=protected-access
     # Given
     caplog.set_level(logging.INFO)

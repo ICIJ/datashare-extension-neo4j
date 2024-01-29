@@ -1,7 +1,7 @@
 from starlette.testclient import TestClient
 
 from neo4j_app import ROOT_DIR
-from neo4j_app.core import AppConfig
+from neo4j_app.app import ServiceConfig
 
 try:
     import tomllib
@@ -29,7 +29,7 @@ def test_config(test_client: TestClient):
 
     # Then
     assert res.status_code == 200, res.json()
-    config = AppConfig.parse_obj(res.json())
+    config = ServiceConfig.parse_obj(res.json())
     assert isinstance(config.supports_neo4j_enterprise, bool)
 
 

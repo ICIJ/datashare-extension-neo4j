@@ -5,7 +5,7 @@ import functools
 import inspect
 import logging
 import traceback
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections import defaultdict
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from copy import deepcopy
@@ -19,13 +19,12 @@ from typing import (
     Optional,
     Tuple,
     Type,
+    TypeVar,
     final,
 )
 
-from neo4j_app.core import AppConfig
-from neo4j_app.core.utils.logging import LogWithNameMixin
 from neo4j_app.core.utils.progress import CheckCancelledProgress
-from neo4j_app.icij_worker.app import ICIJApp, RegisteredTask
+from neo4j_app.icij_worker.app import AsyncApp, RegisteredTask
 from neo4j_app.icij_worker.event_publisher import EventPublisher
 from neo4j_app.icij_worker.exceptions import (
     MaxRetriesExceeded,
@@ -41,27 +40,54 @@ from neo4j_app.icij_worker.task import (
     TaskResult,
     TaskStatus,
 )
+from neo4j_app.icij_worker.utils.registrable import Registrable
+from neo4j_app.icij_worker.worker.process import HandleSignalsMixin
 from neo4j_app.typing_ import PercentProgress
 
 logger = logging.getLogger(__name__)
 
 PROGRESS_HANDLER_ARG = "progress"
 
+C = TypeVar("C", bound="WorkerConfig")
 
-class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC):
-    def __init__(self, app: ICIJApp, worker_id: str):
-        if app.config is None:
-            raise ValueError("worker requires a configured app, app config is missing")
+
+class Worker(
+    EventPublisher,
+    Registrable,
+    HandleSignalsMixin,
+    AbstractAsyncContextManager,
+):
+    def __init__(
+        self,
+        app: AsyncApp,
+        worker_id: str,
+        handle_signals: bool = True,
+        teardown_dependencies: bool = False,
+    ):
+        # If worker are run using a thread backend then signal handling might not be
+        # required, in this case the signal handling mixing will just do nothing
+        HandleSignalsMixin.__init__(self, logger, handle_signals=handle_signals)
         self._app = app
         self._id = worker_id
+        self._teardown_dependencies = teardown_dependencies
         self._graceful_shutdown = True
         self._loop = asyncio.get_event_loop()
         self._work_forever_task: Optional[asyncio.Task] = None
         self._already_exiting = False
-        self._config = app.config
-        self._cancelled_ = defaultdict(set)
-        self.__deps_cm = None
         self._current = None
+        self._cancelled_ = defaultdict(set)
+        self._config: Optional[C] = None
+
+    def set_config(self, config: C):
+        self._config = config
+
+    def _to_config(self) -> C:
+        if self._config is None:
+            raise ValueError(
+                "worker was initialized using a from_config, "
+                "but the config was not attached using .set_config"
+            )
+        return self._config
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -74,21 +100,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     @functools.cached_property
     def id(self) -> str:
         return self._id
-
-    @classmethod
-    def from_config(cls, config: AppConfig, worker_id: str, **kwargs) -> Worker:
-        worker_cls = config.to_worker_cls()
-        return worker_cls(app=config.to_async_app(), worker_id=worker_id, **kwargs)
-
-    @classmethod
-    @final
-    def work_forever_from_config(cls, config: AppConfig, worker_id: str, **kwargs):
-        """
-        Convenience function to ease multiprocessing serialization and avoid pickle
-         errors
-        """
-        worker = cls.from_config(config, worker_id, **kwargs)
-        worker.work_forever()
 
     @final
     def work_forever(self):
@@ -112,11 +123,6 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     async def _work_forever(self):
         while True:
             await self._work_once()
-
-    @final
-    @functools.cached_property
-    def config(self) -> AppConfig:
-        return self._config
 
     @final
     def logged_name(self) -> str:
@@ -277,7 +283,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
     @final
     @functools.cached_property
     def _cancelled_task_refresh_interval_s(self) -> int:
-        return self._app.config.neo4j_app_cancelled_task_refresh_interval_s
+        return self.config.cancelled_tasks_refresh_interval_s
 
     @final
     async def check_cancelled(
@@ -316,26 +322,11 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
         return progress
 
     @final
-    @asynccontextmanager
-    async def _deps_cm(self):
-        if self._config is not None:
-            from neo4j_app.app.dependencies import run_deps
-
-            async with run_deps(
-                self.config.to_async_deps(), config=self.config, worker_id=self.id
-            ):
-                yield
-        else:
-            yield
-
-    @final
     def __enter__(self):
         self._loop.run_until_complete(self.__aenter__())
 
     @final
     async def __aenter__(self):
-        self.__deps_cm = self._deps_cm()
-        await self.__deps_cm.__aenter__()
         await self._aenter__()
 
     async def _aenter__(self):
@@ -352,12 +343,11 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
             self._already_exiting = True
             # Let's try to shut down gracefully
             await self.shutdown()
-            # Then call any extra context manager exit which is not a global
-            # dependency
-            await self._aexit__(exc_type, exc_value, tb)
-            # Then close global dependencies
-            self.info("closing dependencies...")
-            await self.__deps_cm.__aexit__(None, None, None)
+            # Clean worker dependencies only if needed, dependencies might be share in
+            # which case we don't want to tear them down
+            if self._teardown_dependencies:
+                self.info("cleaning worker dependencies...")
+                await self._aexit__(exc_type, exc_value, tb)
 
     async def _aexit__(self, exc_type, exc_val, exc_tb):
         pass
@@ -384,7 +374,7 @@ class Worker(EventPublisher, LogWithNameMixin, AbstractAsyncContextManager, ABC)
 
 def _retrieve_registered_task(
     task: Task,
-    app: ICIJApp,
+    app: AsyncApp,
 ) -> RegisteredTask:
     registered = app.registry.get(task.type)
     if registered is None:

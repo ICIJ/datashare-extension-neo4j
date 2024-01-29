@@ -1,11 +1,16 @@
+from __future__ import annotations
 import functools
+import importlib
+from contextlib import asynccontextmanager
 from functools import cached_property
-from typing import Callable, Dict, Optional, Tuple, Type
+from typing import Callable, Dict, List, Optional, Tuple, Type, final
 
 from pydantic import Field
 
-from neo4j_app.core.config import AppConfig
 from neo4j_app.core.utils.pydantic import BaseICIJModel
+from neo4j_app.icij_worker.exceptions import UnknownApp
+from neo4j_app.icij_worker.typing_ import Dependency
+from neo4j_app.icij_worker.utils.dependencies import run_deps
 
 
 class RegisteredTask(BaseICIJModel):
@@ -15,23 +20,17 @@ class RegisteredTask(BaseICIJModel):
     max_retries: Optional[int] = Field(const=True, default=None)
 
 
-class ICIJApp:
-    def __init__(self, name: str, config: Optional[AppConfig] = None):
+class AsyncApp:
+    def __init__(self, name: str, dependencies: Optional[List[Dependency]] = None):
         self._name = name
-        self._config = config
         self._registry = dict()
+        if dependencies is None:
+            dependencies = []
+        self._dependencies = dependencies
 
     @cached_property
     def registry(self) -> Dict[str, RegisteredTask]:
         return self._registry
-
-    @property
-    def config(self) -> Optional[AppConfig]:
-        return self._config
-
-    @config.setter
-    def config(self, value: AppConfig):
-        self._config = value
 
     @property
     def name(self) -> str:
@@ -52,6 +51,13 @@ class ICIJApp:
             recover_from=recover_from,
             max_retries=max_retries,
         )
+
+    @final
+    @asynccontextmanager
+    async def lifetime_dependencies(self, **kwargs):
+        ctx = f"{self.name} async app"
+        async with run_deps(self._dependencies, ctx=ctx, **kwargs):
+            yield
 
     def _register_task(
         self,
@@ -75,3 +81,17 @@ class ICIJApp:
             return f(*args, **kwargs)
 
         return wrapped
+
+    @classmethod
+    def load(cls, app_path: str) -> AsyncApp:
+        app_path = app_path.split(".")
+        module, app_name = app_path[:-1], app_path[-1]
+        module = ".".join(module)
+        try:
+            module = importlib.import_module(module)
+        except ModuleNotFoundError as e:
+            msg = f'Expected app_path to be the fully qualified path to a \
+            {AsyncApp.__name__} instance "my_module.my_app_instance"'
+            raise UnknownApp(msg) from e
+        app = getattr(module, app_name)
+        return app

@@ -7,7 +7,6 @@ import multiprocessing
 import threading
 from abc import ABC
 from datetime import datetime
-from functools import cached_property
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -15,17 +14,22 @@ import neo4j
 import pytest
 import pytest_asyncio
 from fastapi.encoders import jsonable_encoder
+from pydantic import Field
 
-from neo4j_app.core import AppConfig
+from neo4j_app import AppConfig
+from neo4j_app.app.dependencies import FASTAPI_LIFESPAN_DEPS
 from neo4j_app.core.utils.pydantic import safe_copy
 from neo4j_app.icij_worker import (
+    AsyncApp,
     EventPublisher,
-    ICIJApp,
     Task,
     TaskError,
     TaskEvent,
     TaskResult,
     TaskStatus,
+    Worker,
+    WorkerConfig,
+    WorkerType,
 )
 from neo4j_app.icij_worker.exceptions import (
     TaskAlreadyExists,
@@ -33,7 +37,6 @@ from neo4j_app.icij_worker.exceptions import (
     UnknownTask,
 )
 from neo4j_app.icij_worker.task_manager import TaskManager
-from neo4j_app.icij_worker.worker import ProcessWorkerMixin
 from neo4j_app.typing_ import PercentProgress
 
 
@@ -236,23 +239,33 @@ class MockEventPublisher(DBMixin, EventPublisher):
             raise UnknownTask(task_id) from e
 
 
-class MockWorker(ProcessWorkerMixin, MockEventPublisher):
+class MockWorkerConfig(WorkerConfig):
+    type: str = Field(const=True, default=WorkerType.mock)
+    db_path: Path
+
+
+@Worker.register(WorkerType.mock)
+class MockWorker(Worker, MockEventPublisher):
     def __init__(
         self,
-        app: ICIJApp,
+        app: AsyncApp,
         worker_id: str,
         db_path: Path,
         lock: Union[threading.Lock, multiprocessing.Lock],
+        **kwargs,
     ):
-        super().__init__(app, worker_id)
+        super().__init__(app, worker_id, **kwargs)
         MockEventPublisher.__init__(self, db_path, lock)
         self._worker_id = worker_id
         self._logger_ = logging.getLogger(__name__)
 
-    # TODO: not sure why this one is not inherited
-    @cached_property
-    def logged_named(self) -> str:
-        return super().logged_named
+    @classmethod
+    def _from_config(cls, config: MockWorkerConfig, **extras) -> MockWorker:
+        worker = cls(db_path=config.db_path, **extras)
+        return worker
+
+    def _to_config(self) -> MockWorkerConfig:
+        return MockWorkerConfig(db_path=self._db_path)
 
     async def _save_result(self, result: TaskResult, project: str):
         task_key = self._task_key(task_id=result.task_id, project=project)
@@ -271,10 +284,6 @@ class MockWorker(ProcessWorkerMixin, MockEventPublisher):
             errors.append(error)
             db[self._error_collection][task_key] = errors
             self._write(db)
-
-    @property
-    def _logger(self) -> logging.Logger:
-        return self._logger_
 
     def _get_db_errors(self, task_id: str, project: str) -> List[TaskError]:
         key = self._task_key(task_id=task_id, project=project)
@@ -358,7 +367,7 @@ class MockWorker(ProcessWorkerMixin, MockEventPublisher):
                 k, t = min(queued, key=lambda x: x[1].created_at)
                 project = eval(k)[1]  # pylint: disable=eval-used
                 return t, project
-            await asyncio.sleep(self.config.neo4j_app_task_queue_poll_interval_s)
+            await asyncio.sleep(self.config.task_queue_poll_interval_s)
 
 
 class Recoverable(ValueError):
@@ -366,8 +375,10 @@ class Recoverable(ValueError):
 
 
 @pytest.fixture(scope="function")
-def test_failing_async_app(test_config: AppConfig) -> ICIJApp:
-    app = ICIJApp(name="test-app", config=test_config)
+def test_failing_async_app(
+    test_config: AppConfig,  # pylint: disable=unused-argument
+) -> AsyncApp:
+    app = AsyncApp(name="test-app", dependencies=FASTAPI_LIFESPAN_DEPS)
     already_failed = False
 
     @app.task("recovering_task", recover_from=(Recoverable,))

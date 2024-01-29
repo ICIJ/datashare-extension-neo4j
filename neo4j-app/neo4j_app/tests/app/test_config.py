@@ -4,63 +4,61 @@ from typing import Optional
 import pytest
 from pydantic import ValidationError
 
-from neo4j_app.core import AppConfig
+from neo4j_app.app import ServiceConfig
 from neo4j_app.tests.conftest import fail_if_exception
 
 
 def test_should_support_alias():
     # When
     neo4j_app_name = "test_name"
-    config = AppConfig(neo4j_app_name=neo4j_app_name)
+    config = ServiceConfig(neo4j_app_name=neo4j_app_name)
 
     # Then
     assert config.neo4j_app_name == neo4j_app_name
 
 
 @pytest.mark.parametrize(
-    "config,expected_config",
+    "config_as_str,expected_config,expected_written_config",
     [
+        ("someExtraInfo=useless", ServiceConfig(), ""),
         (
-            """neo4jProject=test-project
-neo4jImportDir=import-dir
-""",
-            AppConfig(
-                neo4j_app_host="127.0.0.1",
-                neo4j_app_port=8080,
-                elasticsearch_address="http://127.0.0.1:9200",
-            ),
-        ),
-        (
-            """neo4jProject=test-project
-neo4jImportDir=import-dir
+            """elasticsearchAddress=http://elasticsearch:9222
 neo4jAppHost=this-the-neo4j-app
-neo4jAppPort=3333
-elasticsearchAddress=http://elasticsearch:9222
-someExtraInfo=useless
-""",
-            AppConfig(
+neo4jAppPort=3333""",
+            ServiceConfig(
                 neo4j_app_host="this-the-neo4j-app",
                 neo4j_app_port=3333,
                 elasticsearch_address="http://elasticsearch:9222",
             ),
+            """elasticsearchAddress=http://elasticsearch:9222
+neo4jAppHost=this-the-neo4j-app
+neo4jAppPort=3333
+
+""",
         ),
     ],
 )
-def test_should_load_from_java(config: str, expected_config: AppConfig):
+def test_should_load_from_java_and_write_to_java(
+    config_as_str: str, expected_config: ServiceConfig, expected_written_config: str
+):
     # Given
-    config_stream = io.StringIO(config)
+    config_stream = io.StringIO(config_as_str)
 
     # When
-    loaded_config = AppConfig.from_java_properties(config_stream)
+    loaded_config = ServiceConfig.from_java_properties(config_stream)
+    config_io = io.StringIO()
+    loaded_config.write_java_properties(config_io)
+    written = config_io.getvalue()
 
     # Then
     assert loaded_config == expected_config
+    assert written == expected_written_config
 
 
 @pytest.mark.pull(id="62")
 def test_should_support_address_without_port():
     # Given
-    config = AppConfig(elasticsearch_address="http://elasticsearch")
+    config = ServiceConfig(elasticsearch_address="http://elasticsearch")
     # Then
     with fail_if_exception("Failed to initialize ES client"):
         config.to_es_client()
@@ -70,7 +68,7 @@ def test_should_support_address_without_port():
 def test_should_forward_page_size_to_client():
     # Given
     es_default_page_size = 666
-    config = AppConfig(
+    config = ServiceConfig(
         elasticsearch_address="http://elasticsearch",
         es_default_page_size=es_default_page_size,
     )
@@ -87,7 +85,7 @@ def test_should_raise_for_missing_auth_part(
     # When/Then
     expected_msg = "neo4j authentication is missing user or password"
     with pytest.raises(ValidationError, match=expected_msg):
-        AppConfig(
+        ServiceConfig(
             elasticsearch_address="http://elasticsearch:9222",
             neo4j_user=user,
             neo4j_password=password,
