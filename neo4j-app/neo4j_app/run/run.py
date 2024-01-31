@@ -16,12 +16,6 @@ from neo4j_app.app.utils import create_app
 from neo4j_app.core.utils.logging import DATE_FMT, STREAM_HANDLER_FMT
 
 
-def debug_app():
-    config = ServiceConfig()
-    app = create_app(config)
-    return app
-
-
 class Formatter(argparse.ArgumentDefaultsHelpFormatter):
     def __init__(self, prog):
         super().__init__(prog, max_help_position=35, width=150)

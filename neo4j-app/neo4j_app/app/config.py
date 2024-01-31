@@ -29,10 +29,13 @@ _SHARED_WITH_NEO4J_WORKER_CONFIG_PREFIXED = [
     "log_level",
 ]
 
+_DEFAULT_ASYNC_DEPS = "neo4j_app.tasks.ASYNC_APP_LIFESPAN_DEPS"
+_DEFAULT_DEPS = "neo4j_app.app.dependencies.HTTP_SERVICE_LIFESPAN_DEPS"
+
 
 class ServiceConfig(AppConfig):
-    neo4j_app_async_dependencies: Optional[str] = "neo4j_app.tasks.WORKER_LIFESPAN_DEPS"
-    neo4j_app_async_app: str = "neo4j_app.tasks.app"
+    neo4j_app_async_app: Optional[str] = "neo4j_app.tasks.app"
+    neo4j_app_dependencies: Optional[str] = _DEFAULT_DEPS
     neo4j_app_gunicorn_workers: int = 1
     neo4j_app_host: str = "127.0.0.1"
     neo4j_app_n_async_workers: int = 1
@@ -50,11 +53,6 @@ class ServiceConfig(AppConfig):
         kwargs = copy(kwargs)
         for suffix in _SHARED_WITH_NEO4J_WORKER_CONFIG_PREFIXED:
             kwargs[suffix] = getattr(self, f"neo4j_app_{suffix}")
-
-        if self.test:
-            from neo4j_app.tests.icij_worker.conftest import MockWorkerConfig
-
-            return MockWorkerConfig(**kwargs)
         from neo4j_app.icij_worker.worker.neo4j import Neo4jWorkerConfig
 
         for k in _SHARED_WITH_NEO4J_WORKER_CONFIG:

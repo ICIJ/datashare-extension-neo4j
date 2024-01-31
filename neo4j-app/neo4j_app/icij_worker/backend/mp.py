@@ -22,15 +22,12 @@ def _mp_work_forever(
     worker_id: str,
     *,
     worker_extras: Optional[Dict] = None,
-    app_deps_extras: Optional[Dict] = None,
 ):
-    if app_deps_extras is None:
-        app_deps_extras = dict()
     if worker_extras is None:
         worker_extras = dict()
     # For multiprocessing, lifespan dependencies need to be run once per process
     app = AsyncApp.load(app)
-    deps_cm = app.lifetime_dependencies(worker_id=worker_id, **app_deps_extras)
+    deps_cm = app.lifetime_dependencies(worker_id=worker_id)
     worker = Worker.from_config(config, app=app, worker_id=worker_id, **worker_extras)
     # This is ugly, but we have to work around the fact that we can't use asyncio code
     # here
@@ -68,7 +65,6 @@ def run_workers_with_multiprocessing(
     *,
     handle_signals: bool = True,
     worker_extras: Optional[Dict] = None,
-    app_deps_extras: Optional[Dict] = None,
 ):
     logger.info("Creating multiprocessing worker pool with %s workers", n_workers)
     # Here we set maxtasksperchild to 1. Each worker has a single never ending task
@@ -81,17 +77,15 @@ def run_workers_with_multiprocessing(
     worker_ids = [f"worker-{main_process_id}-{i}" for i in range(n_workers)]
     kwds = {"app": app, "config": config}
     kwds["worker_extras"] = worker_extras
-    kwds["app_deps_extras"] = app_deps_extras
     pool = mp_ctx.Pool(n_workers, maxtasksperchild=1)
     logger.debug("Setting up signal handlers...")
-    tasks = []
     if handle_signals:
         setup_main_process_signal_handlers(pool)
     try:
         for w_id in worker_ids:
             kwds.update({"worker_id": w_id})
             logger.info("starting worker %s", w_id)
-            tasks.append(pool.apply_async(_mp_work_forever, kwds=kwds))
+            pool.apply_async(_mp_work_forever, kwds=kwds)
         yield
     except KeyboardInterrupt as e:
         if not handle_signals:

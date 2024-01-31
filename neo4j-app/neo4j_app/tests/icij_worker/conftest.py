@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import multiprocessing
-import threading
 from abc import ABC
 from datetime import datetime
 from pathlib import Path
@@ -17,8 +15,8 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import Field
 
 from neo4j_app import AppConfig
-from neo4j_app.app.dependencies import FASTAPI_LIFESPAN_DEPS
-from neo4j_app.core.utils.pydantic import safe_copy
+from neo4j_app.app import ServiceConfig
+from neo4j_app.core.utils.pydantic import IgnoreExtraModel, safe_copy
 from neo4j_app.icij_worker import (
     AsyncApp,
     EventPublisher,
@@ -70,17 +68,12 @@ class DBMixin(ABC):
     _error_collection = "errors"
     _result_collection = "results"
 
-    def __init__(self, db_path: Path, lock: threading.Lock | multiprocessing.Lock):
+    def __init__(self, db_path: Path):
         self._db_path = db_path
-        self.__lock = lock
 
     @property
     def db_path(self) -> Path:
         return self._db_path
-
-    @property
-    def db_lock(self) -> threading.Lock | multiprocessing.Lock:
-        return self.__lock
 
     def _write(self, data: Dict):
         self._db_path.write_text(json.dumps(jsonable_encoder(data)))
@@ -103,48 +96,40 @@ class DBMixin(ABC):
 
 
 class MockManager(TaskManager, DBMixin):
-    def __init__(
-        self,
-        db_path: Path,
-        lock: threading.Lock | multiprocessing.Lock,
-        max_queue_size: int,
-    ):
-        super().__init__(db_path, lock)
+    def __init__(self, db_path: Path, max_queue_size: int):
+        super().__init__(db_path)
         self._max_queue_size = max_queue_size
 
     async def _enqueue(self, task: Task, project: str) -> Task:
         key = self._task_key(task_id=task.id, project=project)
-        with self.db_lock:
-            db = self._read()
-            tasks = db[self._task_collection]
-            n_queued = sum(
-                1 for t in tasks.values() if t["status"] == TaskStatus.QUEUED.value
-            )
-            if n_queued > self._max_queue_size:
-                raise TaskQueueIsFull(self._max_queue_size)
-            if key in tasks:
-                raise TaskAlreadyExists(task.id)
-            update = {"status": TaskStatus.QUEUED}
-            task = safe_copy(task, update=update)
-            tasks[key] = task.dict()
-            self._write(db)
-            return task
+        db = self._read()
+        tasks = db[self._task_collection]
+        n_queued = sum(
+            1 for t in tasks.values() if t["status"] == TaskStatus.QUEUED.value
+        )
+        if n_queued > self._max_queue_size:
+            raise TaskQueueIsFull(self._max_queue_size)
+        if key in tasks:
+            raise TaskAlreadyExists(task.id)
+        update = {"status": TaskStatus.QUEUED}
+        task = safe_copy(task, update=update)
+        tasks[key] = task.dict()
+        self._write(db)
+        return task
 
     async def _cancel(self, *, task_id: str, project: str) -> Task:
         key = self._task_key(task_id=task_id, project=project)
         task_id = await self.get_task(task_id=task_id, project=project)
-        with self.db_lock:
-            update = {"status": TaskStatus.CANCELLED}
-            task_id = safe_copy(task_id, update=update)
-            db = self._read()
-            db[self._task_collection][key] = task_id.dict()
-            self._write(db)
-            return task_id
+        update = {"status": TaskStatus.CANCELLED}
+        task_id = safe_copy(task_id, update=update)
+        db = self._read()
+        db[self._task_collection][key] = task_id.dict()
+        self._write(db)
+        return task_id
 
     async def get_task(self, *, task_id: str, project: str) -> Task:
         key = self._task_key(task_id=task_id, project=project)
-        with self.db_lock:
-            db = self._read()
+        db = self._read()
         try:
             tasks = db[self._task_collection]
             return Task(**tasks[key])
@@ -153,8 +138,7 @@ class MockManager(TaskManager, DBMixin):
 
     async def get_task_errors(self, task_id: str, project: str) -> List[TaskError]:
         key = self._task_key(task_id=task_id, project=project)
-        with self.db_lock:
-            db = self._read()
+        db = self._read()
         errors = db[self._error_collection]
         errors = errors.get(key, [])
         errors = [TaskError(**err) for err in errors]
@@ -162,8 +146,7 @@ class MockManager(TaskManager, DBMixin):
 
     async def get_task_result(self, task_id: str, project: str) -> TaskResult:
         key = self._task_key(task_id=task_id, project=project)
-        with self.db_lock:
-            db = self._read()
+        db = self._read()
         results = db[self._result_collection]
         try:
             return TaskResult(**results[key])
@@ -176,8 +159,7 @@ class MockManager(TaskManager, DBMixin):
         task_type: Optional[str] = None,
         status: Optional[Union[List[TaskStatus], TaskStatus]] = None,
     ) -> List[Task]:
-        with self.db_lock:
-            db = self._read()
+        db = self._read()
         tasks = db.values()
         if status:
             if isinstance(status, TaskStatus):
@@ -190,8 +172,8 @@ class MockManager(TaskManager, DBMixin):
 class MockEventPublisher(DBMixin, EventPublisher):
     _excluded_from_event_update = {"error"}
 
-    def __init__(self, db_path: Path, lock: threading.Lock | multiprocessing.Lock):
-        super().__init__(db_path, lock)
+    def __init__(self, db_path: Path):
+        super().__init__(db_path)
         self.published_events = []
 
     async def publish_event(self, event: TaskEvent, project: str):
@@ -203,33 +185,32 @@ class MockEventPublisher(DBMixin, EventPublisher):
         # Here we choose to reflect the change in the DB since its closer to what will
         # happen IRL and test integration further
         key = self._task_key(task_id=event.task_id, project=project)
-        with self.db_lock:
-            db = self._read()
-            try:
-                task = self._get_db_task(db, task_id=event.task_id, project=project)
-                task = Task(**task)
-            except UnknownTask:
-                task = Task(**Task.mandatory_fields(event, keep_id=True))
-            update = task.resolve_event(event)
-            if update is not None:
-                task = task.dict(exclude_unset=True, by_alias=True)
-                update = {
-                    k: v
-                    for k, v in event.dict(by_alias=True, exclude_unset=True).items()
-                    if v is not None
-                }
-                if "taskId" in update:
-                    update["id"] = update.pop("taskId")
-                if "taskType" in update:
-                    update["type"] = update.pop("taskType")
-                if "error" in update:
-                    update.pop("error")
-                # The nack is responsible for bumping the retries
-                if "retries" in update:
-                    update.pop("retries")
-                task.update(update)
-                db[self._task_collection][key] = task
-                self._write(db)
+        db = self._read()
+        try:
+            task = self._get_db_task(db, task_id=event.task_id, project=project)
+            task = Task(**task)
+        except UnknownTask:
+            task = Task(**Task.mandatory_fields(event, keep_id=True))
+        update = task.resolve_event(event)
+        if update is not None:
+            task = task.dict(exclude_unset=True, by_alias=True)
+            update = {
+                k: v
+                for k, v in event.dict(by_alias=True, exclude_unset=True).items()
+                if v is not None
+            }
+            if "taskId" in update:
+                update["id"] = update.pop("taskId")
+            if "taskType" in update:
+                update["type"] = update.pop("taskType")
+            if "error" in update:
+                update.pop("error")
+            # The nack is responsible for bumping the retries
+            if "retries" in update:
+                update.pop("retries")
+            task.update(update)
+            db[self._task_collection][key] = task
+            self._write(db)
 
     def _get_db_task(self, db: Dict, task_id: str, project: str) -> Dict:
         tasks = db[self._task_collection]
@@ -239,9 +220,15 @@ class MockEventPublisher(DBMixin, EventPublisher):
             raise UnknownTask(task_id) from e
 
 
-class MockWorkerConfig(WorkerConfig):
+class MockWorkerConfig(WorkerConfig, IgnoreExtraModel):
     type: str = Field(const=True, default=WorkerType.mock)
+
     db_path: Path
+
+
+class MockServiceConfig(ServiceConfig):
+    def to_worker_config(self, **kwargs) -> WorkerConfig:
+        return MockWorkerConfig(db_path=kwargs["db_path"])
 
 
 @Worker.register(WorkerType.mock)
@@ -251,11 +238,10 @@ class MockWorker(Worker, MockEventPublisher):
         app: AsyncApp,
         worker_id: str,
         db_path: Path,
-        lock: Union[threading.Lock, multiprocessing.Lock],
         **kwargs,
     ):
         super().__init__(app, worker_id, **kwargs)
-        MockEventPublisher.__init__(self, db_path, lock)
+        MockEventPublisher.__init__(self, db_path)
         self._worker_id = worker_id
         self._logger_ = logging.getLogger(__name__)
 
@@ -269,100 +255,92 @@ class MockWorker(Worker, MockEventPublisher):
 
     async def _save_result(self, result: TaskResult, project: str):
         task_key = self._task_key(task_id=result.task_id, project=project)
-        with self.db_lock:
-            db = self._read()
-            db[self._result_collection][task_key] = result
-            self._write(db)
+        db = self._read()
+        db[self._result_collection][task_key] = result
+        self._write(db)
 
     async def _save_error(self, error: TaskError, task: Task, project: str):
         task_key = self._task_key(task_id=task.id, project=project)
-        with self.db_lock:
-            db = self._read()
-            errors = db[self._error_collection].get(task_key)
-            if errors is None:
-                errors = []
-            errors.append(error)
-            db[self._error_collection][task_key] = errors
-            self._write(db)
+        db = self._read()
+        errors = db[self._error_collection].get(task_key)
+        if errors is None:
+            errors = []
+        errors.append(error)
+        db[self._error_collection][task_key] = errors
+        self._write(db)
 
     def _get_db_errors(self, task_id: str, project: str) -> List[TaskError]:
         key = self._task_key(task_id=task_id, project=project)
-        with self.db_lock:
-            db = self._read()
-            errors = db[self._error_collection]
-            try:
-                return errors[key]
-            except KeyError as e:
-                raise UnknownTask(task_id) from e
+        db = self._read()
+        errors = db[self._error_collection]
+        try:
+            return errors[key]
+        except KeyError as e:
+            raise UnknownTask(task_id) from e
 
     def _get_db_result(self, task_id: str, project: str) -> TaskResult:
         key = self._task_key(task_id=task_id, project=project)
-        with self.db_lock:
-            db = self._read()
-            try:
-                errors = db[self._result_collection]
-                return errors[key]
-            except KeyError as e:
-                raise UnknownTask(task_id) from e
+        db = self._read()
+        try:
+            errors = db[self._result_collection]
+            return errors[key]
+        except KeyError as e:
+            raise UnknownTask(task_id) from e
 
     async def _acknowledge(self, task: Task, project: str, completed_at: datetime):
         key = self._task_key(task.id, project)
-        with self.db_lock:
-            db = self._read()
-            tasks = db[self._task_collection]
-            try:
-                saved_task = tasks[key]
-            except KeyError as e:
-                raise UnknownTask(task.id) from e
-            saved_task = Task(**saved_task)
-            update = {
-                "completed_at": completed_at,
-                "status": TaskStatus.DONE,
-                "progress": 100.0,
-            }
-            tasks[key] = safe_copy(saved_task, update=update)
-            self._write(db)
+        db = self._read()
+        tasks = db[self._task_collection]
+        try:
+            saved_task = tasks[key]
+        except KeyError as e:
+            raise UnknownTask(task.id) from e
+        saved_task = Task(**saved_task)
+        update = {
+            "completed_at": completed_at,
+            "status": TaskStatus.DONE,
+            "progress": 100.0,
+        }
+        tasks[key] = safe_copy(saved_task, update=update)
+        self._write(db)
 
     async def _negatively_acknowledge(
         self, task: Task, project: str, *, requeue: bool
     ) -> Task:
         key = self._task_key(task.id, project)
-        with self.db_lock:
-            db = self._read()
-            tasks = db[self._task_collection]
-            try:
-                task = tasks[key]
-            except KeyError as e:
-                raise UnknownTask(task_id=task.id) from e
-            task = Task(**task)
-            if requeue:
-                update = {
-                    "status": TaskStatus.QUEUED,
-                    "progress": 0.0,
-                    "retries": task.retries or 0 + 1,
-                }
-            else:
-                update = {"status": TaskStatus.ERROR}
-            task = safe_copy(task, update=update)
-            tasks[key] = task
-            self._write(db)
-            return task
+        db = self._read()
+        tasks = db[self._task_collection]
+        try:
+            task = tasks[key]
+        except KeyError as e:
+            raise UnknownTask(task_id=task.id) from e
+        task = Task(**task)
+        if requeue:
+            update = {
+                "status": TaskStatus.QUEUED,
+                "progress": 0.0,
+                "retries": task.retries or 0 + 1,
+            }
+        else:
+            update = {"status": TaskStatus.ERROR}
+        task = safe_copy(task, update=update)
+        tasks[key] = task
+        self._write(db)
+        return task
 
     async def _refresh_cancelled(self, project: str):
-        with self.db_lock:
-            db = self._read()
-            tasks = db[self._task_collection]
-            tasks = [Task(**t) for t in tasks.values()]
-            cancelled = [t.id for t in tasks if t.status is TaskStatus.CANCELLED]
-            self._cancelled_[project] = set(cancelled)
+        db = self._read()
+        tasks = db[self._task_collection]
+        tasks = [Task(**t) for t in tasks.values()]
+        cancelled = [t.id for t in tasks if t.status is TaskStatus.CANCELLED]
+        self._cancelled_[project] = set(cancelled)
 
     async def _consume(self) -> Tuple[Task, str]:
         while "waiting for some task to be available for some project":
-            with self.db_lock:
-                db = self._read()
-                tasks = db[self._task_collection]
-                tasks = [(k, Task(**t)) for k, t in tasks.items()]
-                queued = [(k, t) for k, t in tasks if t.status is TaskStatus.QUEUED]
+            db = self._read()
+            tasks = db[self._task_collection]
+            tasks = [(k, Task(**t)) for k, t in tasks.items()]
+            queued = [(k, t) for k, t in tasks if t.status is TaskStatus.QUEUED]
             if queued:
                 k, t = min(queued, key=lambda x: x[1].created_at)
                 project = eval(k)[1]  # pylint: disable=eval-used
@@ -378,7 +356,9 @@ class Recoverable(ValueError):
 def test_failing_async_app(
     test_config: AppConfig,  # pylint: disable=unused-argument
 ) -> AsyncApp:
-    app = AsyncApp(name="test-app", dependencies=FASTAPI_LIFESPAN_DEPS)
+    from neo4j_app.app.dependencies import HTTP_SERVICE_LIFESPAN_DEPS
+
+    app = AsyncApp(name="test-app", dependencies=HTTP_SERVICE_LIFESPAN_DEPS)
     already_failed = False
 
     @app.task("recovering_task", recover_from=(Recoverable,))
