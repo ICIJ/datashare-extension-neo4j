@@ -2,8 +2,10 @@
 import abc
 import asyncio
 import contextlib
+import functools
 import os
 import random
+import tempfile
 import traceback
 from copy import copy
 from datetime import datetime
@@ -16,6 +18,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    List,
     Optional,
     Tuple,
     Union,
@@ -34,6 +37,9 @@ from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import (
     config_enter,
     loggers_enter,
+    mp_context_enter,
+    write_async_app_config_enter,
+    write_async_app_config_exit,
 )
 from neo4j_app.app.utils import create_app
 from neo4j_app.core.elasticsearch import ESClient, ESClientABC
@@ -43,6 +49,24 @@ from neo4j_app.core.neo4j.migrations.migrate import init_project
 from neo4j_app.core.neo4j.projects import NEO4J_COMMUNITY_DB
 from neo4j_app.core.utils.pydantic import BaseICIJModel
 from neo4j_app.icij_worker import AsyncApp, WorkerType
+from neo4j_app.icij_worker.typing_ import Dependency
+from neo4j_app.tasks.dependencies import (
+    config_from_path_enter,
+    create_project_registry_db_enter,
+    es_client_enter,
+    es_client_exit,
+    lifespan_config,
+    migrate_app_db_enter,
+    neo4j_driver_enter,
+    neo4j_driver_exit,
+)
+from neo4j_app.tests.icij_worker.conftest import (
+    DBMixin,
+    MockEventPublisher,
+    MockManager,
+    MockServiceConfig,
+    MockWorkerConfig,
+)
 from neo4j_app.typing_ import PercentProgress
 
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
@@ -130,6 +154,21 @@ class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
         pass
 
 
+@pytest.fixture(scope="session")
+def mock_db_session() -> Path:
+    with tempfile.NamedTemporaryFile(prefix="mock-db", suffix=".json") as f:
+        db_path = Path(f.name)
+        DBMixin.fresh_db(db_path)
+        yield db_path
+
+
+@pytest.fixture
+def mock_db(mock_db_session: Path) -> Path:
+    # Wipe the DB
+    DBMixin.fresh_db(mock_db_session)
+    return mock_db_session
+
+
 # Define a session level even_loop fixture to overcome limitation explained here:
 # https://github.com/tortoise/tortoise-orm/issues/638#issuecomment-830124562
 @pytest.fixture(scope="session")
@@ -140,32 +179,89 @@ def event_loop():
     loop.close()
 
 
+_MOCKED_HTTP_DEPS = None
+
+
 @pytest.fixture(scope="session")
-def test_config() -> ServiceConfig:
-    config = ServiceConfig(
+def test_config(mock_db_session: Path) -> ServiceConfig:
+    global _MOCKED_HTTP_DEPS
+    _MOCKED_HTTP_DEPS = _mock_http_deps(mock_db_session)
+    config = MockServiceConfig(
         elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
         es_default_page_size=5,
+        neo4j_app_async_app=f"{__name__}.APP",
+        neo4j_app_dependencies=f"{__name__}._MOCKED_HTTP_DEPS",
         neo4j_app_host="127.0.0.1",
+        neo4j_app_worker_type=WorkerType.mock,
+        neo4j_password=NEO4J_TEST_PASSWORD,
         neo4j_port=NEO4J_TEST_PORT,
         neo4j_user=NEO4J_TEST_USER,
-        neo4j_password=NEO4J_TEST_PASSWORD,
-        neo4j_app_worker_type=WorkerType.mock,
-        test=True,
-        neo4j_app_async_app=f"{__name__}.APP",
-        neo4j_app_async_dependencies=f"{__name__}.TEST_WORKER_DEPS",
     )
     return config
 
 
-TEST_WORKER_DEPS = [
-    ("config reading", config_enter, None),
-    ("loggers setup", loggers_enter, None),
-]
+def mock_task_manager_enter(db_path: Path, **_):
+    import neo4j_app.app.dependencies
+
+    config = lifespan_config()
+    task_manager = MockManager(db_path, config.neo4j_app_task_queue_size)
+    setattr(neo4j_app.app.dependencies, "_TASK_MANAGER", task_manager)
+
+
+def mock_event_publisher_enter(db_path: Path, **_):
+    import neo4j_app.app.dependencies
+
+    event_publisher = MockEventPublisher(db_path)
+    setattr(neo4j_app.app.dependencies, "_EVENT_PUBLISHER", event_publisher)
+
+
+def _mock_http_deps(db_path: Path) -> List[Dependency]:
+    deps = [
+        ("configuration reading", config_enter, None),
+        ("loggers setup", loggers_enter, None),
+        (
+            "write async config for workers",
+            write_async_app_config_enter,
+            write_async_app_config_exit,
+        ),
+        ("neo4j driver creation", neo4j_driver_enter, neo4j_driver_exit),
+        ("neo4j project registry creation", create_project_registry_db_enter, None),
+        ("neo4j DB migration", migrate_app_db_enter, None),
+        ("ES client creation", es_client_enter, es_client_exit),
+        (None, mp_context_enter, None),
+        (
+            "task manager creation",
+            functools.partial(mock_task_manager_enter, db_path=db_path),
+            None,
+        ),
+        (
+            "event publisher creation",
+            functools.partial(mock_event_publisher_enter, db_path=db_path),
+            None,
+        ),
+    ]
+    return deps
+
+
+def _mock_async_deps(config_path: Path) -> List[Dependency]:
+    deps = [
+        (
+            "configuration loading",
+            functools.partial(config_from_path_enter, config_path=config_path),
+            None,
+        ),
+        ("loggers setup", loggers_enter, None),
+    ]
+    return deps
 
 
 @pytest.fixture(scope="session")
-def test_app_session(test_config: ServiceConfig) -> FastAPI:
-    return create_app(test_config)
+def test_app_session(test_config: MockServiceConfig, mock_db_session: Path) -> FastAPI:
+    worker_extras = {"teardown_dependencies": False}
+    worker_config = MockWorkerConfig(db_path=mock_db_session)
+    return create_app(
+        test_config, worker_config=worker_config, worker_extras=worker_extras
+    )
 
 
 @pytest.fixture(scope="session")
@@ -192,6 +288,8 @@ def test_client_module(
 @pytest.fixture()
 def test_client(
     test_client_session: TestClient,
+    # Wipe the mock db
+    mock_db: Path,
     # Wipe ES by requiring the "function" level es client
     es_test_client: ESClient,
     # Same for neo4j
@@ -207,13 +305,16 @@ def test_client_with_async(
     es_test_client: ESClient,
     # Same for neo4j
     neo4j_test_session: neo4j.AsyncSession,
-    test_async_app: AsyncApp,
-    test_config: ServiceConfig,
+    test_config: MockServiceConfig,
+    mock_db: Path,
 ) -> Generator[TestClient, None, None]:
     # pylint: disable=unused-argument
-    # pylint: disable=unused-argument
     # Let's recreate the app to wipe the worker pool and queues
-    app = create_app(test_config, async_app=test_async_app)
+    worker_extras = {"teardown_dependencies": False}
+    worker_config = MockWorkerConfig(db_path=mock_db)
+    app = create_app(
+        test_config, worker_config=worker_config, worker_extras=worker_extras
+    )
     app.include_router(test_error_router())
     with TestClient(app) as client:
         yield client
@@ -651,7 +752,7 @@ async def sleep_for(
 
 
 @pytest.fixture(scope="session")
-def test_async_app(test_config: ServiceConfig) -> AsyncApp:
+def test_async_app(test_config: MockServiceConfig) -> AsyncApp:
     return AsyncApp.load(test_config.neo4j_app_async_app)
 
 

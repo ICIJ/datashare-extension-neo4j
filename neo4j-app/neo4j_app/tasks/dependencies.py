@@ -4,6 +4,7 @@ from typing import Optional, cast
 
 import neo4j
 
+from neo4j_app.app import ServiceConfig
 from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
 from neo4j_app.core.neo4j.migrations import delete_all_migrations
@@ -13,7 +14,7 @@ from neo4j_app.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
-_CONFIG: Optional[AppConfig] = None
+_CONFIG: Optional[ServiceConfig] = None
 _ASYNC_APP_CONFIG: Optional[AppConfig] = None
 _ES_CLIENT: Optional[ESClientABC] = None
 _ASYNC_APP_CONFIG_PATH: Optional[Path] = None
@@ -41,7 +42,7 @@ async def config_neo4j_support_enter(**_):
     _CONFIG = await config.with_neo4j_support()
 
 
-def lifespan_config() -> AppConfig:
+def lifespan_config() -> ServiceConfig:
     if _CONFIG is None:
         raise DependencyInjectionError("config")
     return _CONFIG
@@ -117,7 +118,7 @@ async def migrate_app_db_enter(**_):
     )
 
 
-WORKER_LIFESPAN_DEPS = [
+ASYNC_APP_LIFESPAN_DEPS = [
     ("configuration loading", config_from_path_enter, None),
     ("loggers setup", loggers_enter, None),
     ("neo4j driver creation", neo4j_driver_enter, neo4j_driver_exit),

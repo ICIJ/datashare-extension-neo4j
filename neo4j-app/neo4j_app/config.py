@@ -22,6 +22,7 @@ from neo4j_app.core.utils.logging import (
 from neo4j_app.core.utils.pydantic import (
     IgnoreExtraModel,
     LowerCamelCaseModel,
+    NoEnumModel,
     safe_copy,
 )
 
@@ -32,7 +33,7 @@ def _es_version() -> str:
     return ".".join(str(num) for num in elasticsearch.__version__)
 
 
-class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
+class AppConfig(LowerCamelCaseModel, IgnoreExtraModel, NoEnumModel):
     elasticsearch_address: str = "http://127.0.0.1:9200"
     elasticsearch_version: str = Field(default_factory=_es_version, const=True)
     es_doc_type_field: str = Field(alias="docTypeField", default="type")
@@ -44,7 +45,7 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel):
     es_keep_alive: str = "1m"
     force_migrations: bool = False
     neo4j_app_log_level: str = "INFO"
-    neo4j_app_cancelled_task_refresh_interval_s: int = 2
+    neo4j_app_cancelled_tasks_refresh_interval_s: int = 2
     neo4j_app_log_in_json: bool = False
     neo4j_app_max_dumped_documents: Optional[int] = None
     neo4j_app_max_records_in_memory: int = int(1e6)

@@ -1,3 +1,4 @@
+import functools
 import logging
 import traceback
 from typing import Dict, Iterable, List, Optional
@@ -13,7 +14,7 @@ from starlette.responses import JSONResponse, Response
 
 from neo4j_app.app import ServiceConfig
 from neo4j_app.app.admin import admin_router
-from neo4j_app.app.dependencies import run_app_deps
+from neo4j_app.app.dependencies import run_http_service_deps
 from neo4j_app.app.doc import DOCUMENT_TAG, NE_TAG, OTHER_TAG
 from neo4j_app.app.documents import documents_router
 from neo4j_app.app.graphs import graphs_router
@@ -21,7 +22,7 @@ from neo4j_app.app.main import main_router
 from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.app.projects import projects_router
 from neo4j_app.app.tasks import tasks_router
-from neo4j_app.icij_worker import AsyncApp
+from neo4j_app.icij_worker import WorkerConfig
 
 INTERNAL_SERVER_ERROR = "Internal Server Error"
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"
@@ -83,15 +84,29 @@ def _debug():
     logger.info("im here")
 
 
-def create_app(config: ServiceConfig, async_app: Optional[AsyncApp] = None) -> FastAPI:
+def create_app(
+    config: ServiceConfig,
+    async_app: Optional[str] = None,
+    worker_config: WorkerConfig = None,
+    worker_extras: Optional[Dict] = None,
+) -> FastAPI:
+    if bool(async_app) == bool(config.neo4j_app_async_app):
+        raise ValueError("Please provide exactly one config")
+    async_app = async_app or config.neo4j_app_async_app
+    if worker_config is None:
+        worker_config = config.to_worker_config()
+    lifespan = functools.partial(
+        run_http_service_deps,
+        async_app=async_app,
+        worker_config=worker_config,
+        worker_extras=worker_extras,
+    )
     app = FastAPI(
         title=config.doc_app_name,
         openapi_tags=_make_open_api_tags([DOCUMENT_TAG, NE_TAG, OTHER_TAG]),
-        lifespan=run_app_deps,
+        lifespan=lifespan,
     )
     app.state.config = config
-    if async_app is not None:
-        app.state.async_app = async_app
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, internal_exception_handler)

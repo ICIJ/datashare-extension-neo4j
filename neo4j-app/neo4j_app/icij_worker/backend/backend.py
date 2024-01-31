@@ -20,7 +20,6 @@ class WorkerBackend(str, Enum):
         n_workers: int,
         config: WorkerConfig,
         worker_extras: Optional[Dict] = None,
-        app_deps_extras: Optional[Dict] = None,
     ):
         # This function is meant to be run as the main function of a Python command,
         # in this case we want th main process to handle signals
@@ -30,7 +29,6 @@ class WorkerBackend(str, Enum):
             config,
             handle_signals=True,
             worker_extras=worker_extras,
-            app_deps_extras=app_deps_extras,
         ):
             pass
 
@@ -44,7 +42,6 @@ class WorkerBackend(str, Enum):
         n_workers: int,
         config: WorkerConfig,
         worker_extras: Optional[Dict] = None,
-        app_deps_extras: Optional[Dict] = None,
     ):
         # This usage is meant for when a backend is run from another process which
         # handles signals by itself
@@ -54,7 +51,6 @@ class WorkerBackend(str, Enum):
             config,
             handle_signals=False,
             worker_extras=worker_extras,
-            app_deps_extras=app_deps_extras,
         ):
             yield
 
@@ -67,7 +63,6 @@ class WorkerBackend(str, Enum):
         *,
         handle_signals: bool = False,
         worker_extras: Optional[Dict] = None,
-        app_deps_extras: Optional[Dict] = None,
     ):
         if self is WorkerBackend.MULTIPROCESSING:
             with run_workers_with_multiprocessing(
@@ -76,7 +71,6 @@ class WorkerBackend(str, Enum):
                 config,
                 handle_signals=handle_signals,
                 worker_extras=worker_extras,
-                app_deps_extras=app_deps_extras,
             ):
                 yield
         else:

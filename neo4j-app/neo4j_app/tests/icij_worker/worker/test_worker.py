@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -26,11 +25,8 @@ from neo4j_app.tests.icij_worker.conftest import MockManager, MockWorker
 
 
 @pytest.fixture(scope="function")
-def mock_failing_worker(test_failing_async_app: AsyncApp, tmpdir: Path) -> MockWorker:
-    db_path = Path(tmpdir) / "db.json"
-    MockWorker.fresh_db(db_path)
-    lock = threading.Lock()
-    worker = MockWorker(test_failing_async_app, "test-worker", db_path, lock)
+def mock_failing_worker(test_failing_async_app: AsyncApp, mock_db: Path) -> MockWorker:
+    worker = MockWorker(test_failing_async_app, "test-worker", mock_db)
     return worker
 
 
@@ -40,7 +36,7 @@ _TASK_DB = dict()
 async def test_task_wrapper_run_asyncio_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
-    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    task_manager = MockManager(worker.db_path, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -96,7 +92,7 @@ async def test_task_wrapper_run_asyncio_task(mock_worker: MockWorker):
 async def test_task_wrapper_run_sync_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
-    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    task_manager = MockManager(worker.db_path, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -152,7 +148,7 @@ async def test_task_wrapper_should_recover_from_recoverable_error(
 ):
     # Given
     worker = mock_failing_worker
-    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    task_manager = MockManager(worker.db_path, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -238,7 +234,7 @@ async def test_task_wrapper_should_handle_non_recoverable_error(
 ):
     # Given
     worker = mock_failing_worker
-    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    task_manager = MockManager(worker.db_path, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -303,7 +299,7 @@ async def test_task_wrapper_should_handle_non_recoverable_error(
 async def test_task_wrapper_should_handle_unregistered_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
-    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    task_manager = MockManager(worker.db_path, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(
@@ -370,7 +366,7 @@ async def test_task_wrapper_should_handle_unregistered_task(mock_worker: MockWor
 async def test_work_once_should_not_run_cancelled_task(mock_worker: MockWorker, caplog):
     # Given
     worker = mock_worker
-    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    task_manager = MockManager(worker.db_path, max_queue_size=10)
     caplog.set_level(logging.INFO)
     project = TEST_PROJECT
     created_at = datetime.now()
@@ -397,7 +393,7 @@ async def test_work_once_should_not_run_cancelled_task(mock_worker: MockWorker, 
 async def test_cancel_running_task(mock_worker: MockWorker):
     # Given
     worker = mock_worker
-    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    task_manager = MockManager(worker.db_path, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     duration = 10
@@ -471,7 +467,7 @@ async def test_worker_acknowledgment_cm_should_not_raise_for_fatal_error(
 ):
     # Given
     worker = mock_worker
-    task_manager = MockManager(worker.db_path, worker.db_lock, max_queue_size=10)
+    task_manager = MockManager(worker.db_path, max_queue_size=10)
     project = TEST_PROJECT
     created_at = datetime.now()
     task = Task(

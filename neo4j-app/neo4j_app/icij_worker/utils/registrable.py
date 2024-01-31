@@ -2,7 +2,6 @@
 Simplified implementation of AllenNLP Registrable:
 https://github.com/allenai/allennlp
 """
-import importlib
 import logging
 from abc import ABC
 from collections import defaultdict
@@ -21,6 +20,7 @@ from typing import (
 from pydantic import BaseSettings, Field
 
 from neo4j_app.icij_worker.utils.from_config import FromConfig, T
+from neo4j_app.icij_worker.utils.imports import VariableNotFound, import_variable
 
 logger = logging.getLogger(__name__)
 
@@ -77,25 +77,18 @@ class Registrable(FromConfig, ABC):
             subclass = Registrable._registry[cls][name]
             return subclass
         if "." in name:
-            # Fully qualified class name
-            parts = name.split(".")
-            submodule = ".".join(parts[:-1])
-            class_name = parts[-1]
-
             try:
-                module = importlib.import_module(submodule)
+                subclass = import_variable(name)
             except ModuleNotFoundError as e:
                 raise ValueError(
                     f"tried to interpret {name} as a path to a class "
-                    f"but unable to import module {submodule}"
+                    f"but unable to import module {'.'.join(name.split('.')[:-1])}"
                 ) from e
-
-            try:
-                subclass = getattr(module, class_name)
-            except AttributeError as e:
+            except VariableNotFound as e:
+                split = name.split(".")
                 raise ValueError(
                     f"tried to interpret {name} as a path to a class "
-                    f"but unable to find class {class_name} in {submodule}"
+                    f"but unable to find class {split[-1]} in {split[:-1]}"
                 ) from e
             return subclass
         available = "\n-".join(cls.list_available())

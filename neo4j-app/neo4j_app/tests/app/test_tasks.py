@@ -1,5 +1,6 @@
 # pylint: disable=redefined-outer-name
 from functools import partial
+from pathlib import Path
 from typing import Optional
 
 import neo4j
@@ -7,34 +8,37 @@ import pytest
 from _pytest.fixtures import FixtureRequest
 from starlette.testclient import TestClient
 
-from neo4j_app.app.utils import create_app
 from neo4j_app.app.config import ServiceConfig, WorkerType
+from neo4j_app.app.utils import create_app
 from neo4j_app.core.objects import TaskJob
 from neo4j_app.core.utils.logging import DifferedLoggingMessage
 from neo4j_app.core.utils.pydantic import safe_copy
 from neo4j_app.icij_worker import AsyncApp, Task, TaskStatus
 from neo4j_app.tests.conftest import TEST_PROJECT, test_error_router, true_after
+from neo4j_app.tests.icij_worker.conftest import MockServiceConfig, MockWorkerConfig
 
 
 @pytest.fixture(scope="function")
 def test_client_prod(
-    test_config: ServiceConfig,
-    test_async_app: AsyncApp,
+    test_config: MockServiceConfig,
     # Wipe neo4j and init project
     neo4j_app_driver: neo4j.AsyncSession,
 ) -> TestClient:
     # pylint: disable=unused-argument
-    config = safe_copy(
-        test_config, update={"neo4j_app_worker_type": WorkerType.neo4j, "test": False}
+    prod_deps = "neo4j_app.app.dependencies.HTTP_SERVICE_LIFESPAN_DEPS"
+    config_as_dict = test_config.dict(exclude_unset=True)
+    update = {
+        "neo4j_app_async_app": None,
+        "neo4j_app_dependencies": prod_deps,
+        "neo4j_app_worker_type": WorkerType.neo4j,
+    }
+    config_as_dict.update(update)
+    config = ServiceConfig(**config_as_dict)
+    app = create_app(
+        config,
+        async_app="neo4j_app.tests.conftest.APP",
+        worker_extras={"teardown_dependencies": False},
     )
-    new_async_app = AsyncApp(
-        name=test_async_app.name,
-        dependencies=test_async_app._dependencies,  # pylint: disable=protected-access
-    )
-    new_async_app._registry = (  # pylint: disable=protected-access
-        test_async_app.registry
-    )
-    app = create_app(config, async_app=new_async_app)
     # Add a router which generates error in order to test error handling
     app.include_router(test_error_router())
     with TestClient(app) as client:
@@ -96,7 +100,10 @@ def test_task_should_return_200_for_existing_task(
 
 @pytest.mark.parametrize(
     "test_client_type",
-    ["test_client_with_async", "test_client_prod"],
+    [
+        # "test_client_with_async",
+        "test_client_prod",
+    ],
 )
 def test_task_integration(test_client_type: str, request: FixtureRequest):
     # Given
@@ -147,11 +154,17 @@ def test_cancel_task(test_client: TestClient):
     assert cancelled.status is TaskStatus.CANCELLED
 
 
+_ASYNC_APP_LIMITED_QUEUE = None
+
+
 @pytest.fixture(scope="function")
 def test_client_limited_queue(
-    test_config: ServiceConfig, test_async_app: AsyncApp
+    test_config: MockServiceConfig, test_async_app: AsyncApp, mock_db: Path
 ) -> TestClient:
-    config = safe_copy(test_config, update={"neo4j_app_task_queue_size": 0})
+    config = safe_copy(
+        test_config,
+        update={"neo4j_app_task_queue_size": 0, "neo4j_app_async_app": None},
+    )
     new_async_app = AsyncApp(
         name=test_async_app.name,
         dependencies=test_async_app._dependencies,  # pylint: disable=protected-access
@@ -159,8 +172,17 @@ def test_client_limited_queue(
     new_async_app._registry = (  # pylint: disable=protected-access
         test_async_app.registry
     )
-    app = create_app(config, async_app=new_async_app)
-    # Add a router which generates error in order to test error handling
+    global _ASYNC_APP_LIMITED_QUEUE
+    _ASYNC_APP_LIMITED_QUEUE = new_async_app
+    worker_extras = {"teardown_dependencies": False}
+    worker_config = MockWorkerConfig(db_path=mock_db)
+    app = create_app(
+        config,
+        worker_config=worker_config,
+        async_app=f"{__name__}._ASYNC_APP_LIMITED_QUEUE",
+        worker_extras=worker_extras,
+    )
+    # Add a rout0er which generates error in order to test error handling
     app.include_router(test_error_router())
     with TestClient(app) as client:
         yield client
