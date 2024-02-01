@@ -243,18 +243,6 @@ def _mock_http_deps(db_path: Path) -> List[Dependency]:
     return deps
 
 
-def _mock_async_deps(config_path: Path) -> List[Dependency]:
-    deps = [
-        (
-            "configuration loading",
-            functools.partial(config_from_path_enter, config_path=config_path),
-            None,
-        ),
-        ("loggers setup", loggers_enter, None),
-    ]
-    return deps
-
-
 @pytest.fixture(scope="session")
 def test_app_session(test_config: MockServiceConfig, mock_db_session: Path) -> FastAPI:
     worker_extras = {"teardown_dependencies": False}
