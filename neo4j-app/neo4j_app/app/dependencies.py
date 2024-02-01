@@ -130,13 +130,6 @@ async def run_http_service_deps(
         # Compute the support only once we know the neo4j driver deps has successfully
         # completed
         app.state.config = await config.with_neo4j_support()
-        # config_extra = dict()
-        # # Forward the part of the app config to load to the async app
-        # async_app_extras = {"config_path": _lifespan_async_app_config_path()}
-        # if is_test:
-        #     config_extra["db_path"] = _lifespan_test_db_path()
-        # TODO 1: set the async app config path inside the deps itself
-        # TODO 3: set the DB path in deps
         with WorkerBackend.MULTIPROCESSING.run_cm(
             async_app,
             n_workers=n_workers,
