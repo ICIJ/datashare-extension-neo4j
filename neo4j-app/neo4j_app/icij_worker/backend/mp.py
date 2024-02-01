@@ -1,4 +1,3 @@
-import functools
 import logging
 import multiprocessing
 import os
@@ -44,17 +43,16 @@ def _mp_work_forever(
         worker.loop.run_until_complete(deps_cm.__aexit__(*sys.exc_info()))
 
 
-def signal_handler(sig_num, *_, pool: multiprocessing.Pool):
+def signal_handler(sig_num, *_):
     logger.error(
         "received %s, triggering process pool worker shutdown !",
         signal.Signals(sig_num).name,
     )
 
 
-def setup_main_process_signal_handlers(pool: multiprocessing.Pool):
-    handler = functools.partial(signal_handler, pool=pool)
+def setup_main_process_signal_handlers():
     for s in _HANDLED_SIGNALS:
-        signal.signal(s, handler)
+        signal.signal(s, signal_handler)
 
 
 @contextmanager
@@ -82,7 +80,7 @@ def run_workers_with_multiprocessing(
     pool = mp_ctx.Pool(n_workers, maxtasksperchild=1)
     logger.debug("Setting up signal handlers...")
     if handle_signals:
-        setup_main_process_signal_handlers(pool)
+        setup_main_process_signal_handlers()
     try:
         for w_id in worker_ids:
             kwds.update({"worker_id": w_id})
