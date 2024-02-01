@@ -130,11 +130,14 @@ async def run_http_service_deps(
         # Compute the support only once we know the neo4j driver deps has successfully
         # completed
         app.state.config = await config.with_neo4j_support()
+        # Forward the past of the app config to load to the async app
+        async_app_extras = {"config_path": _lifespan_async_app_config_path()}
         with WorkerBackend.MULTIPROCESSING.run_cm(
             async_app,
             n_workers=n_workers,
             config=worker_config,
             worker_extras=worker_extras,
+            app_deps_extras=async_app_extras,
         ):
             global _WORKER_POOL_IS_RUNNING
             _WORKER_POOL_IS_RUNNING = True
