@@ -4,12 +4,12 @@ import hashlib
 import json
 from datetime import datetime
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, ClassVar, Dict, List, Optional, Union
 
 import neo4j
 from pydantic import Field
 
-from neo4j_app.constants import NE_NODE
+from neo4j_app.constants import STATS_ID, STATS_NODE, STATS_N_DOCS, STATS_N_ENTS
 from neo4j_app.core.utils.pydantic import LowerCamelCaseModel, NoEnumModel
 from neo4j_app.icij_worker.task import Task, TaskStatus
 
@@ -40,29 +40,50 @@ class GraphCounts(LowerCamelCaseModel):
     documents: int = 0
     named_entities: Dict[str, int] = Field(default_factory=dict)
 
+
+class ProjectStatistics(LowerCamelCaseModel):
+    singleton_stat_id: ClassVar[str] = Field(
+        default="project-stats-singleton-id", const=True
+    )
+    counts: GraphCounts = Field(default_factory=GraphCounts)
+
     @classmethod
-    async def from_neo4j(
-        cls,
-        *,
-        doc_res: neo4j.AsyncResult,
-        entity_res: neo4j.AsyncResult,
-        document_counts_key="nDocs",
-        entity_labels_key="neLabels",
-        entity_counts_key="nMentions",
-    ) -> GraphCounts:
-        doc_res = await doc_res.single()
-        n_docs = doc_res[document_counts_key]
-        n_ents = dict()
-        async for rec in entity_res:
-            labels = [l for l in rec[entity_labels_key] if l != NE_NODE]
-            if len(labels) != 1:
-                msg = (
-                    "Expected named entity to have exactly 2 labels."
-                    " Refactor this function."
-                )
-                raise ValueError(msg)
-            n_ents[labels[0]] = rec[entity_counts_key]
-        return GraphCounts(documents=n_docs, named_entities=n_ents)
+    async def from_neo4j(cls, tx: neo4j.AsyncTransaction) -> ProjectStatistics:
+        query = f"MATCH (stats:{STATS_NODE}) RETURN *"
+        stats_res = await tx.run(query)
+        stats = [s async for s in stats_res]
+        if not stats:
+            return ProjectStatistics()
+        if len(stats) > 1:
+            raise ValueError("Inconsistent state, found several project statistics")
+        stats = stats[0]["stats"]
+        ent_counts_as_list = stats[STATS_N_ENTS]
+        ent_counts = dict()
+        for ent_ix in range(0, len(ent_counts_as_list), 2):
+            ent_count_ix = ent_ix + 1
+            ent_counts[ent_counts_as_list[ent_ix]] = int(
+                ent_counts_as_list[ent_count_ix]
+            )
+        counts = GraphCounts(documents=stats[STATS_N_DOCS], named_entities=ent_counts)
+        return ProjectStatistics(counts=counts)
+
+    @classmethod
+    async def to_neo4j_tx(
+        cls, tx: neo4j.AsyncTransaction, doc_count: int, ent_counts: Dict[str, int]
+    ) -> ProjectStatistics:
+        query = f"""MERGE (s:{STATS_NODE} {{ {STATS_ID}: $singletonId }})
+SET s.{STATS_N_DOCS} = $docCount, s.{STATS_N_ENTS} = $entCounts"""
+        ent_counts_as_list = [
+            entry for k, v in ent_counts.items() for entry in (k, str(v))
+        ]
+        await tx.run(
+            query,
+            singletonId=cls.singleton_stat_id.default,
+            docCount=doc_count,
+            entCounts=ent_counts_as_list,
+        )
+        counts = GraphCounts(documents=doc_count, named_entities=ent_counts)
+        return cls(counts=counts)
 
 
 class Neo4jCSVRequest(LowerCamelCaseModel):

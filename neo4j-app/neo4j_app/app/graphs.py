@@ -6,7 +6,7 @@ from starlette.responses import StreamingResponse
 from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import lifespan_neo4j_driver
 from neo4j_app.app.doc import DOC_GRAPH_DUMP, DOC_GRAPH_DUMP_DESC, GRAPH_TAG
-from neo4j_app.core.neo4j.graphs import count_documents_and_named_entities, dump_graph
+from neo4j_app.core.neo4j.graphs import dump_graph, project_statistics
 from neo4j_app.core.objects import DumpRequest, GraphCounts
 from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
@@ -50,26 +50,15 @@ def graphs_router() -> APIRouter:
         return res
 
     @router.get("/counts", response_model=GraphCounts)
-    async def _count_documents_and_named_entities(
-        project: str, request: Request
-    ) -> GraphCounts:
-        config: ServiceConfig = request.app.state.config
-        if config.supports_neo4j_parallel_runtime is None:
-            msg = (
-                "parallel support has not been set, config has not been properly"
-                " initialized using AppConfig.with_neo4j_support"
-            )
-            raise ValueError(msg)
+    async def _count_documents_and_named_entities(project: str) -> GraphCounts:
         with log_elapsed_time_cm(
             logger,
             logging.INFO,
             "Counted documents and named entities in {elapsed_time} !",
         ):
-            count = await count_documents_and_named_entities(
-                project=project,
-                neo4j_driver=lifespan_neo4j_driver(),
-                parallel=config.supports_neo4j_parallel_runtime,
+            stats = await project_statistics(
+                project=project, neo4j_driver=lifespan_neo4j_driver()
             )
-        return count
+        return stats.counts
 
     return router

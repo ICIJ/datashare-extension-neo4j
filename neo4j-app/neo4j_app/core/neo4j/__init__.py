@@ -16,44 +16,50 @@ from .migrations.migrations import (
     migration_v_0_5_0_tx,
     migration_v_0_6_0,
     migration_v_0_7_0_tx,
+    migration_v_0_8_0,
 )
 
 V_0_1_0 = Migration(
     version="0.1.0",
-    label="Create migration and project and constraints",
+    label="create migration and project and constraints",
     migration_fn=migration_v_0_1_0_tx,
 )
 V_0_2_0 = Migration(
     version="0.2.0",
-    label="Create doc and named entities index and constraints",
+    label="create doc and named entities index and constraints",
     migration_fn=migration_v_0_2_0_tx,
 )
 V_0_3_0 = Migration(
     version="0.3.0",
-    label="Create tasks indexes and constraints",
+    label="create tasks indexes and constraints",
     migration_fn=migration_v_0_3_0_tx,
 )
 V_0_4_0 = Migration(
     version="0.4.0",
-    label="Create document path and content type indexes",
+    label="create document path and content type indexes",
     migration_fn=migration_v_0_4_0_tx,
 )
 V_0_5_0 = Migration(
     version="0.5.0",
-    label="Create email user and domain indexes",
+    label="create email user and domain indexes",
     migration_fn=migration_v_0_5_0_tx,
 )
 V_0_6_0 = Migration(
     version="0.6.0",
-    label="Add mention counts to named entity document relationships",
+    label="add mention counts to named entity document relationships",
     migration_fn=migration_v_0_6_0,
 )
 V_0_7_0 = Migration(
     version="0.7.0",
-    label="Create document modified and created at indexes",
+    label="create document modified and created at indexes",
     migration_fn=migration_v_0_7_0_tx,
 )
-MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0, V_0_4_0, V_0_5_0, V_0_6_0, V_0_7_0]
+V_0_8_0 = Migration(
+    version="0.8.0",
+    label="compute project stats and create stats unique constraint",
+    migration_fn=migration_v_0_8_0,
+)
+MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0, V_0_4_0, V_0_5_0, V_0_6_0, V_0_7_0, V_0_8_0]
 
 
 def get_neo4j_csv_reader(

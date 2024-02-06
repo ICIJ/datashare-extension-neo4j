@@ -133,6 +133,11 @@ NEO4J_CSV_LABEL = ":LABEL"
 NEO4J_CSV_START_ID = ":START_ID"
 NEO4J_CSV_TYPE = ":TYPE"
 
+STATS_NODE = "_ProjectStatistics"
+STATS_N_DOCS = "nDocuments"
+STATS_N_ENTS = "nEntities"
+STATS_ID = "id"
+
 TASK_NODE = "_Task"
 TASK_COMPLETED_AT = "completedAt"
 TASK_CREATED_AT = "createdAt"

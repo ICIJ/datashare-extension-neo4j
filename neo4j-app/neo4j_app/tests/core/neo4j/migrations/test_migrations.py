@@ -8,6 +8,7 @@ from neo4j_app.core.neo4j.migrations.migrations import (
     migration_v_0_5_0_tx,
     migration_v_0_6_0,
     migration_v_0_7_0_tx,
+    migration_v_0_8_0,
 )
 
 
@@ -134,3 +135,18 @@ async def test_migration_v_0_7_0_tx(neo4j_test_session: neo4j.AsyncSession):
     ]
     for index in expected_indexes:
         assert index in expected_indexes
+
+
+async def test_migration_v_0_8_0_tx(neo4j_test_session: neo4j.AsyncSession):
+    # When
+    await migration_v_0_8_0(neo4j_test_session)
+    # Then
+    count_query = "MATCH (s:_ProjectStatistics) RETURN count(*) AS nStats"
+    res = await neo4j_test_session.run(count_query)
+    count = await res.single()
+    assert count["nStats"] == 1
+    constraints_res = await neo4j_test_session.run("SHOW CONSTRAINTS")
+    existing_constraints = set()
+    async for rec in constraints_res:
+        existing_constraints.add(rec["name"])
+    assert "constraint_stats_unique_id" in existing_constraints

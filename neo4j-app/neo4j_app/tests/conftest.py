@@ -51,7 +51,6 @@ from neo4j_app.core.utils.pydantic import BaseICIJModel
 from neo4j_app.icij_worker import AsyncApp, WorkerType
 from neo4j_app.icij_worker.typing_ import Dependency
 from neo4j_app.tasks.dependencies import (
-    config_from_path_enter,
     create_project_registry_db_enter,
     es_client_enter,
     es_client_exit,

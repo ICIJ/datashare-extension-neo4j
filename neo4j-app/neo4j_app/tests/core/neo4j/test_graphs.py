@@ -8,10 +8,11 @@ import pytest_asyncio
 
 from neo4j_app.core.neo4j.graphs import (
     _make_default_query,  # pylint: disable=protected-access
-    count_documents_and_named_entities,
     dump_graph,
+    project_statistics,
+    refresh_project_statistics,
 )
-from neo4j_app.core.objects import DumpFormat, GraphCounts
+from neo4j_app.core.objects import DumpFormat, GraphCounts, ProjectStatistics
 from neo4j_app.tests.conftest import TEST_PROJECT, xml_elements_equal
 
 
@@ -220,37 +221,41 @@ async def test_should_raise_for_invalid_dump_format(
 
 
 @pytest.mark.parametrize(
-    "n_docs,n_ents,expected_count",
+    "n_docs,n_ents,expected_stats",
     [
-        (0, dict(), GraphCounts()),
-        (1, dict(), GraphCounts(documents=1)),
+        (0, dict(), ProjectStatistics()),
+        (1, dict(), ProjectStatistics(counts=GraphCounts(documents=1))),
         (
             1,
             {"CAT_0": 1, "CAT_1": 2},
-            GraphCounts(documents=1, named_entities={"CAT_0": 1, "CAT_1": 1 + 2}),
+            ProjectStatistics(
+                counts=GraphCounts(
+                    documents=1, named_entities={"CAT_0": 1, "CAT_1": 1 + 2}
+                )
+            ),
         ),
     ],
 )
-async def test_count_graph_nodes(
-    neo4j_test_driver: neo4j.AsyncDriver,
+async def test_project_statistics(
+    neo4j_app_driver: neo4j.AsyncDriver,
     n_docs: int,
     n_ents: Dict[str, int],
-    expected_count: GraphCounts,
+    expected_stats: GraphCounts,
 ):
     # Given
-    driver = neo4j_test_driver
+    driver = neo4j_app_driver
     if n_docs:
         await _create_docs(driver, n_docs)
     if n_ents:
         await _create_ents(driver, n_ents)
+    if n_docs + bool(n_ents):
+        await refresh_project_statistics(driver, project=TEST_PROJECT)
 
     # When
-    count = await count_documents_and_named_entities(
-        driver, project=TEST_PROJECT, parallel=False
-    )
+    stats = await project_statistics(driver, project=TEST_PROJECT)
 
     # Then
-    assert count == expected_count
+    assert stats == expected_stats
 
 
 @pytest.mark.parametrize(
@@ -281,3 +286,18 @@ def test_make_default_query(default_docs_limit: Optional[int], expected_query: s
 
     # Then
     assert query == expected_query
+
+
+async def test_project_statistics_should_raise_for_duplicate_stats(
+    neo4j_test_driver: neo4j.AsyncDriver,
+):
+    # Given
+    driver = neo4j_test_driver
+    # When/Then
+    query = "CREATE (:_ProjectStatistics { id: 'some-id' })"
+    await driver.execute_query(query)
+    query = "CREATE (:_ProjectStatistics { id: 'some-other-id' })"
+    await driver.execute_query(query)
+    expected = "Inconsistent state, found several project statistics"
+    with pytest.raises(ValueError, match=expected):
+        await project_statistics(driver, TEST_PROJECT)
