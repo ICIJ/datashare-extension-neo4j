@@ -375,10 +375,7 @@ class ESClientABC(metaclass=abc.ABCMeta):
         buffer = []
         raw_progress = None
         if progress is not None and bodies:
-            count_queries = [deepcopy(b) for b in bodies]
-            for q in count_queries:
-                q.pop(SLICE, None)
-                q.pop(SOURCE, None)
+            count_queries = [{QUERY: b[QUERY]} for b in bodies]
             count_tasks = (self.count(index=index, body=b) for b in count_queries)
             res_it = run_with_concurrency(count_tasks, max_concurrency=max_concurrency)
             ne_counts = [c[COUNT] async for c in res_it]

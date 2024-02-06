@@ -1,6 +1,7 @@
 # pylint: disable=redefined-outer-name
 import itertools
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -39,6 +40,8 @@ from neo4j_app.tests.conftest import (
     index_named_entities,
     index_noise,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _make_email(doc_id: str, header_field: str) -> Dict:
@@ -175,6 +178,10 @@ async def test_import_documents(
     max_records_in_memory = 10
     neo4j_transaction_batch_size = 3
 
+    # Add a dummy progress to test the count
+    async def _logging_progress(p: float):
+        logger.debug("progressing: %s", p)
+
     # When
     response = await import_documents(
         project=TEST_PROJECT,
@@ -186,6 +193,7 @@ async def test_import_documents(
         neo4j_import_batch_size=neo4j_import_batch_size,
         neo4j_transaction_batch_size=neo4j_transaction_batch_size,
         max_records_in_memory=max_records_in_memory,
+        progress=_logging_progress,
     )
 
     # Then
