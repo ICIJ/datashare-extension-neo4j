@@ -1,3 +1,5 @@
+import logging
+
 import neo4j
 
 from neo4j_app.constants import (
@@ -20,6 +22,8 @@ from neo4j_app.constants import (
     NE_NODE,
     PROJECT_NAME,
     PROJECT_NODE,
+    STATS_ID,
+    STATS_NODE,
     TASK_CREATED_AT,
     TASK_ERROR_ID,
     TASK_ERROR_NODE,
@@ -31,6 +35,9 @@ from neo4j_app.constants import (
     TASK_NODE,
     TASK_TYPE,
 )
+from neo4j_app.core.neo4j.graphs import refresh_project_statistics_tx
+
+logger = logging.getLogger(__name__)
 
 
 async def migration_v_0_1_0_tx(tx: neo4j.AsyncTransaction):
@@ -66,6 +73,11 @@ async def migration_v_0_6_0(sess: neo4j.AsyncSession):
 
 async def migration_v_0_7_0_tx(tx: neo4j.AsyncTransaction):
     await _create_document_created_and_modified_at_indexes(tx)
+
+
+async def migration_v_0_8_0(sess: neo4j.AsyncSession):
+    await sess.execute_write(_create_project_stats_unique_constraint_tx)
+    await sess.execute_write(refresh_project_statistics_if_needed_tx)
 
 
 async def _create_document_and_ne_id_unique_constraint_tx(tx: neo4j.AsyncTransaction):
@@ -189,3 +201,23 @@ ON (doc.{DOC_CREATED_AT})"""
 FOR (doc:{DOC_NODE})
 ON (doc.{DOC_MODIFIED_AT})"""
     await tx.run(modified_at_index)
+
+
+async def _create_project_stats_unique_constraint_tx(tx: neo4j.AsyncTransaction):
+    stats_query = f"""CREATE CONSTRAINT constraint_stats_unique_id
+IF NOT EXISTS 
+FOR (s:{STATS_NODE})
+REQUIRE (s.{STATS_ID}) IS UNIQUE
+"""
+    await tx.run(stats_query)
+
+
+async def refresh_project_statistics_if_needed_tx(tx: neo4j.AsyncTransaction):
+    count_query = f"MATCH (s:{STATS_NODE}) RETURN s"
+    res = await tx.run(count_query)
+    counts = await res.single()
+    if counts is None:
+        logger.info("missing graph statistics, computing them...")
+        await refresh_project_statistics_tx(tx)
+    else:
+        logger.info("stats are already computed skipping !")

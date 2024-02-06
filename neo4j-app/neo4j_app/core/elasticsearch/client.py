@@ -48,7 +48,6 @@ from neo4j_app.core.elasticsearch.utils import (
     SIZE,
     SLICE,
     SORT,
-    SOURCE,
     match_all,
 )
 from neo4j_app.core.neo4j import Neo4jImportWorker, write_neo4j_csv

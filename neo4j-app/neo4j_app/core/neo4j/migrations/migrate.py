@@ -112,7 +112,7 @@ async def _migrate_with_lock(
     # the DB...
 
     # Lock the DB first, raising in case a migration already exists
-    logger.debug("Trying to run migration %s...", migration.label)
+    logger.debug("Trying to run migration to %s...", migration.label)
     await registry_session.execute_write(
         create_migration_tx,
         project=project,
@@ -120,7 +120,7 @@ async def _migrate_with_lock(
         migration_label=migration.label,
     )
     # Then run to migration
-    logger.debug("Acquired write lock for %s !", migration.label)
+    logger.debug("Acquired write lock to %s !", migration.label)
     sig = signature(migration.migration_fn)
     first_param = list(sig.parameters)[0]
     if first_param == "tx":

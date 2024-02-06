@@ -8,6 +8,7 @@ from neo4j_app.core.utils.pydantic import LowerCamelCaseModel
 from neo4j_app.typing_ import PercentProgress
 from .app import app
 from .dependencies import lifespan_config, lifespan_es_client, lifespan_neo4j_driver
+from ..core.neo4j.graphs import refresh_project_statistics
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ async def full_import(project: str, progress: PercentProgress) -> FullImportResp
         )
     await progress(doc_import_max_progress)
     logger.info("imported documents: %s", doc_res.json(sort_keys=True))
-    ne_progress = to_scaled_progress(progress, start=doc_import_max_progress, end=100.0)
+    ne_progress = to_scaled_progress(progress, start=doc_import_max_progress, end=99.0)
     with log_elapsed_time_cm(
         logger, logging.INFO, "Imported named entities in {elapsed_time} !"
     ):
@@ -62,5 +63,7 @@ async def full_import(project: str, progress: PercentProgress) -> FullImportResp
             max_records_in_memory=config.neo4j_app_max_records_in_memory,
             progress=ne_progress,
         )
-    await progress(100.0)
+    await progress(99.0)
+    await refresh_project_statistics(neo4j_driver, project)
+    await progress(100)
     return FullImportResponse(documents=doc_res, named_entities=ne_res)
