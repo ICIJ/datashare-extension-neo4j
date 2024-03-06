@@ -3,8 +3,8 @@ from typing import Annotated, Optional
 
 import typer
 
-from neo4j_app.core.utils.logging import setup_loggers
-from neo4j_app.icij_worker.cli.workers import worker_app
+from icij_common.logging_utils import setup_loggers
+from icij_worker.cli.workers import worker_app
 
 cli_app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 cli_app.add_typer(worker_app)
