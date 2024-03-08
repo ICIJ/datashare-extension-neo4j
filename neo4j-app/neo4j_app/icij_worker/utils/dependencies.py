@@ -71,7 +71,7 @@ async def run_deps(
                         exit_fn(*exc_info)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 to_raise.append(e)
-        logger.debug("Rolled back all dependencies for %s!", ctx)
+        logger.debug("Rolled back all dependencies for %s !", ctx)
         if to_raise:
             for e in to_raise:
                 logger.error("Error while handling dependencies %s!", e)

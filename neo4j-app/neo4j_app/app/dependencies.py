@@ -70,7 +70,7 @@ def _lifespan_async_app_config_path() -> Path:
     return _ASYNC_APP_CONFIG_PATH
 
 
-def loggers_enter(**_):
+def http_loggers_enter(**_):
     config = lifespan_config()
     config.setup_loggers()
     logger.info("Loggers ready to log 💬")
@@ -147,7 +147,7 @@ async def run_http_service_deps(
 
 HTTP_SERVICE_LIFESPAN_DEPS = [
     ("configuration reading", config_enter, None),
-    ("loggers setup", loggers_enter, None),
+    ("loggers setup", http_loggers_enter, None),
     (
         "write async config for workers",
         write_async_app_config_enter,

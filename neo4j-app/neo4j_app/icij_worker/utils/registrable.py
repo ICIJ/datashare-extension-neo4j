@@ -3,6 +3,7 @@ Simplified implementation of AllenNLP Registrable:
 https://github.com/allenai/allennlp
 """
 import logging
+import os
 from abc import ABC
 from collections import defaultdict
 from typing import (
@@ -30,37 +31,43 @@ _RegistrableT = TypeVar("_RegistrableT", bound="Registrable")
 _SubclassRegistry = Dict[str, _RegistrableT]
 
 
-class RegistrableConfig(BaseSettings):
-    registry_key: str = Field(const=True, default="name")
-
-
-class Registrable(FromConfig, ABC):
+class RegistrableMixin(ABC):
     _registry: ClassVar[DefaultDict[type, _SubclassRegistry]] = defaultdict(dict)
 
     default_implementation: Optional[str] = None
 
     @classmethod
     def register(
-        cls, name: str, exist_ok: bool = False
+        cls, name: Optional[str] = None, exist_ok: bool = False
     ) -> Callable[[Type[_T]], Type[_T]]:
+        # pylint: disable=protected-access
         registry = Registrable._registry[cls]
 
         def add_subclass_to_registry(subclass: Type[_T]) -> Type[_T]:
-            if name in registry:
+            registered_name = name
+            if registered_name is None:
+                registered_key = subclass.registry_key.default
+                if registered_key is None:
+                    raise ValueError(
+                        "no name provided and the class doesn't define a registry key"
+                    )
+                registered_name = getattr(subclass, registered_key).default
+
+            if registered_name in registry:
                 if exist_ok:
                     msg = (
-                        f"{name} has already been registered as "
-                        f"{registry[name].__name__}, but exist_ok=True, "
+                        f"{registered_name} has already been registered as "
+                        f"{registry[registered_name].__name__}, but exist_ok=True, "
                         f"so overwriting with {cls.__name__}"
                     )
                     logger.info(msg)
                 else:
                     msg = (
-                        f"Cannot register {name} as {cls.__name__}; "
-                        f"name already in use for {registry[name].__name__}"
+                        f"Cannot register {registered_name} as {cls.__name__}; "
+                        f"name already in use for {registry[registered_name].__name__}"
                     )
                     raise ValueError(msg)
-            registry[name] = subclass
+            registry[registered_name] = subclass
             return subclass
 
         return add_subclass_to_registry
@@ -73,6 +80,7 @@ class Registrable(FromConfig, ABC):
 
     @classmethod
     def resolve_class_name(cls: Type[_RegistrableT], name: str) -> Type[_RegistrableT]:
+        # pylint: disable=protected-access
         if name in Registrable._registry[cls]:
             subclass = Registrable._registry[cls][name]
             return subclass
@@ -92,7 +100,7 @@ class Registrable(FromConfig, ABC):
                 ) from e
             return subclass
         available = "\n-".join(cls.list_available())
-        msg = f"""{name}' is not a registered name for '{cls.__name__}'.
+        msg = f"""{name} is not a registered name for '{cls.__name__}'.
 Available names are:
 {available}
 
@@ -103,10 +111,40 @@ If your registered class comes from custom code, you'll need to import the\
 
     @classmethod
     def list_available(cls) -> List[str]:
+        # pylint: disable=protected-access
         keys = list(Registrable._registry[cls].keys())
         return keys
 
+
+class RegistrableConfig(BaseSettings, RegistrableMixin):
+    registry_key: ClassVar[str] = Field(const=True, default="name")
+
+    @classmethod
+    def from_env(cls: Type[_C]):
+        key = cls.registry_key.default
+        if cls.__config__.env_prefix is not None:
+            key = cls.__config__.env_prefix + key
+        registry_key = find_in_env(key, cls.__config__.case_sensitive)
+        subcls = cls.resolve_class_name(registry_key)
+        return subcls()
+
+
+class Registrable(RegistrableMixin, FromConfig, ABC):
     @classmethod
     def from_config(cls: Type[T], config: _C, **extras) -> T:
-        subcls = cls.resolve_class_name(getattr(config, config.registry_key))
+        name = getattr(config, config.registry_key.default).default
+        subcls = cls.resolve_class_name(name)
         return subcls._from_config(config, **extras)  # pylint: disable=protected-access
+
+
+def find_in_env(variable: str, case_sensitive: bool) -> str:
+    if case_sensitive:
+        try:
+            return os.environ[variable]
+        except KeyError as e:
+            raise ValueError(f"couldn't find {variable} in env variables") from e
+    lowercase = variable.lower()
+    for k, v in os.environ.items():
+        if k.lower() == lowercase:
+            return v
+    raise ValueError(f"couldn't find {variable.upper()} in env variables")

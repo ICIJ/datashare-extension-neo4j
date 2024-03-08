@@ -36,6 +36,18 @@ async def config_from_path_enter(config_path: Path, **_):
     logger.info("Loaded config %s", config.json(indent=2))
 
 
+async def mock_async_config_enter(**_):
+    global _CONFIG
+    # Because global variables can't be shared across modules we have to put some test
+    # code in here
+    # https://docs.python.org/3/faq/programming.html
+    ##how-do-i-share-global-variables-across-modules
+    from neo4j_app.tests.conftest import mock_async_config
+
+    _CONFIG = mock_async_config()
+    logger.info("Loading mocked configuration %s", _CONFIG.json(indent=2))
+
+
 async def config_neo4j_support_enter(**_):
     global _CONFIG
     config = lifespan_config()

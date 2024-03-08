@@ -6,7 +6,7 @@ import logging
 from abc import ABC
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import ClassVar, Dict, List, Optional, Tuple, Union
 
 import neo4j
 import pytest
@@ -220,8 +220,9 @@ class MockEventPublisher(DBMixin, EventPublisher):
             raise UnknownTask(task_id) from e
 
 
+@WorkerConfig.register()
 class MockWorkerConfig(WorkerConfig, IgnoreExtraModel):
-    type: str = Field(const=True, default=WorkerType.mock)
+    type: ClassVar[str] = Field(const=True, default=WorkerType.mock.value)
 
     db_path: Path
 

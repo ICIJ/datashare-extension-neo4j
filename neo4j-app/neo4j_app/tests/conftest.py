@@ -33,10 +33,10 @@ from neo4j import AsyncGraphDatabase
 from starlette.testclient import TestClient
 
 import neo4j_app
+from neo4j_app import AppConfig
 from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import (
-    config_enter,
-    loggers_enter,
+    http_loggers_enter,
     mp_context_enter,
     write_async_app_config_enter,
     write_async_app_config_exit,
@@ -51,11 +51,14 @@ from neo4j_app.core.utils.pydantic import BaseICIJModel
 from neo4j_app.icij_worker import AsyncApp, WorkerType
 from neo4j_app.icij_worker.typing_ import Dependency
 from neo4j_app.tasks.dependencies import (
+    config_enter,
     create_project_registry_db_enter,
     es_client_enter,
     es_client_exit,
     lifespan_config,
+    loggers_enter,
     migrate_app_db_enter,
+    mock_async_config_enter,
     neo4j_driver_enter,
     neo4j_driver_exit,
 )
@@ -72,8 +75,6 @@ from neo4j_app.typing_ import PercentProgress
 #  let's try to find a way to define the scope dynamically:
 #  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
 
-
-APP = AsyncApp(name="test-app")
 
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
 TEST_PROJECT = "test_project"
@@ -217,7 +218,7 @@ def mock_event_publisher_enter(db_path: Path, **_):
 def _mock_http_deps(db_path: Path) -> List[Dependency]:
     deps = [
         ("configuration reading", config_enter, None),
-        ("loggers setup", loggers_enter, None),
+        ("loggers setup", http_loggers_enter, None),
         (
             "write async config for workers",
             write_async_app_config_enter,
@@ -709,6 +710,23 @@ def mock_enterprise_(monkeypatch):
     )
 
 
+def mock_async_config() -> AppConfig:
+    return AppConfig(
+        elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
+        es_default_page_size=5,
+        neo4j_password=NEO4J_TEST_PASSWORD,
+        neo4j_port=NEO4J_TEST_PORT,
+        neo4j_user=NEO4J_TEST_USER,
+    )
+
+
+mocked_app_deps = [
+    ("configuration loading", mock_async_config_enter, None),
+    ("loggers setup", loggers_enter, None),
+]
+APP = AsyncApp(name="test-app", dependencies=mocked_app_deps)
+
+
 @APP.task
 async def hello_world(greeted: str, progress: Optional[PercentProgress] = None) -> str:
     if progress is not None:
@@ -741,6 +759,12 @@ async def sleep_for(
 @pytest.fixture(scope="session")
 def test_async_app(test_config: MockServiceConfig) -> AsyncApp:
     return AsyncApp.load(test_config.neo4j_app_async_app)
+
+
+@pytest.fixture()
+def mock_worker_in_env(tmp_path):  # pylint: disable=unused-argument
+    os.environ["ICIJ_WORKER_TYPE"] = "worker_impl"
+    os.environ["ICIJ_WORKER_DB_PATH"] = str(tmp_path / "mock-db.json")
 
 
 @pytest.fixture()

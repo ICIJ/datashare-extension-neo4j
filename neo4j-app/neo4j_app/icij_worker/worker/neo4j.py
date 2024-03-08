@@ -4,7 +4,7 @@ import asyncio
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import AsyncGenerator, Dict, List, Optional, Tuple
+from typing import AsyncGenerator, ClassVar, Dict, List, Optional, Tuple
 
 import neo4j
 from fastapi.encoders import jsonable_encoder
@@ -45,8 +45,9 @@ _TASK_MANDATORY_FIELDS_BY_ALIAS = {
 }
 
 
+@WorkerConfig.register()
 class Neo4jWorkerConfig(WorkerConfig):
-    type: str = Field(const=True, default=WorkerType.neo4j)
+    type: ClassVar[str] = Field(const=True, default=WorkerType.neo4j.value)
 
     neo4j_connection_timeout: float = 5.0
     neo4j_host: str = "127.0.0.1"

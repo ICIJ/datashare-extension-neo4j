@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 import logging
 import multiprocessing
@@ -10,10 +11,9 @@ from typing import Optional
 from fastapi import FastAPI
 from gunicorn.app.base import BaseApplication
 
-import neo4j_app
 from neo4j_app.app import ServiceConfig
 from neo4j_app.app.utils import create_app
-from neo4j_app.core.utils.logging import DATE_FMT, STREAM_HANDLER_FMT
+from neo4j_app.core.utils.logging import setup_loggers
 
 
 class Formatter(argparse.ArgumentDefaultsHelpFormatter):
@@ -77,21 +77,9 @@ def get_arg_parser():
     return arg_parser
 
 
-def _setup_loggers():
-    loggers = [neo4j_app.__name__, "__main__"]
-    level = logging.INFO
-    stream_handler = logging.StreamHandler(sys.stderr)
-    stream_handler.setFormatter(logging.Formatter(STREAM_HANDLER_FMT, DATE_FMT))
-    for logger in loggers:
-        logger = logging.getLogger(logger)
-        logger.setLevel(level)
-        logger.handlers = []
-        logger.addHandler(stream_handler)
-
-
 def main():
     # Setup loggers temporarily before loggers init using the app configuration
-    _setup_loggers()
+    setup_loggers()
     logger = logging.getLogger(__name__)
     try:
         arg_parser = get_arg_parser()
