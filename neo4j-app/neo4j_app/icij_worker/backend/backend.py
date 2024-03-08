@@ -1,10 +1,16 @@
+import logging
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
 
 from neo4j_app.icij_worker import WorkerConfig
-from neo4j_app.icij_worker.backend.mp import run_workers_with_multiprocessing
+from neo4j_app.icij_worker.backend.mp import (
+    run_workers_with_multiprocessing,
+    run_workers_with_multiprocessing_cm,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class WorkerBackend(str, Enum):
@@ -14,6 +20,9 @@ class WorkerBackend(str, Enum):
     # workers for IO based tasks
     MULTIPROCESSING = "multiprocessing"
 
+    # TODO: refactor this one to be a function rather than a cm coroutine a context
+    #  manager is no longer needed to run workers inside the HTTP server
+    @contextmanager
     def run(
         self,
         app: str,
@@ -22,17 +31,13 @@ class WorkerBackend(str, Enum):
         worker_extras: Optional[Dict] = None,
         app_deps_extras: Optional[Dict] = None,
     ):
-        # This function is meant to be run as the main function of a Python command,
-        # in this case we want th main process to handle signals
-        with self._run_cm(
+        run_workers_with_multiprocessing(
             app,
             n_workers,
             config,
-            handle_signals=True,
             worker_extras=worker_extras,
             app_deps_extras=app_deps_extras,
-        ):
-            pass
+        )
 
     # TODO: remove this when the HTTP server doesn't
     # TODO: also refactor underlying functions to be simple function rather than
@@ -46,35 +51,11 @@ class WorkerBackend(str, Enum):
         worker_extras: Optional[Dict] = None,
         app_deps_extras: Optional[Dict] = None,
     ):
-        # This usage is meant for when a backend is run from another process which
-        # handles signals by itself
-        with self._run_cm(
-            app,
-            n_workers,
-            config,
-            handle_signals=False,
-            worker_extras=worker_extras,
-            app_deps_extras=app_deps_extras,
-        ):
-            yield
-
-    @contextmanager
-    def _run_cm(
-        self,
-        app: str,
-        n_workers: int,
-        config: WorkerConfig,
-        *,
-        handle_signals: bool = False,
-        worker_extras: Optional[Dict] = None,
-        app_deps_extras: Optional[Dict] = None,
-    ):
         if self is WorkerBackend.MULTIPROCESSING:
-            with run_workers_with_multiprocessing(
+            with run_workers_with_multiprocessing_cm(
                 app,
                 n_workers,
                 config,
-                handle_signals=handle_signals,
                 worker_extras=worker_extras,
                 app_deps_extras=app_deps_extras,
             ):
@@ -84,15 +65,15 @@ class WorkerBackend(str, Enum):
 
 
 def start_workers(
-    app: str,
-    n_workers: int,
-    config_path: Optional[Path],
-    backend: WorkerBackend,
+    app: str, n_workers: int, config_path: Optional[Path], backend: WorkerBackend
 ):
     if n_workers < 1:
         raise ValueError("n_workers must be >= 1")
     if config_path is not None:
+        logger.info("Loading worker configuration from %s", config_path)
         config = WorkerConfig.parse_file(config_path)
     else:
-        config = WorkerConfig()
+        logger.info("Loading worker configuration from env...")
+        config = WorkerConfig.from_env()
+
     backend.run(app, n_workers=n_workers, config=config)

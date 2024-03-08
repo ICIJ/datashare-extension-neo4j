@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import sys
 from abc import ABC
 from datetime import datetime
 from functools import wraps
@@ -94,3 +95,17 @@ STREAM_HANDLER_FMT_WITH_WORKER_ID = (
     "[%(levelname)s][%(asctime)s.%(msecs)03d][%(workerid)s][%(name)s]: %(message)s"
 )
 DATE_FMT = "%H:%M:%S"
+
+
+def setup_loggers():
+    import neo4j_app
+
+    loggers = [neo4j_app.__name__, "__main__"]
+    level = logging.INFO
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.setFormatter(logging.Formatter(STREAM_HANDLER_FMT, DATE_FMT))
+    for logger in loggers:
+        logger = logging.getLogger(logger)
+        logger.setLevel(level)
+        logger.handlers = []
+        logger.addHandler(stream_handler)

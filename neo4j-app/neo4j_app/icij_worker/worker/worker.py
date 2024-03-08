@@ -110,6 +110,8 @@ class Worker(
                 self._loop.run_until_complete(self._work_forever_task)
             except asyncio.CancelledError:  # Shutdown let's not reraise
                 self.info("worker cancelled, shutting down...")
+            except KeyboardInterrupt:  # Shutdown let's not reraise
+                pass
             except Exception as e:
                 self.error("error occurred while consuming: %s", _format_error(e))
                 self.info("will try to shutdown gracefully...")
@@ -369,7 +371,6 @@ class Worker(
             self.info("graceful shut down complete")
         else:
             self.info("shutting down the hard way, task might not be re-queued...")
-        self.info("worker shut down complete !")
 
 
 def _retrieve_registered_task(

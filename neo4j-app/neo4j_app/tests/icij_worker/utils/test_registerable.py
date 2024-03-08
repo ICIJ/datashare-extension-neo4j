@@ -1,6 +1,6 @@
 # pylint: disable=redefined-outer-name
 from abc import ABC
-from typing import Type
+from typing import ClassVar, Type
 
 import pytest
 from pydantic import Field
@@ -131,21 +131,21 @@ def test_registrable_from_config(
     base_class = _MockedBaseClass
 
     class _MockedBaseClassConfig(RegistrableConfig):
-        registry_key: str = Field(const=True, default="some_key")
+        registry_key: ClassVar[str] = Field(const=True, default="some_key")
         some_attr: str
-        some_key: str = Field(const=True, default="registered")
+        some_key: ClassVar[str] = Field(const=True, default="registered")
 
     @base_class.register("registered")
     class Registered(base_class):
         def __init__(self, some_attr):
-            self._some_attr = some_attr
+            self.some_attr = some_attr
 
         @classmethod
         def _from_config(cls: Type[T], config: C, **extras) -> T:
             return cls(some_attr=config.some_attr)
 
         def _to_config(self) -> C:
-            return _MockedBaseClassConfig(some_attr=self._some_attr)
+            return _MockedBaseClassConfig(some_attr=self.some_attr)
 
     instance_config = _MockedBaseClassConfig(some_attr="some_value")
 
@@ -156,3 +156,4 @@ def test_registrable_from_config(
     assert isinstance(instance, Registered)
 
     assert instance.config == instance_config
+    assert instance.some_attr == "some_value"
