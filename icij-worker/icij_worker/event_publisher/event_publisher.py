@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from neo4j_app.icij_worker import TaskEvent
+from icij_worker import TaskEvent
 
 
 class EventPublisher(ABC):

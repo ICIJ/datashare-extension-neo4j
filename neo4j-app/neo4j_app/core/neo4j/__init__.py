@@ -5,10 +5,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, TextIO, Tuple
 
+from icij_common.neo4j.migrate import Migration
+
 from .imports import Neo4Import, Neo4jImportWorker
-from .migrations import Migration
-from .migrations.migrate import MigrationError, migrate_db_schemas
-from .migrations.migrations import (
+from .migrations import (
     migration_v_0_1_0_tx,
     migration_v_0_2_0_tx,
     migration_v_0_3_0_tx,

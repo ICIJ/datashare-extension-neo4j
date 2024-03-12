@@ -1,39 +1,37 @@
 from __future__ import annotations
 
 import configparser
-import logging
-import sys
 from configparser import ConfigParser
-from typing import Dict, List, Optional, TextIO, Union
+from typing import ClassVar, Dict, List, Optional, TextIO, Union
 
+import elasticsearch
 import neo4j
-from pydantic import Field, validator
-from pythonjsonlogger.jsonlogger import JsonFormatter
-
-from neo4j_app.core.elasticsearch import ESClientABC
-from neo4j_app.core.elasticsearch.client import ESClient, OSClient
-from neo4j_app.core.neo4j.projects import is_enterprise, supports_parallel_runtime
-from neo4j_app.core.utils.logging import (
-    DATE_FMT,
-    STREAM_HANDLER_FMT,
-    STREAM_HANDLER_FMT_WITH_WORKER_ID,
-    WorkerIdFilter,
-)
-from neo4j_app.core.utils.pydantic import (
+import uvicorn
+from icij_common.neo4j.projects import is_enterprise, supports_parallel_runtime
+from icij_common.pydantic_utils import (
     IgnoreExtraModel,
     LowerCamelCaseModel,
     NoEnumModel,
     safe_copy,
 )
+from icij_worker.utils.logging_ import LogWithWorkerIDMixin
+from pydantic import Field, validator
+
+import neo4j_app
+from neo4j_app.core.elasticsearch import ESClientABC
+from neo4j_app.core.elasticsearch.client import ESClient, OSClient
+
+_ALL_LOGGERS = [neo4j_app.__name__, uvicorn.__name__, elasticsearch.__name__]
+_WARNING_LOGGERS = [elasticsearch.__name__]
 
 
 def _es_version() -> str:
-    import elasticsearch
-
     return ".".join(str(num) for num in elasticsearch.__version__)
 
 
-class AppConfig(LowerCamelCaseModel, IgnoreExtraModel, NoEnumModel):
+class AppConfig(
+    LogWithWorkerIDMixin, LowerCamelCaseModel, IgnoreExtraModel, NoEnumModel
+):
     elasticsearch_address: str = "http://127.0.0.1:9200"
     elasticsearch_version: str = Field(default_factory=_es_version, const=True)
     es_doc_type_field: str = Field(alias="docTypeField", default="type")
@@ -44,9 +42,12 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel, NoEnumModel):
     es_timeout_s: Union[int, float] = 60 * 5
     es_keep_alive: str = "1m"
     force_migrations: bool = False
+    force_warning_loggers: ClassVar[List[str]] = _WARNING_LOGGERS
+    log_in_json: ClassVar[bool] = Field(default=False, alias="neo4jAppLogInJson")
+    log_level: ClassVar[str] = Field(default="INFO", alias="neo4jAppLogLevel")
+    loggers: ClassVar[List[str]] = Field(_ALL_LOGGERS, const=True)
     neo4j_app_log_level: str = "INFO"
     neo4j_app_cancelled_tasks_refresh_interval_s: int = 2
-    neo4j_app_log_in_json: bool = False
     neo4j_app_max_dumped_documents: Optional[int] = None
     neo4j_app_max_records_in_memory: int = int(1e6)
     neo4j_app_migration_timeout_s: float = 60 * 5
@@ -153,7 +154,9 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel, NoEnumModel):
         return client
 
     async def with_neo4j_support(self) -> AppConfig:
-        async with self.to_neo4j_driver() as neo4j_driver:  # pylint: disable=not-async-context-manager
+        async with (  # pylint: disable=not-async-context-manager
+            self.to_neo4j_driver() as neo4j_driver
+        ):
             enterprise_support = await is_enterprise(neo4j_driver)
             parallel_support = await supports_parallel_runtime(neo4j_driver)
         copied = safe_copy(
@@ -164,54 +167,6 @@ class AppConfig(LowerCamelCaseModel, IgnoreExtraModel, NoEnumModel):
             },
         )
         return copied
-
-    def setup_loggers(self, worker_id: Optional[str] = None):
-        import neo4j_app
-        import uvicorn
-        import elasticsearch
-
-        loggers = [neo4j_app.__name__, uvicorn.__name__, elasticsearch.__name__]
-        force_warning = {elasticsearch.__name__}
-        try:
-            import opensearchpy
-
-            loggers.append(opensearchpy.__name__)
-            force_warning.add(opensearchpy.__name__)
-        except ImportError:
-            pass
-        worker_id_filter = None
-        if worker_id is not None:
-            worker_id_filter = WorkerIdFilter(worker_id)
-        handlers = self._handlers(worker_id_filter)
-        for logger in loggers:
-            logger = logging.getLogger(logger)
-            level = getattr(logging, self.neo4j_app_log_level)
-            if logger.name in force_warning:
-                level = max(logging.WARNING, level)
-            logger.setLevel(level)
-            logger.handlers = []
-            for handler in handlers:
-                logger.addHandler(handler)
-
-    def _handlers(
-        self, worker_id_filter: Optional[logging.Filter]
-    ) -> List[logging.Handler]:
-        stream_handler = logging.StreamHandler(sys.stderr)
-        if worker_id_filter is not None:
-            fmt = STREAM_HANDLER_FMT_WITH_WORKER_ID
-        else:
-            fmt = STREAM_HANDLER_FMT
-        if self.neo4j_app_log_in_json:
-            fmt = JsonFormatter(fmt, DATE_FMT)
-        else:
-            fmt = logging.Formatter(fmt, DATE_FMT)
-        stream_handler.setFormatter(fmt)
-        handlers = [stream_handler]
-        for handler in handlers:
-            if worker_id_filter is not None:
-                handler.addFilter(worker_id_filter)
-            handler.setLevel(self.neo4j_app_log_level)
-        return handlers
 
 
 def _sanitize_values(java_config: Dict[str, str]) -> Dict[str, str]:

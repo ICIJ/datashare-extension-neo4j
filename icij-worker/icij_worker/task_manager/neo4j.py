@@ -5,29 +5,66 @@ from datetime import datetime
 from typing import AsyncGenerator, List, Optional, Union
 
 import neo4j
-from neo4j.exceptions import ConstraintError
-
-from neo4j_app.constants import (
+from icij_common.neo4j.constants import (
     TASK_CREATED_AT,
+    TASK_ERROR_ID,
     TASK_ERROR_NODE,
     TASK_ERROR_OCCURRED_AT,
     TASK_ERROR_OCCURRED_TYPE,
     TASK_HAS_RESULT_TYPE,
     TASK_ID,
     TASK_INPUTS,
+    TASK_LOCK_NODE,
+    TASK_LOCK_TASK_ID,
+    TASK_LOCK_WORKER_ID,
     TASK_NODE,
     TASK_RESULT_NODE,
     TASK_TYPE,
 )
-from neo4j_app.core.neo4j.projects import project_db_session
-from neo4j_app.icij_worker.exceptions import (
+from icij_common.neo4j.projects import project_db_session
+from neo4j.exceptions import ConstraintError
+
+from icij_worker import Task, TaskError, TaskResult, TaskStatus
+from icij_worker.exceptions import (
     MissingTaskResult,
     TaskAlreadyExists,
     TaskQueueIsFull,
     UnknownTask,
 )
-from neo4j_app.icij_worker.task import Task, TaskError, TaskResult, TaskStatus
-from neo4j_app.icij_worker.task_manager import TaskManager
+from icij_worker.task_manager import TaskManager
+
+
+async def add_support_for_async_task_tx(tx: neo4j.AsyncTransaction):
+    constraint_query = f"""CREATE CONSTRAINT constraint_task_unique_id
+IF NOT EXISTS 
+FOR (task:{TASK_NODE})
+REQUIRE (task.{TASK_ID}) IS UNIQUE"""
+    await tx.run(constraint_query)
+    created_at_query = f"""CREATE INDEX index_task_created_at IF NOT EXISTS
+FOR (task:{TASK_NODE})
+ON (task.{TASK_CREATED_AT})"""
+    await tx.run(created_at_query)
+    type_query = f"""CREATE INDEX index_task_type IF NOT EXISTS
+FOR (task:{TASK_NODE})
+ON (task.{TASK_TYPE})"""
+    await tx.run(type_query)
+    error_timestamp_query = f"""CREATE INDEX index_task_error_timestamp IF NOT EXISTS
+FOR (task:{TASK_ERROR_NODE})
+ON (task.{TASK_ERROR_OCCURRED_AT})"""
+    await tx.run(error_timestamp_query)
+    error_id_query = f"""CREATE CONSTRAINT constraint_task_error_unique_id IF NOT EXISTS
+FOR (task:{TASK_ERROR_NODE})
+REQUIRE (task.{TASK_ERROR_ID}) IS UNIQUE"""
+    await tx.run(error_id_query)
+    task_lock_task_id_query = f"""CREATE CONSTRAINT constraint_task_lock_unique_task_id
+IF NOT EXISTS
+FOR (lock:{TASK_LOCK_NODE})
+REQUIRE (lock.{TASK_LOCK_TASK_ID}) IS UNIQUE"""
+    await tx.run(task_lock_task_id_query)
+    task_lock_worker_id_query = f"""CREATE INDEX index_task_lock_worker_id IF NOT EXISTS
+FOR (lock:{TASK_LOCK_NODE})
+ON (lock.{TASK_LOCK_WORKER_ID})"""
+    await tx.run(task_lock_worker_id_query)
 
 
 class Neo4JTaskManager(TaskManager):

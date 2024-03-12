@@ -1,8 +1,7 @@
 from typing import List
 
 import pytest
-
-from neo4j_app.core.utils.progress import to_raw_progress, to_scaled_progress
+from icij_worker.utils.progress import to_raw_progress, to_scaled_progress
 
 
 class MockProgress:

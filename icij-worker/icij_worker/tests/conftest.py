@@ -1,9 +1,8 @@
+# pylint: disable=redefined-outer-name
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-from abc import ABC
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Tuple, Union
@@ -11,13 +10,20 @@ from typing import ClassVar, Dict, List, Optional, Tuple, Union
 import neo4j
 import pytest
 import pytest_asyncio
-from fastapi.encoders import jsonable_encoder
+from icij_common.neo4j.migrate import (
+    Migration,
+    init_project,
+)
+from icij_common.neo4j.projects import add_project_support_migration_tx
+from icij_common.neo4j.test_utils import (  # pylint: disable=unused-import
+    neo4j_test_driver,
+)
+from icij_common.pydantic_utils import IgnoreExtraModel, safe_copy
+from icij_common.test_utils import TEST_PROJECT
 from pydantic import Field
 
-from neo4j_app import AppConfig
-from neo4j_app.app import ServiceConfig
-from neo4j_app.core.utils.pydantic import IgnoreExtraModel, safe_copy
-from neo4j_app.icij_worker import (
+import icij_worker
+from icij_worker import (
     AsyncApp,
     EventPublisher,
     Task,
@@ -29,17 +35,37 @@ from neo4j_app.icij_worker import (
     WorkerConfig,
     WorkerType,
 )
-from neo4j_app.icij_worker.exceptions import (
-    TaskAlreadyExists,
-    TaskQueueIsFull,
-    UnknownTask,
+from icij_worker.exceptions import TaskAlreadyExists, TaskQueueIsFull, UnknownTask
+from icij_worker.task_manager import TaskManager
+from icij_worker.task_manager.neo4j import add_support_for_async_task_tx
+from icij_worker.typing_ import PercentProgress
+
+# noinspection PyUnresolvedReferences
+from icij_worker.utils.tests import (
+    DBMixin,
+    test_async_app,
 )
-from neo4j_app.icij_worker.task_manager import TaskManager
-from neo4j_app.typing_ import PercentProgress
+
+logger = logging.getLogger(__name__)
+
+
+async def migration_v_0_1_0_tx(tx: neo4j.AsyncTransaction):
+    await add_project_support_migration_tx(tx)
+    await add_support_for_async_task_tx(tx)
+
+
+TEST_MIGRATIONS = [
+    Migration(
+        version="0.1.0",
+        label="create migration and project and constraints as well as task"
+        " related stuff",
+        migration_fn=migration_v_0_1_0_tx,
+    )
+]
 
 
 @pytest_asyncio.fixture(scope="function")
-async def populate_tasks(neo4j_app_driver: neo4j.AsyncDriver) -> List[Task]:
+async def populate_tasks(neo4j_async_app_driver: neo4j.AsyncDriver) -> List[Task]:
     query_0 = """CREATE (task:_Task:QUEUED {
     id: 'task-0', 
     type: 'hello_world',
@@ -47,7 +73,9 @@ async def populate_tasks(neo4j_app_driver: neo4j.AsyncDriver) -> List[Task]:
     inputs: '{"greeted": "0"}'
  }) 
 RETURN task"""
-    recs_0, _, _ = await neo4j_app_driver.execute_query(query_0, now=datetime.now())
+    recs_0, _, _ = await neo4j_async_app_driver.execute_query(
+        query_0, now=datetime.now()
+    )
     t_0 = Task.from_neo4j(recs_0[0])
     query_1 = """CREATE (task:_Task:RUNNING {
     id: 'task-1', 
@@ -58,41 +86,11 @@ RETURN task"""
     inputs: '{"greeted": "1"}'
  }) 
 RETURN task"""
-    recs_1, _, _ = await neo4j_app_driver.execute_query(query_1, now=datetime.now())
+    recs_1, _, _ = await neo4j_async_app_driver.execute_query(
+        query_1, now=datetime.now()
+    )
     t_1 = Task.from_neo4j(recs_1[0])
     return [t_0, t_1]
-
-
-class DBMixin(ABC):
-    _task_collection = "tasks"
-    _error_collection = "errors"
-    _result_collection = "results"
-
-    def __init__(self, db_path: Path):
-        self._db_path = db_path
-
-    @property
-    def db_path(self) -> Path:
-        return self._db_path
-
-    def _write(self, data: Dict):
-        self._db_path.write_text(json.dumps(jsonable_encoder(data)))
-
-    def _read(self):
-        return json.loads(self._db_path.read_text())
-
-    @staticmethod
-    def _task_key(task_id: str, project: str) -> str:
-        return str((task_id, project))
-
-    @classmethod
-    def fresh_db(cls, db_path: Path):
-        db = {
-            cls._task_collection: dict(),
-            cls._error_collection: {},
-            cls._result_collection: {},
-        }
-        db_path.write_text(json.dumps(db))
 
 
 class MockManager(TaskManager, DBMixin):
@@ -223,13 +221,9 @@ class MockEventPublisher(DBMixin, EventPublisher):
 @WorkerConfig.register()
 class MockWorkerConfig(WorkerConfig, IgnoreExtraModel):
     type: ClassVar[str] = Field(const=True, default=WorkerType.mock.value)
-
+    log_level: str = "DEBUG"
+    loggers: List[str] = [icij_worker.__name__]
     db_path: Path
-
-
-class MockServiceConfig(ServiceConfig):
-    def to_worker_config(self, **kwargs) -> WorkerConfig:
-        return MockWorkerConfig(db_path=kwargs["db_path"])
 
 
 @Worker.register(WorkerType.mock)
@@ -354,12 +348,9 @@ class Recoverable(ValueError):
 
 
 @pytest.fixture(scope="function")
-def test_failing_async_app(
-    test_config: AppConfig,  # pylint: disable=unused-argument
-) -> AsyncApp:
-    from neo4j_app.app.dependencies import HTTP_SERVICE_LIFESPAN_DEPS
-
-    app = AsyncApp(name="test-app", dependencies=HTTP_SERVICE_LIFESPAN_DEPS)
+def test_failing_async_app() -> AsyncApp:
+    # TODO: add log deps here if it helps to debug
+    app = AsyncApp(name="test-app", dependencies=[])
     already_failed = False
 
     @app.task("recovering_task", recover_from=(Recoverable,))
@@ -377,3 +368,17 @@ def test_failing_async_app(
         raise ValueError("this is fatal")
 
     return app
+
+
+@pytest.fixture()
+async def neo4j_async_app_driver(
+    neo4j_test_driver: neo4j.AsyncDriver,
+) -> neo4j.AsyncDriver:
+    await init_project(
+        neo4j_test_driver,
+        name=TEST_PROJECT,
+        registry=TEST_MIGRATIONS,
+        timeout_s=0.001,
+        throttle_s=0.001,
+    )
+    return neo4j_test_driver

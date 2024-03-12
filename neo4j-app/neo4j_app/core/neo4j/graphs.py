@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import AsyncGenerator, Dict, Optional
 
 import neo4j
+from icij_common.neo4j.projects import project_db
 
 from neo4j_app.constants import (
     DOC_NODE,
@@ -13,7 +14,6 @@ from neo4j_app.constants import (
     NE_MENTION_COUNT,
     NE_NODE,
 )
-from neo4j_app.core.neo4j.projects import project_db
 from neo4j_app.core.objects import DumpFormat, ProjectStatistics
 
 logger = logging.getLogger(__name__)

@@ -2,10 +2,10 @@ import io
 from typing import Optional
 
 import pytest
+from icij_common.test_utils import fail_if_exception
 from pydantic import ValidationError
 
 from neo4j_app.app import ServiceConfig
-from neo4j_app.tests.conftest import fail_if_exception
 
 
 def test_should_support_alias():

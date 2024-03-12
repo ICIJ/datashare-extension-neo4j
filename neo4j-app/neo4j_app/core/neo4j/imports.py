@@ -17,8 +17,7 @@ class Neo4Import(Protocol):
         records: List[Dict],
         *,
         transaction_batch_size: int,
-    ) -> LightCounters:
-        ...
+    ) -> LightCounters: ...
 
 
 class Neo4jImportWorker:

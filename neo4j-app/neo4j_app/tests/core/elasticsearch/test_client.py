@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 import pytest_asyncio
 from elasticsearch import AsyncElasticsearch, TransportError
+from icij_common.test_utils import fail_if_exception
 from opensearchpy import AsyncOpenSearch
 from tenacity import RetryCallState, Retrying
 
@@ -17,7 +18,6 @@ from neo4j_app.core.neo4j import get_neo4j_csv_writer
 from neo4j_app.tests.conftest import (
     MockedESClient,
     TEST_PROJECT,
-    fail_if_exception,
     index_noise,
 )
 

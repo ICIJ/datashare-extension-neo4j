@@ -3,6 +3,7 @@ from typing import Optional
 import neo4j
 import pytest
 import pytest_asyncio
+from icij_common.test_utils import fail_if_exception
 
 from neo4j_app.constants import NE_CATEGORY, NE_MENTION_NORM
 from neo4j_app.core.elasticsearch.to_neo4j import (
@@ -13,7 +14,7 @@ from neo4j_app.core.neo4j.named_entities import (
     import_named_entity_rows,
     ne_creation_stats_tx,
 )
-from neo4j_app.tests.conftest import fail_if_exception, make_named_entities
+from neo4j_app.tests.conftest import make_named_entities
 
 
 @pytest_asyncio.fixture(scope="function")

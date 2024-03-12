@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "icij_common"
+version = "0.1.0"
+description = "Common utils for ICIJ libs"
+authors = [
+    "Clément Doumouro <cdoumouro@icij.org>",
+    "ICIJ <engineering@icij.org>",
+]
+# TODO: add readme
+packages = [
+    { include = "icij_common" }
+]
+exclude = ["icij_common/tests"]
+
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pydantic = "^1.10" # Sadly needed for now because of Pyinstaller
+
+[tool.poetry.group.dev.dependencies]
+pylint = "^2.15.10"
+pytest = "^7.2.1"
+pytest-asyncio = "^0.20.3"
+
+[tool.poetry.group.neo4j.dependencies]
+neo4j = "^5.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

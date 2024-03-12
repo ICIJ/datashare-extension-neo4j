@@ -4,7 +4,9 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 from fastapi import APIRouter, Request
+from icij_common.logging_utils import log_elapsed_time_cm
 
+from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import (
     lifespan_neo4j_driver,
 )
@@ -13,13 +15,11 @@ from neo4j_app.app.doc import (
     DOC_NEO4J_CSV,
     DOC_NEO4J_CSV_DESC,
 )
-from neo4j_app.app import ServiceConfig
 from neo4j_app.core.imports import to_neo4j_csvs
 from neo4j_app.core.objects import (
     Neo4jCSVRequest,
     Neo4jCSVResponse,
 )
-from neo4j_app.core.utils.logging import log_elapsed_time_cm
 from neo4j_app.tasks.dependencies import lifespan_es_client
 
 logger = logging.getLogger(__name__)

@@ -6,16 +6,19 @@ from typing import Optional
 import neo4j
 import pytest
 from _pytest.fixtures import FixtureRequest
+from icij_common.logging_utils import DifferedLoggingMessage
+from icij_common.pydantic_utils import safe_copy
+from icij_common.test_utils import TEST_PROJECT, true_after
+from icij_worker import AsyncApp, Task, TaskStatus
+from icij_worker.exceptions import TaskQueueIsFull
+from icij_worker.tests.conftest import MockWorkerConfig
 from starlette.testclient import TestClient
 
+from neo4j_app.app import tasks
 from neo4j_app.app.config import ServiceConfig, WorkerType
 from neo4j_app.app.utils import create_app
 from neo4j_app.core.objects import TaskJob
-from neo4j_app.core.utils.logging import DifferedLoggingMessage
-from neo4j_app.core.utils.pydantic import safe_copy
-from neo4j_app.icij_worker import AsyncApp, Task, TaskStatus
-from neo4j_app.tests.conftest import TEST_PROJECT, test_error_router, true_after
-from neo4j_app.tests.icij_worker.conftest import MockServiceConfig, MockWorkerConfig
+from neo4j_app.tests.conftest import MockServiceConfig, test_error_router
 
 
 @pytest.fixture(scope="function")
@@ -36,7 +39,7 @@ def test_client_prod(
     config = ServiceConfig(**config_as_dict)
     app = create_app(
         config,
-        async_app="neo4j_app.tests.conftest.APP",
+        async_app="icij_worker.utils.tests.APP",
         worker_extras={"teardown_dependencies": False},
     )
     # Add a router which generates error in order to test error handling
@@ -101,7 +104,7 @@ def test_task_should_return_200_for_existing_task(
 @pytest.mark.parametrize(
     "test_client_type",
     [
-        # "test_client_with_async",
+        "test_client_with_async",
         "test_client_prod",
     ],
 )
@@ -127,7 +130,7 @@ def test_task_integration(test_client_type: str, request: FixtureRequest):
             project=TEST_PROJECT,
             expected_status=TaskStatus.DONE,
         ),
-        after_s=5,
+        after_s=2,
     ), DifferedLoggingMessage(lambda: res.get(error_url).json())
     result_url = f"/tasks/{task_id}/result?project={TEST_PROJECT}"
     res = test_client.get(result_url)
@@ -188,25 +191,25 @@ def test_client_limited_queue(
         yield client
 
 
-def test_create_task_should_return_429_when_too_many_tasks(
-    test_client_limited_queue: TestClient,
+async def test_create_task_should_return_429_when_too_many_tasks(
+    test_client: TestClient, monkeypatch
 ):
     # Given
-    test_client = test_client_limited_queue
-    url = f"/tasks?project={TEST_PROJECT}"
     job = TaskJob(task_type="sleep_forever")
+    url = f"/tasks?project={TEST_PROJECT}"
+
+    class QueueIsFullTaskManager:
+        async def enqueue(self, task: Task, project: str) -> Task:
+            raise TaskQueueIsFull(0)
 
     # When
     res_0 = test_client.post(url, json=job.dict())
-    res_1 = test_client.post(url, json=job.dict())
-    res_2 = test_client.post(url, json=job.dict())
-
-    # Then
     assert res_0.status_code == 201, res_0.json()
-    # This one is queued or rejected depending on whether the first one is processed or
-    # still in the queue
-    assert res_1.status_code in [201, 429], res_1.json()
-    assert res_2.status_code == 429, res_1.json()
+
+    monkeypatch.setattr(tasks, "lifespan_task_manager", QueueIsFullTaskManager)
+    res_1 = test_client.post(url, json=job.dict())
+    # Then
+    assert res_1.status_code == 429, res_1.json()
 
 
 def test_get_task_should_return_404_for_unknown_task(

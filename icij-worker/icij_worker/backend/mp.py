@@ -7,7 +7,7 @@ import sys
 from contextlib import contextmanager
 from typing import Callable, Dict, List, Optional, Tuple
 
-from neo4j_app.icij_worker import AsyncApp, Worker, WorkerConfig
+from icij_worker import AsyncApp, Worker, WorkerConfig
 
 logger = logging.getLogger(__name__)
 

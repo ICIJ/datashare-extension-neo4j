@@ -1,21 +1,13 @@
 # pylint: disable=redefined-outer-name
 import abc
-import asyncio
 import contextlib
 import functools
 import os
 import random
-import tempfile
-import traceback
-from copy import copy
-from datetime import datetime
 from pathlib import Path
-from time import monotonic, sleep
 from typing import (
     Any,
     AsyncGenerator,
-    Awaitable,
-    Callable,
     Dict,
     Generator,
     List,
@@ -29,11 +21,37 @@ import pytest
 import pytest_asyncio
 from elasticsearch.helpers import async_streaming_bulk
 from fastapi import APIRouter, FastAPI
-from neo4j import AsyncGraphDatabase
+from icij_common.neo4j.migrate import init_project
+
+# noinspection PyUnresolvedReferences
+from icij_common.neo4j.test_utils import (  # pylint: disable=unused-import
+    NEO4J_TEST_PASSWORD,
+    NEO4J_TEST_PORT,
+    NEO4J_TEST_USER,
+    mock_enterprise,
+    neo4j_test_driver,
+    neo4j_test_driver_module,
+    neo4j_test_driver_session,
+    neo4j_test_session,
+    neo4j_test_session_module,
+    neo4j_test_session_session,
+)
+from icij_common.pydantic_utils import ICIJModel
+
+# noinspection PyUnresolvedReferences
+from icij_common.test_utils import (  # pylint: disable=unused-import
+    TEST_PROJECT,
+    event_loop,
+)
+from icij_worker import WorkerConfig, WorkerType
+from icij_worker.tests.conftest import MockEventPublisher, MockManager, MockWorkerConfig
+from icij_worker.typing_ import Dependency
+from icij_worker.utils.tests import (  # pylint: disable=unused-import
+    mock_db,
+    mock_db_session,
+)
 from starlette.testclient import TestClient
 
-import neo4j_app
-from neo4j_app import AppConfig
 from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import (
     http_loggers_enter,
@@ -45,46 +63,25 @@ from neo4j_app.app.utils import create_app
 from neo4j_app.core.elasticsearch import ESClient, ESClientABC
 from neo4j_app.core.elasticsearch.client import PointInTime
 from neo4j_app.core.neo4j import MIGRATIONS
-from neo4j_app.core.neo4j.migrations.migrate import init_project
-from neo4j_app.core.neo4j.projects import NEO4J_COMMUNITY_DB
-from neo4j_app.core.utils.pydantic import BaseICIJModel
-from neo4j_app.icij_worker import AsyncApp, WorkerType
-from neo4j_app.icij_worker.typing_ import Dependency
 from neo4j_app.tasks.dependencies import (
     config_enter,
     create_project_registry_db_enter,
     es_client_enter,
     es_client_exit,
     lifespan_config,
-    loggers_enter,
     migrate_app_db_enter,
-    mock_async_config_enter,
     neo4j_driver_enter,
     neo4j_driver_exit,
 )
-from neo4j_app.tests.icij_worker.conftest import (
-    DBMixin,
-    MockEventPublisher,
-    MockManager,
-    MockServiceConfig,
-    MockWorkerConfig,
-)
-from neo4j_app.typing_ import PercentProgress
 
 # TODO: at a high level it's a waste to have to repeat code for each fixture level,
 #  let's try to find a way to define the scope dynamically:
 #  https://docs.pytest.org/en/6.2.x/fixture.html#dynamic-scope
 
-
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
-TEST_PROJECT = "test_project"
 NEO4J_TEST_IMPORT_DIR = DATA_DIR.joinpath("neo4j", "import")
 NEO4J_IMPORT_PREFIX = Path(os.sep).joinpath(".neo4j", "import")
 ELASTICSEARCH_TEST_PORT = 9201
-NEO4J_TEST_PORT = 7688
-NEO4J_TEST_USER = "neo4j"
-NEO4J_TEST_PASSWORD = "theneo4jpassword"
-NEO4J_TEST_AUTH = neo4j.basic_auth(NEO4J_TEST_USER, NEO4J_TEST_PASSWORD)
 
 _INDEX_BODY = {
     "mappings": {
@@ -97,37 +94,9 @@ _INDEX_BODY = {
 }
 
 
-def true_after(
-    state_statement: Callable, *, after_s: float, sleep_s: float = 0.01
-) -> bool:
-    start = monotonic()
-    while "waiting for the statement to be True":
-        try:
-            assert state_statement()
-            return True
-        except AssertionError:
-            if monotonic() - start < after_s:
-                sleep(sleep_s)
-                continue
-            return False
-
-
-async def async_true_after(
-    state_statement: Callable[[], Awaitable[bool]],
-    *,
-    after_s: float,
-    sleep_s: float = 0.01,
-) -> bool:
-    start = monotonic()
-    while "waiting for the statement to be True":
-        try:
-            assert await state_statement()
-            return True
-        except AssertionError:
-            if monotonic() - start < after_s:
-                await asyncio.sleep(sleep_s)
-                continue
-            return False
+class MockServiceConfig(ServiceConfig):
+    def to_worker_config(self, **kwargs) -> WorkerConfig:
+        return MockWorkerConfig(db_path=kwargs["db_path"])
 
 
 class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
@@ -154,31 +123,6 @@ class MockedESClient(ESClientABC, metaclass=abc.ABCMeta):
         pass
 
 
-@pytest.fixture(scope="session")
-def mock_db_session() -> Path:
-    with tempfile.NamedTemporaryFile(prefix="mock-db", suffix=".json") as f:
-        db_path = Path(f.name)
-        DBMixin.fresh_db(db_path)
-        yield db_path
-
-
-@pytest.fixture
-def mock_db(mock_db_session: Path) -> Path:
-    # Wipe the DB
-    DBMixin.fresh_db(mock_db_session)
-    return mock_db_session
-
-
-# Define a session level even_loop fixture to overcome limitation explained here:
-# https://github.com/tortoise/tortoise-orm/issues/638#issuecomment-830124562
-@pytest.fixture(scope="session")
-def event_loop():
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    yield loop
-    loop.close()
-
-
 _MOCKED_HTTP_DEPS = None
 
 
@@ -189,7 +133,7 @@ def test_config(mock_db_session: Path) -> ServiceConfig:
     config = MockServiceConfig(
         elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
         es_default_page_size=5,
-        neo4j_app_async_app=f"{__name__}.APP",
+        neo4j_app_async_app="icij_worker.utils.tests.APP",
         neo4j_app_dependencies=f"{__name__}._MOCKED_HTTP_DEPS",
         neo4j_app_host="127.0.0.1",
         neo4j_app_worker_type=WorkerType.mock,
@@ -309,7 +253,7 @@ def test_client_with_async(
 
 
 def test_error_router() -> APIRouter:
-    class SomeExpectedBody(BaseICIJModel):
+    class SomeExpectedBody(ICIJModel):
         mandatory_field: str
 
     error_router = APIRouter()
@@ -365,79 +309,6 @@ async def es_test_client() -> AsyncGenerator[ESClient, None]:
     await es.indices.create(index=TEST_PROJECT, body=_INDEX_BODY)
     yield es
     await es.close()
-
-
-@contextlib.asynccontextmanager
-async def _build_neo4j_driver():
-    uri = f"neo4j://127.0.0.1:{NEO4J_TEST_PORT}"
-    async with AsyncGraphDatabase.driver(  # pylint: disable=not-async-context-manager
-        uri, auth=NEO4J_TEST_AUTH
-    ) as driver:
-        yield driver
-
-
-@pytest_asyncio.fixture(scope="module")
-async def neo4j_test_driver_module() -> AsyncGenerator[neo4j.AsyncDriver, None]:
-    async with _build_neo4j_driver() as driver:
-        async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
-            await wipe_db(sess)
-        yield driver
-
-
-@pytest_asyncio.fixture(scope="session")
-async def neo4j_test_driver_session() -> AsyncGenerator[neo4j.AsyncDriver, None]:
-    async with _build_neo4j_driver() as driver:
-        async with driver.session(database=neo4j.DEFAULT_DATABASE) as sess:
-            await wipe_db(sess)
-        yield driver
-
-
-@pytest_asyncio.fixture()
-async def neo4j_test_driver() -> AsyncGenerator[neo4j.AsyncDriver, None]:
-    async with _build_neo4j_driver() as driver:
-        async with driver.session(database="neo4j") as sess:
-            await wipe_db(sess)
-        yield driver
-
-
-@pytest_asyncio.fixture()
-async def neo4j_app_driver(neo4j_test_driver: neo4j.AsyncDriver) -> neo4j.AsyncDriver:
-    await init_project(
-        neo4j_test_driver,
-        name=TEST_PROJECT,
-        registry=MIGRATIONS,
-        timeout_s=0.001,
-        throttle_s=0.001,
-    )
-    return neo4j_test_driver
-
-
-@pytest_asyncio.fixture(scope="session")
-async def neo4j_test_session_session(
-    neo4j_test_driver_session: neo4j.Driver,
-) -> AsyncGenerator[neo4j.AsyncSession, None]:
-    driver = neo4j_test_driver_session
-    async with driver.session(database="neo4j") as sess:
-        await wipe_db(sess)
-        yield sess
-
-
-@pytest_asyncio.fixture(scope="module")
-async def neo4j_test_session_module(
-    neo4j_test_session_session: neo4j.AsyncSession,
-) -> neo4j.AsyncSession:
-    session = neo4j_test_session_session
-    await wipe_db(session)
-    return session
-
-
-@pytest_asyncio.fixture()
-async def neo4j_test_session(
-    neo4j_test_session_session: neo4j.AsyncSession,
-) -> neo4j.AsyncSession:
-    session = neo4j_test_session_session
-    await wipe_db(session)
-    return session
 
 
 def make_docs(n: int, add_dates: bool = False) -> Generator[Dict, None, None]:
@@ -600,17 +471,6 @@ DETACH DELETE ent
     return neo4j_session
 
 
-async def wipe_db(session: neo4j.AsyncSession):
-    # Indices and constraints
-    query = "CALL apoc.schema.assert({}, {})"
-    await session.run(query)
-    # Documents
-    query = """MATCH (n)
-DETACH DELETE n
-    """
-    await session.run(query)
-
-
 async def populate_es_with_doc_and_named_entities(
     es_test_client_module: ESClient, n: int
 ):
@@ -657,121 +517,15 @@ def xml_elements_equal(actual, expected) -> bool:
     return all(xml_elements_equal(c1, c2) for c1, c2 in zip(actual, expected))
 
 
-@contextlib.contextmanager
-def fail_if_exception(msg: Optional[str] = None):
-    try:
-        yield
-    except Exception as e:  # pylint: disable=W0703
-        trace = "".join(traceback.format_exception(None, e, e.__traceback__))
-        if msg is None:
-            msg = "Test failed due to the following error"
-        pytest.fail(f"{msg}\n{trace}")
-
-
-async def mocked_is_enterprise(_: neo4j.AsyncDriver) -> bool:
-    return True
-
-
-@contextlib.asynccontextmanager
-async def _mocked_project_db_session(
-    neo4j_driver: neo4j.AsyncDriver, project: str  # pylint: disable=unused-argument
-) -> neo4j.AsyncSession:
-    async with neo4j_driver.session(database=NEO4J_COMMUNITY_DB) as sess:
-        yield sess
-
-
-async def _mocked_project_registry_db(
-    neo4j_driver: neo4j.AsyncDriver,  # pylint: disable=unused-argument
-) -> str:
-    return NEO4J_COMMUNITY_DB
-
-
 @pytest.fixture()
-def mock_enterprise(monkeypatch):
-    mock_enterprise_(monkeypatch)
-
-
-def mock_enterprise_(monkeypatch):
-    monkeypatch.setattr(
-        neo4j_app.core.neo4j.projects, "project_db_session", _mocked_project_db_session
+async def neo4j_app_driver(
+    neo4j_test_driver: neo4j.AsyncDriver,
+) -> neo4j.AsyncDriver:
+    await init_project(
+        neo4j_test_driver,
+        name=TEST_PROJECT,
+        registry=MIGRATIONS,
+        timeout_s=0.001,
+        throttle_s=0.001,
     )
-    monkeypatch.setattr(
-        neo4j_app.core.neo4j.migrations.migrate,
-        "project_db_session",
-        _mocked_project_db_session,
-    )
-    monkeypatch.setattr(
-        neo4j_app.core.neo4j.projects,
-        "project_registry_db",
-        _mocked_project_registry_db,
-    )
-    monkeypatch.setattr(
-        neo4j_app.core.neo4j.projects, "is_enterprise", mocked_is_enterprise
-    )
-
-
-def mock_async_config() -> AppConfig:
-    return AppConfig(
-        elasticsearch_address=f"http://127.0.0.1:{ELASTICSEARCH_TEST_PORT}",
-        es_default_page_size=5,
-        neo4j_password=NEO4J_TEST_PASSWORD,
-        neo4j_port=NEO4J_TEST_PORT,
-        neo4j_user=NEO4J_TEST_USER,
-    )
-
-
-mocked_app_deps = [
-    ("configuration loading", mock_async_config_enter, None),
-    ("loggers setup", loggers_enter, None),
-]
-APP = AsyncApp(name="test-app", dependencies=mocked_app_deps)
-
-
-@APP.task
-async def hello_world(greeted: str, progress: Optional[PercentProgress] = None) -> str:
-    if progress is not None:
-        await progress(0.1)
-    greeting = f"Hello {greeted} !"
-    if progress is not None:
-        await progress(0.99)
-    return greeting
-
-
-@APP.task
-def hello_world_sync(greeted: str) -> str:
-    greeting = f"Hello {greeted} !"
-    return greeting
-
-
-@APP.task
-async def sleep_for(
-    duration: float, s: float = 0.01, progress: Optional[PercentProgress] = None
-):
-    start = datetime.now()
-    elapsed = 0
-    while elapsed < duration:
-        elapsed = (datetime.now() - start).total_seconds()
-        await asyncio.sleep(s)
-        if progress is not None:
-            await progress(elapsed / duration * 100)
-
-
-@pytest.fixture(scope="session")
-def test_async_app(test_config: MockServiceConfig) -> AsyncApp:
-    return AsyncApp.load(test_config.neo4j_app_async_app)
-
-
-@pytest.fixture()
-def mock_worker_in_env(tmp_path):  # pylint: disable=unused-argument
-    os.environ["ICIJ_WORKER_TYPE"] = "worker_impl"
-    os.environ["ICIJ_WORKER_DB_PATH"] = str(tmp_path / "mock-db.json")
-
-
-@pytest.fixture()
-def reset_env():
-    old_env = copy(dict(os.environ))
-    try:
-        yield
-    finally:
-        os.environ.clear()
-        os.environ.update(old_env)
+    return neo4j_test_driver

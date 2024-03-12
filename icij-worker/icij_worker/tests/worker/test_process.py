@@ -4,7 +4,7 @@ from signal import Signals
 
 import pytest
 
-from neo4j_app.icij_worker import Worker
+from icij_worker import Worker
 
 
 @pytest.mark.parametrize("signal", [Signals.SIGINT, Signals.SIGTERM])

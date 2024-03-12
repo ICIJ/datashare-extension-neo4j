@@ -4,10 +4,10 @@ from unittest.mock import call, patch
 
 import pytest
 from aiohttp.test_utils import TestClient
+from icij_common.test_utils import TEST_PROJECT, fail_if_exception
 from neo4j import Query
 
 from neo4j_app.core.objects import GraphCounts
-from neo4j_app.tests.conftest import TEST_PROJECT, fail_if_exception
 
 
 async def _iter_records(

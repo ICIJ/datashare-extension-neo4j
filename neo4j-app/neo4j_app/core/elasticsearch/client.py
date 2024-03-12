@@ -21,6 +21,9 @@ from typing import (
 )
 
 from elasticsearch import AsyncElasticsearch, TransportError
+from icij_common.logging_utils import log_elapsed_time_cm
+from icij_worker.typing_ import PercentProgress
+from icij_worker.utils.progress import to_raw_progress
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -50,11 +53,10 @@ from neo4j_app.core.elasticsearch.utils import (
     SORT,
     match_all,
 )
-from neo4j_app.core.neo4j import Neo4jImportWorker, write_neo4j_csv
+from neo4j_app.core.neo4j import write_neo4j_csv
+from neo4j_app.core.neo4j.imports import Neo4jImportWorker
 from neo4j_app.core.utils.asyncio import iterate_with_concurrency, run_with_concurrency
-from neo4j_app.core.utils.logging import log_elapsed_time_cm
-from neo4j_app.core.utils.progress import to_raw_progress
-from neo4j_app.typing_ import LightCounters, PercentProgress
+from neo4j_app.typing_ import LightCounters
 
 logger = logging.getLogger(__name__)
 

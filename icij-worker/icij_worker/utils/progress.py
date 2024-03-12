@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Awaitable
 
-from neo4j_app.typing_ import PercentProgress, RawProgress
+from icij_worker.typing_ import PercentProgress, RawProgress
 
 
 class CheckCancelledProgress:

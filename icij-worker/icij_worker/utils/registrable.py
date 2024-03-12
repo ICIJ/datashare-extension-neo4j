@@ -2,6 +2,7 @@
 Simplified implementation of AllenNLP Registrable:
 https://github.com/allenai/allennlp
 """
+
 import logging
 import os
 from abc import ABC
@@ -20,8 +21,9 @@ from typing import (
 
 from pydantic import BaseSettings, Field
 
-from neo4j_app.icij_worker.utils.from_config import FromConfig, T
-from neo4j_app.icij_worker.utils.imports import VariableNotFound, import_variable
+from icij_worker.utils import FromConfig
+from icij_worker.utils.from_config import T
+from icij_worker.utils.imports import VariableNotFound, import_variable
 
 logger = logging.getLogger(__name__)
 

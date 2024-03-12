@@ -1,2 +1,6 @@
 from .event_publisher import EventPublisher
-from .neo4j import Neo4jEventPublisher
+
+try:
+    from .neo4j import Neo4jEventPublisher
+except ImportError:
+    pass

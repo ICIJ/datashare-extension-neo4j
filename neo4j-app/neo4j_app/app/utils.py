@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.utils import is_body_allowed_for_status_code
+from icij_worker import WorkerConfig
 from pydantic.error_wrappers import display_errors
 from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -22,7 +23,6 @@ from neo4j_app.app.main import main_router
 from neo4j_app.app.named_entities import named_entities_router
 from neo4j_app.app.projects import projects_router
 from neo4j_app.app.tasks import tasks_router
-from neo4j_app.icij_worker import WorkerConfig
 
 INTERNAL_SERVER_ERROR = "Internal Server Error"
 _REQUEST_VALIDATION_ERROR = "Request Validation Error"

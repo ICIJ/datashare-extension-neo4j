@@ -4,16 +4,16 @@ from typing import List
 
 import neo4j
 import pytest
+from icij_common.pydantic_utils import safe_copy
+from icij_common.test_utils import TEST_PROJECT
 
-from neo4j_app.core.utils.pydantic import safe_copy
-from neo4j_app.icij_worker import Neo4jEventPublisher, Task, TaskEvent, TaskStatus
-from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
-from neo4j_app.tests.conftest import TEST_PROJECT
+from icij_worker import Neo4jEventPublisher, Task, TaskEvent, TaskStatus
+from icij_worker.task_manager.neo4j import Neo4JTaskManager
 
 
 @pytest.fixture(scope="function")
-def publisher(neo4j_app_driver: neo4j.AsyncDriver) -> Neo4jEventPublisher:
-    worker = Neo4jEventPublisher(neo4j_app_driver)
+def publisher(neo4j_async_app_driver: neo4j.AsyncDriver) -> Neo4jEventPublisher:
+    worker = Neo4jEventPublisher(neo4j_async_app_driver)
     return worker
 
 

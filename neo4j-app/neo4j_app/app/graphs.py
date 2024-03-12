@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Request
+from icij_common.logging_utils import log_elapsed_time_cm
 from starlette.responses import StreamingResponse
 
 from neo4j_app.app import ServiceConfig
@@ -8,7 +9,6 @@ from neo4j_app.app.dependencies import lifespan_neo4j_driver
 from neo4j_app.app.doc import DOC_GRAPH_DUMP, DOC_GRAPH_DUMP_DESC, GRAPH_TAG
 from neo4j_app.core.neo4j.graphs import dump_graph, project_statistics
 from neo4j_app.core.objects import DumpRequest, GraphCounts
-from neo4j_app.core.utils.logging import log_elapsed_time_cm
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter
+from icij_common.neo4j.migrate import init_project
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -10,7 +11,6 @@ from neo4j_app.app.doc import (
     PROJECT_TAG,
 )
 from neo4j_app.core.neo4j import MIGRATIONS
-from neo4j_app.core.neo4j.migrations.migrate import init_project
 
 logger = logging.getLogger(__name__)
 

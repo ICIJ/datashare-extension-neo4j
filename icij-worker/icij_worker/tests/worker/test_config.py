@@ -4,8 +4,9 @@ from typing import ClassVar, Optional
 
 import pytest
 from pydantic import Field
+from icij_common.test_utils import reset_env  # pylint: disable=unused-import
 
-from neo4j_app.icij_worker import WorkerConfig
+from icij_worker import WorkerConfig
 
 
 @pytest.fixture()
@@ -32,7 +33,10 @@ def mock_worker_in_env(tmp_path):  # pylint: disable=unused-argument
     indirect=["env_log_level"],
 )
 def test_config_from_env(
-    env_log_level: Optional[str], mock_worker_in_env, expected_level: str
+    env_log_level: Optional[str],
+    expected_level: str,
+    # pylint: disable=unused-argument
+    mock_worker_in_env,
 ):
     # pylint: disable=unused-argument
     # When

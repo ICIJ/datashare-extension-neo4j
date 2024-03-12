@@ -2,6 +2,18 @@ import logging
 from typing import List
 
 from fastapi import APIRouter, HTTPException
+from icij_common.logging_utils import log_elapsed_time_cm
+from icij_worker import (
+    Task,
+    TaskError,
+    TaskEvent,
+    TaskStatus,
+)
+from icij_worker.exceptions import (
+    TaskAlreadyExists,
+    TaskQueueIsFull,
+    UnknownTask,
+)
 from starlette.responses import Response
 
 from neo4j_app.app.dependencies import (
@@ -10,18 +22,6 @@ from neo4j_app.app.dependencies import (
 )
 from neo4j_app.app.doc import TASKS_TAG
 from neo4j_app.core.objects import TaskJob, TaskSearch
-from neo4j_app.core.utils.logging import TRACE, log_elapsed_time_cm
-from neo4j_app.icij_worker import (
-    Task,
-    TaskError,
-    TaskEvent,
-    TaskStatus,
-)
-from neo4j_app.icij_worker.exceptions import (
-    TaskAlreadyExists,
-    TaskQueueIsFull,
-    UnknownTask,
-)
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 import neo4j
 
-from neo4j_app.core.neo4j.migrations.migrations import (
+from neo4j_app.core.neo4j.migrations import (
     migration_v_0_1_0_tx,
     migration_v_0_2_0_tx,
     migration_v_0_3_0_tx,

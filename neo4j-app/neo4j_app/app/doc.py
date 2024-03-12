@@ -6,7 +6,6 @@ OTHER_TAG = "Other"
 PROJECT_TAG = "Projects"
 TASKS_TAG = "Tasks"
 
-
 DOC_IMPORT_SUM = "Import documents from elasticsearch to neo4j"
 DOC_IMPORT_DESC = """Documents are searched for in `elasticsearch` using \
 the optionally provided query, they are then upserted into the `neo4j` database. 

@@ -7,7 +7,7 @@ from typing import ClassVar, Union
 from pydantic import Field, Protocol
 from pydantic.parse import load_file
 
-from neo4j_app.icij_worker.utils.registrable import RegistrableConfig
+from icij_worker.utils.registrable import RegistrableConfig
 
 
 class WorkerConfig(RegistrableConfig, ABC):

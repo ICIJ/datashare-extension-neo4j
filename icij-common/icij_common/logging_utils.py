@@ -6,7 +6,7 @@ import sys
 from abc import ABC
 from datetime import datetime
 from functools import wraps
-from typing import Optional, final
+from typing import List, Optional, final
 
 TRACE = 5
 logging.TRACE = TRACE
@@ -97,10 +97,7 @@ STREAM_HANDLER_FMT_WITH_WORKER_ID = (
 DATE_FMT = "%H:%M:%S"
 
 
-def setup_loggers():
-    import neo4j_app
-
-    loggers = [neo4j_app.__name__, "__main__"]
+def setup_loggers(loggers: List[str]):
     level = logging.INFO
     stream_handler = logging.StreamHandler(sys.stderr)
     stream_handler.setFormatter(logging.Formatter(STREAM_HANDLER_FMT, DATE_FMT))

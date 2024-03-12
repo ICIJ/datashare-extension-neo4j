@@ -1,8 +1,8 @@
 import neo4j
+from icij_common.neo4j.migrate import init_project
 from starlette.testclient import TestClient
 
 from neo4j_app.core.neo4j import V_0_1_0
-from neo4j_app.core.neo4j.migrations.migrate import init_project
 
 _BASE_REGISTRY = [V_0_1_0]
 

@@ -4,13 +4,15 @@ import os
 import pytest
 from typer.testing import CliRunner
 
-from neo4j_app.icij_worker.cli import cli_app
+from icij_worker.cli import cli_app
 
 
 @pytest.mark.parametrize("help_command", ["-h", "--help"])
 def test_workers_help(cli_runner: CliRunner, help_command: str):
     # When
-    result = cli_runner.invoke(cli_app, ["workers", help_command])
+    result = cli_runner.invoke(
+        cli_app, ["workers", help_command], catch_exceptions=False
+    )
     # Then
     assert result.exit_code == 0
     output = result.stdout
@@ -30,7 +32,7 @@ def test_workers_start(
     cli_runner: CliRunner,
 ):
     # Given
-    test_app = "neo4j_app.tests.conftest.APP"
+    test_app = "icij_worker.tests.conftest.APP"
     # When
     result = cli_runner.invoke(cli_app, ["workers", "start", test_app])
     # Then

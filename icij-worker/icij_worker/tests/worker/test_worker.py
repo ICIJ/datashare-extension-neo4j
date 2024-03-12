@@ -9,19 +9,12 @@ from typing import Any, Dict, Optional
 from unittest.mock import patch
 
 import pytest
+from icij_common.test_utils import async_true_after, fail_if_exception
 
-from neo4j_app.icij_worker import (
-    AsyncApp,
-    Task,
-    TaskError,
-    TaskEvent,
-    TaskResult,
-    TaskStatus,
-)
-from neo4j_app.icij_worker.exceptions import TaskCancelled, UnregisteredTask
-from neo4j_app.icij_worker.worker.worker import add_missing_args, task_wrapper
-from neo4j_app.tests.conftest import TEST_PROJECT, async_true_after, fail_if_exception
-from neo4j_app.tests.icij_worker.conftest import MockManager, MockWorker
+from icij_worker import AsyncApp, Task, TaskError, TaskEvent, TaskResult, TaskStatus
+from icij_worker.exceptions import TaskCancelled, UnregisteredTask
+from icij_worker.tests.conftest import MockManager, MockWorker, TEST_PROJECT
+from icij_worker.worker.worker import add_missing_args, task_wrapper
 
 
 @pytest.fixture(scope="function")
@@ -482,9 +475,10 @@ async def test_worker_acknowledgment_cm_should_not_raise_for_fatal_error(
     await task_manager.enqueue(task, project)
     with fail_if_exception("worker should not raise on fatal error"):
         async with worker.acknowledgment_cm(task, project):
-            with patch.object(worker, "__aexit__") as mocked_exit, patch.object(
-                worker, "shutdown"
-            ) as mocked_shutdown:
+            with (
+                patch.object(worker, "__aexit__") as mocked_exit,
+                patch.object(worker, "shutdown") as mocked_shutdown,
+            ):
                 raise ValueError("i am fatal")
             assert mocked_exit.assert_not_called()
             assert mocked_shutdown.assert_not_called()
