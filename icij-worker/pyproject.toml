@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "icij_worker"
+version = "0.1.0"
+description = "Create asynchronous tasks from Python functions"
+authors = [
+    "Clément Doumouro <cdoumouro@icij.org>",
+    "ICIJ <engineering@icij.org>",
+]
+# TODO: add readme
+packages = [
+    { include = "icij_worker" }
+]
+exclude = ["icij_worker/tests"]
+
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.poetry.scripts]
+icij-worker = "icij_worker.__main__:cli_app"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+icij_common = { path = "../icij-common", develop = true }
+typer = { extras = ["all"], version = "^0.9.0" }
+
+[tool.poetry.group.dev.dependencies]
+pylint = "^2.15.10"
+pytest = "^7.2.1"
+pytest-asyncio = "^0.20.3"
+icij_common = { path = "../icij-common", develop = true, extras = ["dev"] }
+
+[tool.poetry.group.neo4j.dependencies]
+neo4j = "^5.0.0"
+icij_common = { path = "../icij-common", develop = true, extras = ["neo4j"] }
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
