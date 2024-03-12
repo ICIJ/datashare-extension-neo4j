@@ -1,9 +1,21 @@
 from types import TracebackType
-from typing import Callable, Coroutine, Optional, Protocol, Tuple, Type, Union
+from typing import (
+    Awaitable,
+    Callable,
+    Coroutine,
+    Optional,
+    Protocol,
+    Tuple,
+    Type,
+    Union,
+)
 
 DependencyLabel = Optional[str]
 DependencySetup = Callable[..., None]
 DependencyAsyncSetup = Callable[..., Coroutine[None, None, None]]
+
+PercentProgress = Callable[[float], Awaitable[None]]
+RawProgress = Callable[[int], Awaitable[None]]
 
 
 class DependencyTeardown(Protocol):
@@ -12,8 +24,7 @@ class DependencyTeardown(Protocol):
         exc_type: Optional[Type[Exception]],
         exc_value: Optional[Exception],
         traceback: Optional[TracebackType],
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 class DependencyAsyncTeardown(Protocol):
@@ -22,8 +33,7 @@ class DependencyAsyncTeardown(Protocol):
         exc_type: Optional[Type[Exception]],
         exc_value: Optional[Exception],
         traceback: Optional[TracebackType],
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 Dependency = Tuple[

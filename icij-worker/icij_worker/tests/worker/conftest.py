@@ -1,11 +1,18 @@
+# pylint: disable=redefined-outer-name
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
 
-from neo4j_app.icij_worker import AsyncApp
-from neo4j_app.tests.icij_worker.conftest import MockWorker
+from icij_worker import AsyncApp
+from icij_worker.tests.conftest import MockWorker
+
+# noinspection PyUnresolvedReferences
+from icij_worker.utils.tests import (  # pylint: disable=unused-import
+    mock_db,
+    mock_db_session,
+)
 
 
 @pytest.fixture(scope="module")

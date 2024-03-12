@@ -8,16 +8,15 @@ from datetime import datetime
 from enum import Enum, unique
 from typing import Any, Dict, Optional
 
-import neo4j
-from pydantic import validator
-
-from neo4j_app.constants import TASK_NODE
-from neo4j_app.core.utils.pydantic import (
+from icij_common.neo4j.constants import TASK_NODE
+from icij_common.pydantic_utils import (
     ISODatetime,
     LowerCamelCaseModel,
     NoEnumModel,
     safe_copy,
 )
+from pydantic import validator
+
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +121,8 @@ class Task(NoEnumModel, LowerCamelCaseModel, ISODatetime):
 
     @validator("created_at", pre=True)
     def _validate_created_at(cls, value: Any):  # pylint: disable=no-self-argument
-        if isinstance(value, neo4j.time.DateTime):
+        # Trick to avoid having to import neo4j here
+        if not isinstance(value, datetime) and hasattr(value, "to_native"):
             value = value.to_native()
         return value
 
@@ -136,7 +136,7 @@ class Task(NoEnumModel, LowerCamelCaseModel, ISODatetime):
         return value
 
     @classmethod
-    def from_neo4j(cls, record: neo4j.Record, key="task") -> Task:
+    def from_neo4j(cls, record: "neo4j.Record", key="task") -> Task:
         node = record[key]
         labels = node.labels
         node = dict(node)
@@ -217,7 +217,7 @@ class TaskError(LowerCamelCaseModel):
         return error
 
     @classmethod
-    def from_neo4j(cls, record: neo4j.Record, key="error") -> TaskError:
+    def from_neo4j(cls, record: "neo4j.Record", key="error") -> TaskError:
         task = dict(record.value(key))
         if "occurredAt" in task:
             task["occurredAt"] = task["occurredAt"].to_native()
@@ -257,7 +257,7 @@ class TaskResult(LowerCamelCaseModel):
 
     @classmethod
     def from_neo4j(
-        cls, record: neo4j.Record, task_key="task", result_key="result"
+        cls, record: "neo4j.Record", task_key="task", result_key="result"
     ) -> TaskResult:
         result = record.get(result_key)
         if result is not None:

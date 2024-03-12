@@ -1,13 +1,13 @@
 import logging
 
 from fastapi import APIRouter, Request
+from icij_common.logging_utils import log_elapsed_time_cm
 
 from neo4j_app.app import ServiceConfig
 from neo4j_app.app.dependencies import lifespan_neo4j_driver
 from neo4j_app.app.doc import NE_IMPORT_DESC, NE_IMPORT_SUM, NE_TAG
 from neo4j_app.core.imports import import_named_entities
 from neo4j_app.core.objects import IncrementalImportRequest, IncrementalImportResponse
-from neo4j_app.core.utils.logging import log_elapsed_time_cm
 from neo4j_app.tasks.dependencies import lifespan_es_client
 
 logger = logging.getLogger(__name__)

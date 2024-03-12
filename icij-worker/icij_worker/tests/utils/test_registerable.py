@@ -3,11 +3,11 @@ from abc import ABC
 from typing import ClassVar, Type
 
 import pytest
+from icij_common.test_utils import fail_if_exception
 from pydantic import Field
 
-from neo4j_app.icij_worker.utils.from_config import C, T
-from neo4j_app.icij_worker.utils.registrable import Registrable, RegistrableConfig
-from neo4j_app.tests.conftest import fail_if_exception
+from icij_worker.utils import Registrable, RegistrableConfig
+from icij_worker.utils.from_config import C, T
 
 
 class _MockedBaseClass(Registrable, ABC):
@@ -35,11 +35,9 @@ def test_should_register_class(
     @base_class.register("registered")
     class Registered(base_class):
         @classmethod
-        def _from_config(cls: Type[T], config: C, **extras) -> T:
-            ...
+        def _from_config(cls: Type[T], config: C, **extras) -> T: ...
 
-        def _to_config(self) -> C:
-            ...
+        def _to_config(self) -> C: ...
 
     # Then
     assert base_class.by_name("registered") is Registered
@@ -57,11 +55,9 @@ def test_register_should_raise_for_already_registered(
     @base_class.register("registered")
     class Registered(base_class):  # pylint: disable=unused-variable
         @classmethod
-        def _from_config(cls: Type[T], config: C, **extras) -> T:
-            ...
+        def _from_config(cls: Type[T], config: C, **extras) -> T: ...
 
-        def _to_config(self) -> C:
-            ...
+        def _to_config(self) -> C: ...
 
     # When
     expected = (
@@ -73,11 +69,9 @@ def test_register_should_raise_for_already_registered(
         @base_class.register("registered")
         class Other(base_class):  # pylint: disable=unused-variable
             @classmethod
-            def _from_config(cls: Type[T], config: C, **extras) -> T:
-                ...
+            def _from_config(cls: Type[T], config: C, **extras) -> T: ...
 
-            def _to_config(self) -> C:
-                ...
+            def _to_config(self) -> C: ...
 
 
 def test_should_register_already_registered_with_exist_ok(
@@ -89,11 +83,9 @@ def test_should_register_already_registered_with_exist_ok(
     @base_class.register("registered")
     class Registered(base_class):  # pylint: disable=unused-variable
         @classmethod
-        def _from_config(cls: Type[T], config: C, **extras) -> T:
-            ...
+        def _from_config(cls: Type[T], config: C, **extras) -> T: ...
 
-        def _to_config(self) -> C:
-            ...
+        def _to_config(self) -> C: ...
 
     # When
     msg = "Failed to register already registered class with exist_ok"
@@ -102,11 +94,9 @@ def test_should_register_already_registered_with_exist_ok(
         @base_class.register("registered", exist_ok=True)
         class Other(base_class):  # pylint: disable=unused-variable
             @classmethod
-            def _from_config(cls: Type[T], config: C, **extras) -> T:
-                ...
+            def _from_config(cls: Type[T], config: C, **extras) -> T: ...
 
-            def _to_config(self) -> C:
-                ...
+            def _to_config(self) -> C: ...
 
 
 def test_resolve_class_name_for_fully_qualified_class(

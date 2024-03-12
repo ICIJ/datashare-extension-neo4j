@@ -6,13 +6,11 @@ import io
 from copy import copy
 from typing import Optional, TextIO
 
+from icij_common.pydantic_utils import ICIJModel
+from icij_worker import WorkerConfig, WorkerType
 from pydantic import Field
 
 from neo4j_app import AppConfig
-from neo4j_app.core.utils.pydantic import (
-    BaseICIJModel,
-)
-from neo4j_app.icij_worker import WorkerConfig, WorkerType
 
 _SHARED_WITH_NEO4J_WORKER_CONFIG = [
     "neo4j_connection_timeout",
@@ -53,7 +51,7 @@ class ServiceConfig(AppConfig):
         kwargs = copy(kwargs)
         for suffix in _SHARED_WITH_NEO4J_WORKER_CONFIG_PREFIXED:
             kwargs[suffix] = getattr(self, f"neo4j_app_{suffix}")
-        from neo4j_app.icij_worker.worker.neo4j import Neo4jWorkerConfig
+        from icij_worker.worker.neo4j import Neo4jWorkerConfig
 
         for k in _SHARED_WITH_NEO4J_WORKER_CONFIG:
             if k in kwargs:
@@ -74,6 +72,6 @@ class ServiceConfig(AppConfig):
         file.write(config_str)
 
 
-class UviCornModel(BaseICIJModel):
+class UviCornModel(ICIJModel):
     host: str = Field(default="127.0.0.1", const=True)
     port: int

@@ -5,34 +5,34 @@ from unittest import mock
 
 import neo4j
 import pytest
-import pytest_asyncio
 from neo4j.exceptions import ClientError
 
-import neo4j_app
-from neo4j_app.constants import PROJECT_REGISTRY_DB
-from neo4j_app.core.neo4j import Migration, V_0_1_0, migrate_db_schemas
-from neo4j_app.core.neo4j.migrations import migrate
-from neo4j_app.core.neo4j.migrations.migrate import (
+import icij_common
+from icij_common.neo4j import migrate
+from icij_common.neo4j.constants import PROJECT_REGISTRY_DB
+from icij_common.neo4j.migrate import (
+    Migration,
     MigrationError,
     MigrationStatus,
     Neo4jMigration,
     init_project,
+    migrate_db_schemas,
     migrate_project_db_schema,
     retrieve_projects,
 )
-from neo4j_app.core.neo4j.projects import Project
-from neo4j_app.tests.conftest import (
-    TEST_PROJECT,
-    fail_if_exception,
-    mock_enterprise_,
-    mocked_is_enterprise,
-    wipe_db,
-)
+from icij_common.neo4j.projects import Project, add_project_support_migration_tx
+from icij_common.neo4j.test_utils import mock_enterprise_, mocked_is_enterprise, wipe_db
+from icij_common.test_utils import TEST_PROJECT, fail_if_exception
 
+V_0_1_0 = Migration(
+    version="0.1.0",
+    label="Create projects",
+    migration_fn=add_project_support_migration_tx,
+)
 _BASE_REGISTRY = [V_0_1_0]
 
 
-@pytest_asyncio.fixture(scope="function")
+@pytest.fixture(scope="function")
 async def _migration_index_and_constraint(
     neo4j_test_driver: neo4j.AsyncDriver,
 ) -> neo4j.AsyncDriver:
@@ -166,7 +166,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
 ):
     # Given
     neo4j_driver_0 = _migration_index_and_constraint
-    caplog.set_level(logging.INFO, logger=neo4j_app.__name__)
+    caplog.set_level(logging.INFO, logger=icij_common.__name__)
 
     async def mocked_get_migrations(
         sess: neo4j.AsyncSession, project: str  # pylint: disable=unused-argument
@@ -196,7 +196,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_in_progress(
         )
     # Check that we've slept at least once otherwise timeout must be increased...
     assert any(
-        rec.name == "neo4j_app.core.neo4j.migrations.migrate"
+        rec.name == "icij_common.neo4j.migrate"
         and f"waiting for {wait_s}" in rec.message
         for rec in caplog.records
     )
@@ -210,7 +210,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
 ):
     # Given
     neo4j_driver = _migration_index_and_constraint
-    caplog.set_level(logging.INFO, logger=neo4j_app.__name__)
+    caplog.set_level(logging.INFO, logger=icij_common.__name__)
 
     async def mocked_get_migrations(
         sess: neo4j.AsyncSession, project: str  # pylint: disable=unused-argument
@@ -251,8 +251,7 @@ async def test_migrate_db_schema_should_wait_when_other_migration_just_started(
             )
         # Check that we've slept at least once otherwise timeout must be increased...
         assert any(
-            rec.name == "neo4j_app.core.neo4j.migrations.migrate"
-            and "just started" in rec.message
+            rec.name == "icij_common.neo4j.migrate" and "just started" in rec.message
             for rec in caplog.records
         )
     finally:
@@ -289,7 +288,7 @@ async def test_migrate_should_use_registry_db_when_with_enterprise_support(
     registry = _BASE_REGISTRY
 
     monkeypatch.setattr(
-        neo4j_app.core.neo4j.projects, "is_enterprise", mocked_is_enterprise
+        icij_common.neo4j.projects, "is_enterprise", mocked_is_enterprise
     )
     neo4j_driver = _migration_index_and_constraint
 
@@ -396,12 +395,12 @@ async def test_migrate_project_db_schema_should_read_migrations_from_registry(
     # Given
     registry = [V_0_1_0.copy(update={"status": MigrationStatus.DONE})]
     monkeypatch.setattr(
-        neo4j_app.core.neo4j.projects, "is_enterprise", mocked_is_enterprise
+        icij_common.neo4j.projects, "is_enterprise", mocked_is_enterprise
     )
     with mock.patch(
-        "neo4j_app.core.neo4j.migrations.migrate.registry_db_session"
+        "icij_common.neo4j.migrate.registry_db_session"
     ) as mocked_registry_sess:
-        with mock.patch("neo4j_app.core.neo4j.migrations.migrate.project_db_session"):
+        with mock.patch("icij_common.neo4j.migrate.project_db_session"):
             mocked_sess = mock.AsyncMock()
             mocked_registry_sess.return_value.__aenter__.return_value = mocked_sess
             mocked_sess.execute_read.return_value = registry

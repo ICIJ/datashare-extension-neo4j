@@ -5,15 +5,15 @@ from contextlib import asynccontextmanager
 from functools import cached_property
 from typing import Callable, Dict, List, Optional, Tuple, Type, final
 
+from icij_common.pydantic_utils import ICIJModel
 from pydantic import Field
 
-from neo4j_app.core.utils.pydantic import BaseICIJModel
-from neo4j_app.icij_worker.exceptions import UnknownApp
-from neo4j_app.icij_worker.typing_ import Dependency
-from neo4j_app.icij_worker.utils.dependencies import run_deps
+from icij_worker.exceptions import UnknownApp
+from icij_worker.typing_ import Dependency
+from icij_worker.utils import run_deps
 
 
-class RegisteredTask(BaseICIJModel):
+class RegisteredTask(ICIJModel):
     task: Callable
     recover_from: Tuple[Type[Exception], ...] = tuple()
     # TODO: enable max retries

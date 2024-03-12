@@ -1,10 +1,10 @@
 from distutils.version import StrictVersion
 
 import pytest
+from icij_common.test_utils import fail_if_exception
 from typer.testing import CliRunner
 
-from neo4j_app.icij_worker.cli import cli_app
-from neo4j_app.tests.conftest import fail_if_exception
+from icij_worker.cli import cli_app
 
 
 @pytest.mark.parametrize("help_command", ["-h", "--help"])

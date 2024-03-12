@@ -4,8 +4,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
 
-from neo4j_app.icij_worker import WorkerConfig
-from neo4j_app.icij_worker.backend.mp import (
+from icij_worker import WorkerConfig
+from icij_worker.backend.mp import (
     run_workers_with_multiprocessing,
     run_workers_with_multiprocessing_cm,
 )

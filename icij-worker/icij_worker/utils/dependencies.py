@@ -1,11 +1,10 @@
 import inspect
 import logging
 import sys
-import traceback
 from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncGenerator, List
 
-from neo4j_app.icij_worker.typing_ import Dependency
+from icij_worker.typing_ import Dependency
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +19,8 @@ class DependencyInjectionError(RuntimeError):
 def _log_exception_and_continue():
     try:
         yield
-    except Exception as exc:
-        from neo4j_app.app.utils import INTERNAL_SERVER_ERROR
-
-        title = INTERNAL_SERVER_ERROR
-        detail = f"{type(exc).__name__}: {exc}"
-        trace = "".join(traceback.format_exc())
-        logger.error("%s\nDetail: %s\nTrace: %s", title, detail, trace)
-
-        raise exc
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.error("Exception %s occurred ", exc, exc_info=True)
 
 
 @asynccontextmanager
@@ -38,20 +30,22 @@ async def run_deps(
     to_close = []
     original_ex = None
     try:
-        with _log_exception_and_continue():
-            logger.info("Setting up dependencies for %s...", ctx)
-            for name, enter_fn, exit_fn in dependencies:
-                if enter_fn is not None:
-                    if name is not None:
-                        logger.debug("applying: %s", name)
-                    if inspect.iscoroutinefunction(enter_fn):
-                        await enter_fn(**kwargs)
-                    else:
-                        enter_fn(**kwargs)
-                to_close.append((name, exit_fn))
+        logger.info("Setting up dependencies for %s...", ctx)
+        for name, enter_fn, exit_fn in dependencies:
+            if enter_fn is not None:
+                if name is not None:
+                    logger.debug("applying: %s", name)
+                if inspect.iscoroutinefunction(enter_fn):
+                    await enter_fn(**kwargs)
+                else:
+                    enter_fn(**kwargs)
+            to_close.append((name, exit_fn))
         yield
     except Exception as e:  # pylint: disable=broad-exception-caught
         original_ex = e
+        logger.error(
+            "Exception occurred while opening dependency: %s", e, exc_info=True
+        )
     finally:
         to_raise = []
         if original_ex is not None:

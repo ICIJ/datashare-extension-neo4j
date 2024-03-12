@@ -27,6 +27,10 @@ from typing import (
 
 import neo4j
 from datrie import BaseTrie
+from icij_common.logging_utils import log_elapsed_time_cm
+from icij_common.neo4j.projects import project_db, project_index
+from icij_worker.typing_ import PercentProgress
+from icij_worker.utils.progress import to_scaled_progress
 
 from neo4j_app.constants import (
     DOC_COLUMNS,
@@ -110,7 +114,6 @@ from neo4j_app.core.neo4j.named_entities import (
     import_named_entity_rows,
     ne_creation_stats_tx,
 )
-from neo4j_app.core.neo4j.projects import project_db, project_index
 from neo4j_app.core.objects import (
     IncrementalImportResponse,
     Neo4jCSVResponse,
@@ -120,9 +123,6 @@ from neo4j_app.core.objects import (
 )
 from neo4j_app.core.utils import batch
 from neo4j_app.core.utils.asyncio import run_with_concurrency
-from neo4j_app.core.utils.logging import log_elapsed_time_cm
-from neo4j_app.core.utils.progress import to_scaled_progress
-from neo4j_app.typing_ import PercentProgress
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +141,7 @@ class ImportTransactionFunction(Protocol):
         *,
         batch_size: int,
         **kwargs,
-    ) -> neo4j.ResultSummary:
-        ...
+    ) -> neo4j.ResultSummary: ...
 
 
 async def import_documents(
@@ -483,9 +482,11 @@ async def _to_neo4j_ne_csvs(
     logger.debug(
         "Exporting named entities from ES with concurrency of %s", es_concurrency
     )
-    with ne_nodes_path.open("w") as nodes_f, ne_doc_rel_path.open(
-        "w"
-    ) as rels_f, email_rel_path.open("w") as email_rel_f:
+    with (
+        ne_nodes_path.open("w") as nodes_f,
+        ne_doc_rel_path.open("w") as rels_f,
+        email_rel_path.open("w") as email_rel_f,
+    ):
         with log_elapsed_time_cm(
             logger,
             logging.DEBUG,

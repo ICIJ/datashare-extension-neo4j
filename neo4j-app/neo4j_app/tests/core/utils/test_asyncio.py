@@ -1,6 +1,5 @@
 import asyncio
 
-
 from neo4j_app.core.utils.asyncio import run_with_concurrency
 
 

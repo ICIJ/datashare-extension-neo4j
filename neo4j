@@ -598,7 +598,7 @@ Please run ./neo4j format"
             command -v poetry 1>/dev/null 2>&1 || echo "poetry is not installed"
 
             cd "$PYTHON_APP_DIR"
-            poetry install --no-interaction -vvv --with=dev --with=cli --no-ansi
+            poetry install --no-interaction -vvv --with=dev --no-ansi
             echo "Python setup succeeded !"
         elif _should_run_project "neo4j_graph_widget_plugin"; then
             _print_step "Setting up neo4j_graph_widget_plugin"

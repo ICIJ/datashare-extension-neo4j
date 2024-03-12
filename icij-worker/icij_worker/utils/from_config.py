@@ -11,12 +11,10 @@ C = TypeVar("C", bound=BaseSettings)
 class FromConfig(ABC):
     @classmethod
     @abstractmethod
-    def _from_config(cls: Type[T], config: C, **extras) -> T:
-        ...
+    def _from_config(cls: Type[T], config: C, **extras) -> T: ...
 
     @abstractmethod
-    def _to_config(self) -> C:
-        ...
+    def _to_config(self) -> C: ...
 
     @cached_property
     def config(self) -> C:

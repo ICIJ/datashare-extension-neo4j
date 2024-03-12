@@ -5,8 +5,8 @@ import signal
 from abc import ABC
 from asyncio import AbstractEventLoop
 from typing import Optional
+from icij_common.logging_utils import LogWithNameMixin
 
-from neo4j_app.core.utils.logging import LogWithNameMixin
 
 _HANDLE_SIGNALS = [signal.SIGTERM]
 

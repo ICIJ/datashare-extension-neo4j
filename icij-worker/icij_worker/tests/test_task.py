@@ -3,8 +3,14 @@ from typing import Optional
 
 import pytest
 
-from neo4j_app.icij_worker import Task, TaskError, TaskEvent, TaskStatus
-from neo4j_app.icij_worker.task import PRECEDENCE, READY_STATES
+from icij_worker.task import (
+    PRECEDENCE,
+    READY_STATES,
+    Task,
+    TaskError,
+    TaskEvent,
+    TaskStatus,
+)
 
 _CREATED_AT = datetime.now()
 _ERROR_OCCURRED_AT = datetime.now()

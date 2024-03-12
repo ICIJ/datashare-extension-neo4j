@@ -8,20 +8,20 @@ from typing import Dict, Optional, cast
 
 import neo4j
 from fastapi import FastAPI
-
-from neo4j_app.app.config import ServiceConfig
-from neo4j_app.core.elasticsearch import ESClientABC
-from neo4j_app.icij_worker import (
+from icij_worker import (
     EventPublisher,
     Neo4jEventPublisher,
     WorkerConfig,
 )
-from neo4j_app.icij_worker.backend.backend import WorkerBackend
-from neo4j_app.icij_worker.task_manager import TaskManager
-from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
-from neo4j_app.icij_worker.utils import run_deps
-from neo4j_app.icij_worker.utils.dependencies import DependencyInjectionError
-from neo4j_app.icij_worker.utils.imports import import_variable
+from icij_worker.backend.backend import WorkerBackend
+from icij_worker.task_manager import TaskManager
+from icij_worker.task_manager.neo4j import Neo4JTaskManager
+from icij_worker.utils import run_deps
+from icij_worker.utils.dependencies import DependencyInjectionError
+from icij_worker.utils.imports import import_variable
+
+from neo4j_app.app.config import ServiceConfig
+from neo4j_app.core.elasticsearch import ESClientABC
 from neo4j_app.tasks.dependencies import (
     config_enter,
     create_project_registry_db_enter,

@@ -23,26 +23,27 @@ from typing import (
     final,
 )
 
-from neo4j_app.core.utils.progress import CheckCancelledProgress
-from neo4j_app.icij_worker.app import AsyncApp, RegisteredTask
-from neo4j_app.icij_worker.event_publisher import EventPublisher
-from neo4j_app.icij_worker.exceptions import (
-    MaxRetriesExceeded,
-    RecoverableError,
-    TaskAlreadyReserved,
-    TaskCancelled,
-    UnregisteredTask,
-)
-from neo4j_app.icij_worker.task import (
+from icij_worker import (
+    AsyncApp,
     Task,
     TaskError,
     TaskEvent,
     TaskResult,
     TaskStatus,
 )
-from neo4j_app.icij_worker.utils.registrable import Registrable
-from neo4j_app.icij_worker.worker.process import HandleSignalsMixin
-from neo4j_app.typing_ import PercentProgress
+from icij_worker.app import RegisteredTask
+from icij_worker.exceptions import (
+    MaxRetriesExceeded,
+    RecoverableError,
+    TaskAlreadyReserved,
+    TaskCancelled,
+    UnregisteredTask,
+)
+from icij_worker.typing_ import PercentProgress
+from icij_worker.utils import Registrable
+from icij_worker.utils.progress import CheckCancelledProgress
+from icij_worker.worker.process import HandleSignalsMixin
+from ..event_publisher import EventPublisher
 
 logger = logging.getLogger(__name__)
 

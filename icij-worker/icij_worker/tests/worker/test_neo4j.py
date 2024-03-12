@@ -5,28 +5,27 @@ from typing import List
 
 import neo4j
 import pytest
+from icij_common.neo4j.projects import project_db_session
+from icij_common.pydantic_utils import safe_copy
+from icij_common.test_utils import TEST_PROJECT, fail_if_exception
 
-from neo4j_app.core.neo4j.projects import project_db_session
-from neo4j_app.core.utils.pydantic import safe_copy
-from neo4j_app.icij_worker import (
+from icij_worker import (
     AsyncApp,
+    Neo4jWorker,
     Task,
     TaskError,
     TaskEvent,
     TaskResult,
     TaskStatus,
 )
-from neo4j_app.icij_worker.task_manager.neo4j import Neo4JTaskManager
-from neo4j_app.icij_worker.worker.neo4j import Neo4jWorker
-from neo4j_app.tests.conftest import (
-    TEST_PROJECT,
-    fail_if_exception,
-)
+from icij_worker.task_manager.neo4j import Neo4JTaskManager
 
 
 @pytest.fixture(scope="function")
-def worker(test_app: AsyncApp, neo4j_app_driver: neo4j.AsyncDriver) -> Neo4jWorker:
-    worker = Neo4jWorker(test_app, "test-worker", neo4j_app_driver)
+def worker(
+    test_app: AsyncApp, neo4j_async_app_driver: neo4j.AsyncDriver
+) -> Neo4jWorker:
+    worker = Neo4jWorker(test_app, "test-worker", neo4j_async_app_driver)
     return worker
 
 

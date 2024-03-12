@@ -687,6 +687,39 @@ http2 = ["h2 (>=3,<5)"]
 socks = ["socksio (==1.*)"]
 
 [[package]]
+name = "icij-common"
+version = "0.1.0"
+description = "Common utils for ICIJ libs"
+optional = false
+python-versions = "^3.9"
+files = []
+develop = true
+
+[package.dependencies]
+pydantic = "^1.10"
+
+[package.source]
+type = "directory"
+url = "../icij-common"
+
+[[package]]
+name = "icij-worker"
+version = "0.1.0"
+description = "Create asynchronous tasks from Python functions"
+optional = false
+python-versions = "^3.9"
+files = []
+develop = true
+
+[package.dependencies]
+icij_common = {path = "../icij-common", develop = true}
+typer = {version = "^0.9.0", extras = ["all"]}
+
+[package.source]
+type = "directory"
+url = "../icij-worker"
+
+[[package]]
 name = "idna"
 version = "3.6"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -2135,4 +2168,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "f50835855c34a1136afefeb68805c8eca3aa28cd40879b51b36288b9aa5a3702"
+content-hash = "50e7c20036545504fe34ec93ffc6dab90475ace2b40d940a2523dc9d1091d327"

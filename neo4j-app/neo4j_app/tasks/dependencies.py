@@ -3,14 +3,14 @@ from pathlib import Path
 from typing import Optional, cast
 
 import neo4j
+from icij_common.neo4j.migrate import delete_all_migrations, migrate_db_schemas
+from icij_common.neo4j.projects import create_project_registry_db
+from icij_worker.utils.dependencies import DependencyInjectionError
 
 from neo4j_app.app import ServiceConfig
-from neo4j_app.core.elasticsearch import ESClientABC
-from neo4j_app.core.neo4j import MIGRATIONS, migrate_db_schemas
-from neo4j_app.core.neo4j.migrations import delete_all_migrations
-from neo4j_app.core.neo4j.projects import create_project_registry_db
-from neo4j_app.icij_worker.utils.dependencies import DependencyInjectionError
 from neo4j_app.config import AppConfig
+from neo4j_app.core.elasticsearch import ESClientABC
+from neo4j_app.core.neo4j import MIGRATIONS
 
 logger = logging.getLogger(__name__)
 
@@ -34,18 +34,6 @@ async def config_from_path_enter(config_path: Path, **_):
     config = await config.with_neo4j_support()
     _CONFIG = config
     logger.info("Loaded config %s", config.json(indent=2))
-
-
-async def mock_async_config_enter(**_):
-    global _CONFIG
-    # Because global variables can't be shared across modules we have to put some test
-    # code in here
-    # https://docs.python.org/3/faq/programming.html
-    ##how-do-i-share-global-variables-across-modules
-    from neo4j_app.tests.conftest import mock_async_config
-
-    _CONFIG = mock_async_config()
-    logger.info("Loading mocked configuration %s", _CONFIG.json(indent=2))
 
 
 async def config_neo4j_support_enter(**_):

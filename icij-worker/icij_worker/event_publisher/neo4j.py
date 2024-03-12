@@ -2,18 +2,19 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Dict, Optional
 
 import neo4j
-from neo4j.exceptions import ResultNotSingleError
-
-from neo4j_app.constants import (
+from icij_common.neo4j.constants import (
     TASK_ERROR_NODE,
     TASK_ERROR_OCCURRED_TYPE,
     TASK_ID,
     TASK_NODE,
 )
-from neo4j_app.core.neo4j.projects import project_db_session
-from neo4j_app.icij_worker import Task, TaskEvent, TaskStatus
-from neo4j_app.icij_worker.exceptions import UnknownTask
+from icij_common.neo4j.projects import project_db_session
+from neo4j.exceptions import ResultNotSingleError
+
+
 from . import EventPublisher
+from .. import Task, TaskEvent, TaskStatus
+from ..exceptions import UnknownTask
 
 
 class Neo4jEventPublisher(EventPublisher):

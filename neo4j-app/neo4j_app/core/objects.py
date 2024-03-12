@@ -7,11 +7,11 @@ from enum import Enum, unique
 from typing import Any, ClassVar, Dict, List, Optional, Union
 
 import neo4j
+from icij_common.pydantic_utils import LowerCamelCaseModel, NoEnumModel
+from icij_worker.task import Task, TaskStatus
 from pydantic import Field
 
 from neo4j_app.constants import STATS_ID, STATS_NODE, STATS_N_DOCS, STATS_N_ENTS
-from neo4j_app.core.utils.pydantic import LowerCamelCaseModel, NoEnumModel
-from neo4j_app.icij_worker.task import Task, TaskStatus
 
 
 @unique

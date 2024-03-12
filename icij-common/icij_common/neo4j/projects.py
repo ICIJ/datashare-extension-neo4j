@@ -6,8 +6,17 @@ from typing import AsyncGenerator, List, Optional, Tuple
 
 import neo4j
 
-from neo4j_app.constants import PROJECT_NAME, PROJECT_NODE, PROJECT_REGISTRY_DB
-from neo4j_app.core.utils.pydantic import BaseICIJModel
+from icij_common.neo4j.constants import (
+    MIGRATION_NODE,
+    MIGRATION_PROJECT,
+    MIGRATION_VERSION,
+    PROJECT_NODE,
+    PROJECT_REGISTRY_DB,
+)
+
+from icij_common.neo4j.constants import PROJECT_NAME
+
+from icij_common.pydantic_utils import ICIJModel
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +29,7 @@ _COMPONENTS_QUERY = """CALL dbms.components() YIELD versions, edition
 RETURN versions, edition"""
 
 
-class Project(BaseICIJModel):
+class Project(ICIJModel):
     name: str
 
     @classmethod
@@ -50,6 +59,32 @@ async def create_project_db(neo4j_driver: neo4j.AsyncDriver, project: str):
         db_name = await project_db(neo4j_driver, project=project)
         query = "CREATE DATABASE $db_name IF NOT EXISTS"
         await neo4j_driver.execute_query(query, db_name=db_name)
+
+
+async def add_project_support_migration_tx(tx: neo4j.AsyncTransaction):
+    await create_project_unique_name_constraint_tx(tx)
+    await create_migration_unique_project_and_version_constraint_tx(tx)
+
+
+async def create_project_unique_name_constraint_tx(tx: neo4j.AsyncTransaction):
+    constraint_query = f"""CREATE CONSTRAINT constraint_project_unique_name
+IF NOT EXISTS
+FOR (p:{PROJECT_NODE})
+REQUIRE (p.{PROJECT_NAME}) IS UNIQUE
+"""
+    await tx.run(constraint_query)
+
+
+async def create_migration_unique_project_and_version_constraint_tx(
+    tx: neo4j.AsyncTransaction,
+):
+    constraint_query = f"""CREATE CONSTRAINT
+     constraint_migration_unique_project_and_version
+IF NOT EXISTS 
+FOR (m:{MIGRATION_NODE})
+REQUIRE (m.{MIGRATION_VERSION}, m.{MIGRATION_PROJECT}) IS UNIQUE
+"""
+    await tx.run(constraint_query)
 
 
 async def create_project_tx(

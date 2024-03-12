@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union, final
 
-from neo4j_app.icij_worker import Task, TaskError, TaskResult, TaskStatus
+from icij_worker import Task, TaskError, TaskResult, TaskStatus
 
 
 class TaskManager(ABC):

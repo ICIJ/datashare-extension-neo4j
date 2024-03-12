@@ -7,11 +7,7 @@ from datetime import datetime
 from typing import AsyncGenerator, ClassVar, Dict, List, Optional, Tuple
 
 import neo4j
-from fastapi.encoders import jsonable_encoder
-from neo4j.exceptions import ConstraintError, ResultNotSingleError
-from pydantic import Field
-
-from neo4j_app.constants import (
+from icij_common.neo4j.constants import (
     TASK_ERROR_NODE,
     TASK_ERROR_OCCURRED_TYPE,
     TASK_HAS_RESULT_TYPE,
@@ -25,9 +21,13 @@ from neo4j_app.constants import (
     TASK_RESULT_RESULT,
     TASK_RETRIES,
 )
-from neo4j_app.core.neo4j.migrations.migrate import retrieve_projects
-from neo4j_app.core.neo4j.projects import project_db_session
-from neo4j_app.icij_worker import (
+from icij_common.neo4j.migrate import retrieve_projects
+from icij_common.neo4j.projects import project_db_session
+from icij_common.pydantic_utils import jsonable_encoder
+from neo4j.exceptions import ConstraintError, ResultNotSingleError
+from pydantic import Field
+
+from icij_worker import (
     AsyncApp,
     Task,
     TaskError,
@@ -37,8 +37,8 @@ from neo4j_app.icij_worker import (
     WorkerConfig,
     WorkerType,
 )
-from neo4j_app.icij_worker.event_publisher.neo4j import Neo4jEventPublisher
-from neo4j_app.icij_worker.exceptions import TaskAlreadyReserved, UnknownTask
+from ..event_publisher.neo4j import Neo4jEventPublisher
+from ..exceptions import TaskAlreadyReserved, UnknownTask
 
 _TASK_MANDATORY_FIELDS_BY_ALIAS = {
     f for f in Task.schema(by_alias=True)["required"] if f != "id"

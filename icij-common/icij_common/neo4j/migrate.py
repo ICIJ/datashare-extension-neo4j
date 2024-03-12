@@ -13,7 +13,7 @@ from typing import Any, Callable, List, Optional, Sequence, Union
 import neo4j
 from neo4j.exceptions import ConstraintError
 
-from neo4j_app.constants import (
+from icij_common.neo4j.constants import (
     MIGRATION_COMPLETED,
     MIGRATION_LABEL,
     MIGRATION_NODE,
@@ -22,14 +22,15 @@ from neo4j_app.constants import (
     MIGRATION_STATUS,
     MIGRATION_VERSION,
 )
-from neo4j_app.core.neo4j.projects import (
+from icij_common.pydantic_utils import NoEnumModel
+from .projects import (
     Project,
     create_project_db,
     create_project_tx,
     project_db_session,
+    projects_tx,
     registry_db_session,
 )
-from neo4j_app.core.utils.pydantic import NoEnumModel
 
 logger = logging.getLogger(__name__)
 
@@ -209,8 +210,6 @@ DETACH DELETE m"""
 
 async def retrieve_projects(neo4j_driver: neo4j.AsyncDriver) -> List[Project]:
     async with registry_db_session(neo4j_driver) as sess:
-        from neo4j_app.core.neo4j.projects import projects_tx
-
         projects = await sess.execute_read(projects_tx)
     return projects
 

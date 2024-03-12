@@ -7,14 +7,13 @@ authors = [
     "ICIJ <engineering@icij.org>",
 ]
 # TODO: add readme
-packages = [
-    { include = "neo4j_app" }
-]
+packages = [ { include = "neo4j_app" } ]
 exclude = ["neo4j_app/tests"]
 
 [tool.black]
 line-length = 88
-target = "py39"
+target-version = ["py39"]
+
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -22,29 +21,30 @@ markers = [
     "pull",
 ]
 
-# TODO: to be moved into the icij_worker package
-[tool.poetry.scripts]
-icij-worker = "neo4j_app.icij_worker.__main__:cli_app"
-
 [tool.poetry.dependencies]
 python = "^3.9"
-pyyaml = ">=5.4.0" # For security
-uvicorn = { version = "^0.23.2", extras = ["standard"] }
-elasticsearch = {version = "^7.13", extras = ["async"]}
-neo4j = "^5.5.0"
-setuptools = "^67.6.1"
-datrie = "^0.8.2"
-tenacity = "^8.2.3"
+
 aiostream = "^0.5.1"
+datrie = "^0.8.2"
+elasticsearch = { version = "^7.13", extras = ["async"] }
+fastapi = "^0.99.1"
 gunicorn = "^21.2.0"
+icij_worker = { path = "../icij-worker", develop = true, extras = ["neo4j"] }
+icij_common = { path = "../icij-common", develop = true, extras = ["neo4j"] }
+neo4j = "^5.5.0"
+pydantic = "^1.10.13"
 python-json-logger = "^2.0.7"
 pyinstaller-hooks-contrib = "^2023.12"
-fastapi = "^0.99.1"
-pydantic = "<2.0.0"
+pyyaml = ">=5.4.0" # For security
+setuptools = "^67.6.1"
+tenacity = "^8.2.3"
+uvicorn = { version = "^0.23.2", extras = ["standard"] }
 
 
 [tool.poetry.group.dev.dependencies]
 fastapi = { version = "^0.99.1", extras = ["all"] }
+icij_worker = { path = "../icij-worker", develop = true, extras = ["dev"] }
+icij_common = { path = "../icij-common", develop = true, extras = ["dev"] }
 pylint = "^2.15.10"
 pytest = "^7.2.1"
 pytest-asyncio = "^0.20.3"

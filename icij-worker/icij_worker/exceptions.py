@@ -1,21 +1,18 @@
+# pylint: disable=multiple-statements
 from abc import ABC
 from typing import Optional, Sequence
 
 
-class ICIJWorkerError(ABC):
-    ...
+class ICIJWorkerError(ABC): ...
 
 
-class UnknownApp(ICIJWorkerError, ValueError, ABC):
-    ...
+class UnknownApp(ICIJWorkerError, ValueError, ABC): ...
 
 
-class MaxRetriesExceeded(ICIJWorkerError, RuntimeError):
-    ...
+class MaxRetriesExceeded(ICIJWorkerError, RuntimeError): ...
 
 
-class RecoverableError(ICIJWorkerError, Exception):
-    ...
+class RecoverableError(ICIJWorkerError, Exception): ...
 
 
 class UnknownTask(ICIJWorkerError, ValueError):

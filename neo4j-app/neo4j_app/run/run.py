@@ -8,12 +8,12 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
+
 from fastapi import FastAPI
 from gunicorn.app.base import BaseApplication
-
+from icij_common.logging_utils import setup_loggers
 from neo4j_app.app import ServiceConfig
 from neo4j_app.app.utils import create_app
-from neo4j_app.core.utils.logging import setup_loggers
 
 
 class Formatter(argparse.ArgumentDefaultsHelpFormatter):
@@ -79,7 +79,9 @@ def get_arg_parser():
 
 def main():
     # Setup loggers temporarily before loggers init using the app configuration
-    setup_loggers()
+    import neo4j_app
+
+    setup_loggers(["__main__", neo4j_app.__name__])
     logger = logging.getLogger(__name__)
     try:
         arg_parser = get_arg_parser()

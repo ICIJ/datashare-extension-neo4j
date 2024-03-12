@@ -4,6 +4,8 @@ from typing import Annotated, Optional
 import typer
 
 from icij_common.logging_utils import setup_loggers
+
+import icij_worker
 from icij_worker.cli.workers import worker_app
 
 cli_app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
@@ -12,9 +14,7 @@ cli_app.add_typer(worker_app)
 
 def version_callback(value: bool):
     if value:
-        import neo4j_app
-
-        package_version = importlib.metadata.version(neo4j_app.__name__)
+        package_version = importlib.metadata.version(icij_worker.__name__)
         print(package_version)
         raise typer.Exit()
 
@@ -29,4 +29,4 @@ def main(
     ] = None,
 ):
     """Python async worker pool CLI 🧑‍🏭"""
-    setup_loggers()
+    setup_loggers(["__main__", icij_worker.__name__])
