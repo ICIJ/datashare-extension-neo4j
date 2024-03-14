@@ -44,12 +44,14 @@ from icij_common.test_utils import (  # pylint: disable=unused-import
     event_loop,
 )
 from icij_worker import WorkerConfig, WorkerType
-from icij_worker.tests.conftest import MockEventPublisher, MockManager, MockWorkerConfig
 from icij_worker.typing_ import Dependency
-from icij_worker.utils.tests import (  # pylint: disable=unused-import
+from icij_worker.utils.tests import (
+    MockEventPublisher,
+    MockManager,
+    MockWorkerConfig,
     mock_db,
     mock_db_session,
-)
+)  # pylint: disable=unused-import
 from starlette.testclient import TestClient
 
 from neo4j_app.app import ServiceConfig

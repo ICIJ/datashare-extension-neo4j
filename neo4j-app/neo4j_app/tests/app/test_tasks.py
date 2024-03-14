@@ -11,7 +11,7 @@ from icij_common.pydantic_utils import safe_copy
 from icij_common.test_utils import TEST_PROJECT, true_after
 from icij_worker import AsyncApp, Task, TaskStatus
 from icij_worker.exceptions import TaskQueueIsFull
-from icij_worker.tests.conftest import MockWorkerConfig
+from icij_worker.utils.tests import MockWorkerConfig
 from starlette.testclient import TestClient
 
 from neo4j_app.app import tasks
