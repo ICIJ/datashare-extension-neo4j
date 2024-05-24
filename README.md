@@ -1,4 +1,4 @@
-# Datashare Extension for Neo4j
+# Datashare Extension for Neo4j [![CircleCI](https://dl.circleci.com/status-badge/img/gh/ICIJ/datashare-extension-neo4j/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/ICIJ/datashare-extension-neo4j/tree/main)
 
 Create [Neo4j](https://neo4j.com/docs/getting-started/get-started-with-neo4j/graph-database/) graphs from your [Datashare](https://datashare.icij.org/) projects.
 
