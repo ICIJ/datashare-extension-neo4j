@@ -25,7 +25,7 @@
             class="card py-2 bg-light widget__content__count align-items-center"
             :class="{ 'widget__content__count--muted': !namedEntities[category] }"
             :title=namedEntityTitles[category]>
-            <fa fixed-width :icon="category | namedEntityIcon" />
+            <fa fixed-width :icon="namedEntityIcon(category)" />
             <span v-html="humanEntities[category]" />
           </div>
         </div>
@@ -59,9 +59,6 @@ const DEFAULT_COUNTS = Object.freeze(
 
 export default {
   name: 'Neo4jEntityCount',
-  filters: {
-    namedEntityIcon
-  },
   computed: {
     categories() {
       return Object.keys(this.namedEntities)
@@ -129,6 +126,7 @@ export default {
     await this.refreshCounts()
   },
   methods: {
+    namedEntityIcon,
     humanNumber(n, { K = '%K', M = '%M', B = '%B' } = {}) {
       switch (true) {
         case n < 1e3:
