@@ -1,4 +1,7 @@
-import { find, findIndex, filter, isFunction } from 'lodash'
+import find from 'lodash/find'
+import findIndex from 'lodash/findIndex'
+import filter from 'lodash/filter'
+import isFunction from 'lodash/isFunction'
 
 /**
  * This mixin provides an unified way to poll data from an arbitrary source

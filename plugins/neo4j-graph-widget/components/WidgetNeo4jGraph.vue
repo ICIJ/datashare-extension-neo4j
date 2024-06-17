@@ -118,7 +118,10 @@
 
 <script>
 import bodybuilder from 'bodybuilder'
-import { concat, get, map, random } from 'lodash'
+import concat from 'lodash/concat'
+import get from 'lodash/get'
+import map from 'lodash/map'
+import random from 'lodash/random'
 import { mapState } from 'vuex'
 import { AppStatus } from '../store/Neo4jModule'
 import { default as Neo4jGraphCount } from '../components/Neo4jGraphCount.vue'

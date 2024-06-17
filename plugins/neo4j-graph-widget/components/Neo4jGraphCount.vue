@@ -38,7 +38,9 @@
 </template>
 
 <script>
-import { sum, uniqueId, values } from 'lodash'
+import sum from 'lodash/sum'
+import uniqueId from 'lodash/uniqueId'
+import values from 'lodash/values'
 import { mapState } from 'vuex'
 import { AppStatus } from '../store/Neo4jModule'
 import { namedEntityIcon } from '../utils/named-entities'
