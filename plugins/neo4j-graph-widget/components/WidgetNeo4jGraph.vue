@@ -45,23 +45,32 @@
                 <label for="input-selected-path" class="col-md-4 col-form-label">Project directory</label>
                 <div class="col-md-8 px-0">
                   <b-input-group>
-                    <b-form-input :value="selectedPath"
-                      id="input-selected-path"
+                    <input 
+                      :value="selectedPath"                      
+                      class="form-control"
                       type="text"
-                      disabled></b-form-input>
-                    <b-button variant="primary" v-b-modal="`treeview`" class="input-group-append">
+                      disabled />
+                    <b-button id="input-selected-path" variant="primary" v-b-modal="`treeview`" class="input-group-append" :disabled="!treeView">
                       Select path
                     </b-button>
                     <b-modal
                       id="treeview"
-                      lazy scrollable
-                      size="lg">
-                      <component :is="treeView"
-                        v-model="selectedPath"
-                        id="treeview"
+                      body-class="p-0 border-bottom"
+                      cancel-variant="outline-primary"
+                      :cancel-title="$t('global.cancel')"
+                      hide-header
+                      lazy
+                      :ok-title="$t('widget.creationDate.selectFolder')"
+                      scrollable
+                      size="lg"
+                      @ok="selectedPath = treeViewPath">
+                      <component 
+                        :is="treeView"
+                        :path="treeViewPath || selectedPath"
+                        @update:path="treeViewPath = $event"
                         :projects="[project]"
-                        selectable
-                        count>
+                        count
+                        size>
                       </component>
                     </b-modal>
                   </b-input-group>
@@ -123,6 +132,8 @@ import get from 'lodash/get'
 import map from 'lodash/map'
 import random from 'lodash/random'
 import { mapState } from 'vuex'
+import { defineAsyncComponent } from 'vue'
+
 import { AppStatus } from '../store/Neo4jModule'
 import Neo4jGraphCount from '../components/Neo4jGraphCount.vue'
 import Neo4jStatusBadge from '../components/Neo4jStatusBadge.vue'
@@ -171,6 +182,7 @@ export default {
       fileTypes: [],
       initializedProject: false,
       selectedFileTypes: [],
+      treeViewPath: null,
       selectedPath: this.$config.get('mountedDataDir') || this.$config.get('dataDir'),
       showOverlay: null,
     }
@@ -241,6 +253,9 @@ export default {
     },
     neo4jAppIsRunning() {
       return this.neo4jAppStatus === AppStatus.Running
+    },
+    treeView() {
+      return defineAsyncComponent(() => this.$core.findComponent('TreeView'))
     },
     ...mapState('neo4j', ['neo4jAppStatus', 'neo4jDumpLimit'])
   },
@@ -344,10 +359,7 @@ export default {
     async resfreshNeo4jAppStatus() {
       await this.$store.dispatch('neo4j/refreshStatus')
       return true
-    },
-    async treeView() {
-      return this.$core.findComponent('TreeView')
-    },
+    }
   }
 }
 </script>
