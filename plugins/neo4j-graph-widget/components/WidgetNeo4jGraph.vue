@@ -4,7 +4,7 @@
       <h4 class="m-0 me-2">neo4j</h4>
       <neo4j-status-badge :status="neo4jAppStatus"></neo4j-status-badge>
     </div>
-    <b-form flex-column @submit.prevent="displayConfirmOverlay" @reset="clear">
+    <b-form class="d-flex flex-column" @submit.prevent="displayConfirmOverlay" @reset="clear">
       <div class="project-view-insights card-body pb-0">
         <div class="row">
           <div class="d-flex flex-column col-12 col-md-6 justify-content-between">
@@ -13,30 +13,35 @@
           </div>
           <div class="col-12 col-md-6 flex-column">
             <h5 class="col-md-4">Export</h5>
-            <b-form-group>
+            <div class="row mb-3">
               <label for="dump-format" class="col-md-4 col-form-label">Format</label>
-              <b-form-select
-                class="col-md-8"
-                v-model="dumpFormat"
-                :options="availableFormats"
-                id="dump-format"
-                required>Export format
-              </b-form-select>
-            </b-form-group>
-            <b-form-group>
+              <div class="col">
+                <b-form-select
+                  class="col-md-8"
+                  v-model="dumpFormat"
+                  :options="availableFormats"
+                  id="dump-format"
+                  required>Export format
+                </b-form-select>
+              </div>
+            </div>
+            <div class="row mb-3">
               <label for="file-types" class="col-md-4 col-form-label">File types</label>
-              <b-overlay :show="$wait.is('load all file types')" opacity="0.6" rounded spinner-small no-wrap>
-              </b-overlay>
-              <b-form-select
-                class="col-md-8"
-                v-model="selectedFileTypes"
-                multiple
-                :options="fileTypes"
-                id="file-types">
-              </b-form-select>
-            </b-form-group>
-            <b-form-group>
-              <div class="d-flex flex-nowrap g-0">
+              <div class="col">
+                <div class="position-relative">
+                  <b-overlay :show="$wait.is('load all file types')" opacity="0.6" rounded spinner-small no-wrap>
+                    <b-form-select
+                    class="col-md-8"
+                    v-model="selectedFileTypes"
+                    multiple
+                    :options="fileTypes"
+                    id="file-types"></b-form-select>
+                  </b-overlay>
+                </div>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="d-flex flex-nowrap">
                 <label for="input-selected-path" class="col-md-4 col-form-label">Project directory</label>
                 <div class="col-md-8 px-0">
                   <b-input-group>
@@ -62,7 +67,7 @@
                   </b-input-group>
                 </div>
               </div>
-            </b-form-group>
+            </div>
           </div>
         </div>
       </div>
@@ -71,10 +76,13 @@
           <div class="col-12 d-flex justify-content-end align-items-end">
             <b-button type="reset" variant="danger" class="me-2">Reset</b-button>
             <span id="disabled-wrapper">
-              <b-button ref="submit" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Export
-                graph</b-button>
+              <b-button ref="submit" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">
+                Export graph
+              </b-button>
             </span>
-            <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">{{ dumpButtonToolTip }}</b-tooltip>
+            <b-tooltip target="disabled-wrapper" v-if="dumpButtonToolTip !== null">
+              {{ dumpButtonToolTip }}
+            </b-tooltip>
           </div>
         </div>
         <b-overlay :show="showOverlay" no-wrap @shown="onShowingOverlay" @hidden="onHidingOverlay" opacity=0.95>
