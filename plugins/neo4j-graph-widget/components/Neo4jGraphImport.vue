@@ -32,7 +32,6 @@
 <script>
 import random from 'lodash/random'
 import { defineAsyncComponent } from 'vue' 
-import { mapState } from 'vuex'
 
 import { AppStatus } from '../store/Neo4jModule'
 import { default as polling } from '../core/mixin/polling'
@@ -103,7 +102,18 @@ Note that updating the graph will only add new documents and entities and update
     ellipseStatus() {
       return defineAsyncComponent(() => this.$core.findComponent('EllipseStatus'))
     },
-    ...mapState('neo4j', ['neo4jAppStatus', 'neo4jImportTasks', 'neo4jInitializedProjects', 'neo4jGraphCounts'])
+    neo4jAppStatus() {
+      return this.$store.state.neo4j.neo4jAppStatus
+    },
+    neo4jInitializedProjects() {
+      return this.$store.state.neo4j.neo4jInitializedProjects
+    },
+    neo4jGraphCounts() {
+      return this.$store.state.neo4j.neo4jGraphCounts
+    },
+    neo4jImportTasks() {
+      return this.$store.state.neo4j.neo4jImportTasks
+    }
   },
   watch: {
     async projectReady() {

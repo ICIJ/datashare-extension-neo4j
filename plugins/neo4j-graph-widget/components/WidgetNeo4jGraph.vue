@@ -133,7 +133,6 @@ import concat from 'lodash/concat'
 import get from 'lodash/get'
 import map from 'lodash/map'
 import random from 'lodash/random'
-import { mapState } from 'vuex'
 import { defineAsyncComponent } from 'vue'
 
 import { AppStatus } from '../store/Neo4jModule'
@@ -258,7 +257,12 @@ export default {
     treeView() {
       return defineAsyncComponent(() => this.$core.findComponent('TreeView'))
     },
-    ...mapState('neo4j', ['neo4jAppStatus', 'neo4jDumpLimit'])
+    neo4jAppStatus() {
+      return this.$store.state.neo4j.neo4jAppStatus
+    },
+    neo4jDumpLimit() {
+      return this.$store.state.neo4j.neo4jDumpLimit
+    }
   },
   methods: {
     async aggregate(field, name) {

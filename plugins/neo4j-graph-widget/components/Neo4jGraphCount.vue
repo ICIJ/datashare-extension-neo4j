@@ -43,7 +43,7 @@
 import sum from 'lodash/sum'
 import uniqueId from 'lodash/uniqueId'
 import values from 'lodash/values'
-import { mapState } from 'vuex'
+
 import { AppStatus } from '../store/Neo4jModule'
 import { namedEntityIcon } from '../utils/named-entities'
 
@@ -116,7 +116,15 @@ export default {
     totalEntities() {
       return sum(values(this.namedEntities))
     },
-    ...mapState('neo4j', ['neo4jAppStatus', 'neo4jInitializedProjects', 'neo4jGraphCounts'])
+    neo4jAppStatus() {
+      return this.$store.state.neo4j.neo4jAppStatus
+    },
+    neo4jInitializedProjects() {
+      return this.$store.state.neo4j.neo4jInitializedProjects
+    },
+    neo4jGraphCounts() {
+      return this.$store.state.neo4j.neo4jGraphCounts
+    }
   },
   watch: {
     async projectReady() {
