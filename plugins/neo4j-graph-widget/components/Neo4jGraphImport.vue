@@ -18,14 +18,12 @@
     </template>
     <div class="col d-flex flex-row align-items-center pt-2" :class="{ 'justify-content-center': !hasTasks }">
       <div v-if="!isServer" class="me-2">
-        <b-form @submit.prevent="importGraph">
-          <span id="disabled-import-wrapper">
-            <b-button v-if="!!neo4jImportTasks" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">
-              {{ importButton }}
-            </b-button>
-          </span>
-          <b-tooltip target="disabled-import-wrapper">{{ importButtonToolTip }}</b-tooltip>
+        <b-form @submit.prevent="importGraph" id="import-graph-form">
+          <b-button v-if="!!neo4jImportTasks" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">
+            {{ importButton }}
+          </b-button>
         </b-form>
+        <b-tooltip target="import-graph-form">{{ importButtonToolTip }}</b-tooltip>
       </div>
       <span v-if="latestDone" class="small">
         Last updated on {{ localeDate(latestDone.completedAt) }}, {{ localeTime(latestDone.completedAt) }}
