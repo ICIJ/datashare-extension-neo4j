@@ -1,25 +1,22 @@
 <template>
   <div class="d-flex flex-column py-2">
-    <h5 v-if="this.neo4jImportTasks?.length">Import tasks</h5>
-    <div v-if="this.neo4jImportTasks?.length" class="col">
-      <!-- TODO: use sass here rather than style -->
-      <div
-        style="height: 100px;overflow-y: scroll;"
-        class="card col py-2">
-        <div
-          v-for="t in this.neo4jImportTasks"
-          :key=t.id
-          class="row my-1">
-          <div class="col">
-            <ellipse-status :status="t.status" :progress="t.progress" horizontal />
+    <template v-if="hasTasks">
+      <h5>Import tasks</h5>
+      <div class="col">
+        <!-- TODO: use sass here rather than style -->
+        <div style="height: 100px;overflow-y: scroll;" class="card">
+          <div v-for="t in this.neo4jImportTasks" :key=t.id class="d-flex p-2">
+            <div>
+              <ellipse-status :status="t.status" :progress="t.progress" horizontal />
+            </div>
+            <div class="small">
+              {{ displayTaskDate(t) }}
+            </div>
           </div>
-          <div class="col small">{{ displayTaskDate(t) }}</div>
         </div>
       </div>
-    </div>
-    <div
-      class="col d-flex flex-row align-items-center pt-2"
-      :class="{ 'justify-content-center': !this.neo4jImportTasks?.length }">
+    </template>
+    <div class="col d-flex flex-row align-items-center pt-2" :class="{ 'justify-content-center': !hasTasks }">
       <div v-if="!isServer" class="me-2">
         <b-form @submit.prevent="importGraph">
           <span id="disabled-import-wrapper">
@@ -42,7 +39,7 @@
 </template>
 
 <script>
-import { random } from 'lodash'
+import random from 'lodash/random'
 import { mapState } from 'vuex'
 import { AppStatus } from '../store/Neo4jModule'
 import { default as polling } from '../core/mixin/polling'
@@ -77,9 +74,12 @@ export default {
   },
   mixins: [polling],
   computed: {
+    hasTasks() {
+      return !!this.neo4jImportTasks?.length
+    },
     importButton() {
       const projectHasDocuments = this.neo4jGraphCounts[this.project]?.documents
-      return (this.neo4jImportTasks?.length || projectHasDocuments) ? 'Update graph' : 'Create graph'
+      return this.hasTasks || projectHasDocuments ? 'Update graph' : 'Create graph'
     },
     importButtonToolTip() {
       if (this.neo4jAppStatus === AppStatus.Starting) {
