@@ -4,10 +4,10 @@
       <h5>Import tasks</h5>
       <div class="col">
         <!-- TODO: use sass here rather than style -->
-        <div style="height: 100px;overflow-y: scroll;" class="card">
-          <div v-for="t in this.neo4jImportTasks" :key=t.id class="d-flex p-2">
+        <div style="height: 100px; overflow-y: scroll" class="card">
+          <div v-for="t in neo4jImportTasks" :key="t.id" class="d-flex p-2">
             <div>
-              <ellipse-status :status="t.status" :progress="t.progress" horizontal />
+              <component :is="ellipseStatus" :status="t.status" :progress="t.progress" horizontal />
             </div>
             <div class="small">
               {{ displayTaskDate(t) }}
@@ -20,11 +20,7 @@
       <div v-if="!isServer" class="me-2">
         <b-form @submit.prevent="importGraph">
           <span id="disabled-import-wrapper">
-            <b-button
-              v-if="neo4jImportTasks ?? false"
-              type="submit"
-              :disabled="!neo4jAppIsRunning"
-              variant="primary">
+            <b-button v-if="!!neo4jImportTasks" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">
               {{ importButton }}
             </b-button>
           </span>
@@ -40,39 +36,35 @@
 
 <script>
 import random from 'lodash/random'
+import { defineAsyncComponent } from 'vue' 
 import { mapState } from 'vuex'
+
 import { AppStatus } from '../store/Neo4jModule'
 import { default as polling } from '../core/mixin/polling'
 import { humanShortDate, humanTime } from '../utils/humanDate'
-// TODO: this should be imported from the client rather than duplicated
-import EllipseStatus from '../components/EllipseStatus.vue'
-
 
 export const TaskStatus = {
-  Created: "CREATED",
-  Queued: "QUEUED",
-  Running: "RUNNING",
-  Retry: "RETRY",
-  Error: "ERROR",
-  Done: "DONE",
-  Cancelled: "CANCELLED",
+  Created: 'CREATED',
+  Queued: 'QUEUED',
+  Running: 'RUNNING',
+  Retry: 'RETRY',
+  Error: 'ERROR',
+  Done: 'DONE',
+  Cancelled: 'CANCELLED'
 }
 
 const TASK_READY_STATES = Object.freeze(new Set([TaskStatus.Done, TaskStatus.Error, TaskStatus.Cancelled]))
 
-const SERVER_MODE = "server"
+const SERVER_MODE = 'server'
 
 export default {
   name: 'Neo4jImport',
+  mixins: [polling],
   data() {
     return {
       registeredPolls: []
     }
   },
-  components: {
-    EllipseStatus,
-  },
-  mixins: [polling],
   computed: {
     hasTasks() {
       return !!this.neo4jImportTasks?.length
@@ -88,7 +80,7 @@ export default {
       if (!this.neo4jAppIsRunning) {
         return 'neo4j extension is not running, refresh this page to start it or wait'
       }
-      var tooltip = 'Graph import can be resource intensive, use it with care.'
+      let tooltip = 'Graph import can be resource intensive, use it with care.'
       if (this.latestDone) {
         tooltip += `
 Note that updating the graph will only add new documents and entities and update modified ones, it will not delete data.`
@@ -99,7 +91,7 @@ Note that updating the graph will only add new documents and entities and update
       return this.$core.mode.modeName === SERVER_MODE
     },
     latestDone() {
-      return this.neo4jImportTasks?.find(t => t.status === TaskStatus.Done) ?? null
+      return this.neo4jImportTasks?.find((t) => t.status === TaskStatus.Done) ?? null
     },
     neo4jAppIsRunning() {
       return this.neo4jAppStatus === AppStatus.Running
@@ -113,15 +105,10 @@ Note that updating the graph will only add new documents and entities and update
     runningTasks() {
       return this.neo4jImportTasks?.filter((t) => !TASK_READY_STATES.has(t.status)) ?? []
     },
+    ellipseStatus() {
+      return defineAsyncComponent(() => this.$core.findComponent('EllipseStatus'))
+    },
     ...mapState('neo4j', ['neo4jAppStatus', 'neo4jImportTasks', 'neo4jInitializedProjects', 'neo4jGraphCounts'])
-  },
-  async mounted() {
-    const longTimeout = () => random(5000, 10000)
-    const refreshTasks = this.refreshImportTasks
-    this.registerPoll({ fn: refreshTasks, timeout: longTimeout, immediate: true })
-  },
-  unmounted() {
-    this.unregisteredPolls()
   },
   watch: {
     async projectReady() {
@@ -130,6 +117,14 @@ Note that updating the graph will only add new documents and entities and update
     async project() {
       await this.$store.dispatch('neo4j/refreshImportTasks')
     }
+  },
+  async mounted() {
+    const longTimeout = () => random(5000, 10000)
+    const refreshTasks = this.refreshImportTasks
+    this.registerPoll({ fn: refreshTasks, timeout: longTimeout, immediate: true })
+  },
+  unmounted() {
+    this.unregisteredPolls()
   },
   methods: {
     displayTaskDate(task) {
@@ -143,14 +138,14 @@ Note that updating the graph will only add new documents and entities and update
       return humanTime(date, this.$i18n.locale)
     },
     async importGraph() {
-      const config = { method: 'POST', headers: { "Content-Type": "application/json" } }
+      const config = { method: 'POST', headers: { 'Content-Type': 'application/json' } }
       await this.$neo4jCore.request(`/api/neo4j/full-imports?project=${this.project}`, config)
       return this.$store.dispatch('neo4j/refreshImportTasks')
     },
     async refreshImportTasks() {
       await this.$store.dispatch('neo4j/refreshImportTasks')
       return true
-    },
-  },
+    }
+  }
 }
 </script>
