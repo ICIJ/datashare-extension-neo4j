@@ -124,9 +124,9 @@ import map from 'lodash/map'
 import random from 'lodash/random'
 import { mapState } from 'vuex'
 import { AppStatus } from '../store/Neo4jModule'
-import { default as Neo4jGraphCount } from '../components/Neo4jGraphCount.vue'
-import { default as Neo4jStatusBadge } from '../components/Neo4jStatusBadge.vue'
-import { default as Neo4jGraphImport } from '../components/Neo4jGraphImport.vue'
+import Neo4jGraphCount from '../components/Neo4jGraphCount.vue'
+import Neo4jStatusBadge from '../components/Neo4jStatusBadge.vue'
+import Neo4jGraphImport from '../components/Neo4jGraphImport.vue'
 import polling from '../core/mixin/polling'
 
 const SHOULD_START_APP_STATUSES = new Set([AppStatus.Error, AppStatus.Stopped].map(x => AppStatus[x]))
