@@ -40,41 +40,39 @@
                 </div>
               </div>
             </div>
-            <div class="row mb-3">
-              <div class="d-flex flex-nowrap">
-                <label for="input-selected-path" class="col-md-4 col-form-label">Project directory</label>
-                <div class="col-md-8 px-0">
-                  <b-input-group>
-                    <input 
-                      :value="selectedPath"                      
-                      class="form-control"
-                      type="text"
-                      disabled />
-                    <b-button id="input-selected-path" variant="primary" v-b-modal="`treeview`" class="input-group-append" :disabled="!treeView">
-                      Select path
-                    </b-button>
-                    <b-modal
-                      id="treeview"
-                      body-class="p-0 border-bottom"
-                      cancel-variant="outline-primary"
-                      :cancel-title="$t('global.cancel')"
-                      hide-header
-                      lazy
-                      :ok-title="$t('widget.creationDate.selectFolder')"
-                      scrollable
-                      size="lg"
-                      @ok="selectedPath = treeViewPath">
-                      <component 
-                        :is="treeView"
-                        :path="treeViewPath || selectedPath"
-                        @update:path="treeViewPath = $event"
-                        :projects="[project]"
-                        count
-                        size>
-                      </component>
-                    </b-modal>
-                  </b-input-group>
-                </div>
+            <div class="row mb-3 flex-nowrap">
+              <label for="input-selected-path" class="col-md-4 col-form-label">Project directory</label>
+              <div class="col-md-8">
+                <b-input-group>
+                  <input 
+                    :value="selectedPath"                      
+                    class="form-control"
+                    type="text"
+                    disabled />
+                  <b-button id="input-selected-path" variant="primary" v-b-modal="`treeview`" class="input-group-append" :disabled="!treeView">
+                    Select path
+                  </b-button>
+                  <b-modal
+                    id="treeview"
+                    body-class="p-0 border-bottom"
+                    cancel-variant="outline-primary"
+                    :cancel-title="$t('global.cancel')"
+                    hide-header
+                    lazy
+                    :ok-title="$t('widget.creationDate.selectFolder')"
+                    scrollable
+                    size="lg"
+                    @ok="selectedPath = treeViewPath">
+                    <component 
+                      :is="treeView"
+                      :path="treeViewPath || selectedPath"
+                      @update:path="treeViewPath = $event"
+                      :projects="[project]"
+                      count
+                      size>
+                    </component>
+                  </b-modal>
+                </b-input-group>
               </div>
             </div>
           </div>
@@ -83,7 +81,9 @@
       <div class="project-view-insights card-footer">
         <div class="row">
           <div class="col-12 d-flex justify-content-end align-items-end">
-            <b-button type="reset" variant="danger" class="me-2">Reset</b-button>
+            <b-button type="reset" variant="outline-primary" class="me-2">
+              Reset
+            </b-button>
             <span id="disabled-wrapper">
               <b-button ref="submit" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">
                 Export graph
@@ -94,10 +94,9 @@
             </b-tooltip>
           </div>
         </div>
-        <b-overlay :show="showOverlay" no-wrap @shown="onShowingOverlay" @hidden="onHidingOverlay" opacity=0.95>
+        <b-overlay :show="showOverlay" no-wrap @hidden="onHidingOverlay" opacity=0.95>
           <template #overlay>
             <div
-              ref="dialog"
               tabindex="-1"
               role="dialog"
               aria-modal="false"
@@ -111,7 +110,9 @@
                 <b-button variant="outline-primary" class="me-3" @click="onCancellingExport">
                   Back
                 </b-button>
-                <b-button variant="primary" @click="onExportConfirmation">Export graph</b-button>
+                <b-button variant="primary" @click="onExportConfirmation">
+                  Export graph
+                </b-button>
               </div>
             </div>
           </template>
@@ -286,7 +287,7 @@ export default {
       this.selectedFileTypes = []
     },
     async dumpGraph() {
-      this.$refs.form.submit();
+      this.$refs.form.submit()
     },
     displayConfirmOverlay() {
       this.showOverlay = true
@@ -334,10 +335,7 @@ export default {
       this.showOverlay = false
     },
     onHidingOverlay() {
-      this.$refs.submit.focus()
-    },
-    onShowingOverlay() {
-      this.$refs.dialog.focus()
+      this.$refs.submit?.$el?.focus()
     },
     async startNeo4jAppIfNeed() {
       const shouldStart = SHOULD_START_APP_STATUSES;
