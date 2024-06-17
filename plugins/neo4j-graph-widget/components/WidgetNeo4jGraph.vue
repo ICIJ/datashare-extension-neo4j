@@ -287,7 +287,7 @@ export default {
       this.selectedFileTypes = []
     },
     async dumpGraph() {
-      this.$refs.form.submit()
+      this.$refs.form?.$el?.submit()
     },
     displayConfirmOverlay() {
       this.showOverlay = true
