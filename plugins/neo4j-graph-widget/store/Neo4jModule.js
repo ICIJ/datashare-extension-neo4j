@@ -54,17 +54,17 @@ const mutations = {
   dumpLimit(state, newDumpLimit) {
     state.neo4jDumpLimit = newDumpLimit
   },
-  importTasks(state, tasks) {
-    window.datashare.localVue.set(state, 'neo4jImportTasks', tasks)
+  importTasks(state, neo4jImportTasks) {
+    Object.assign(state, { neo4jImportTasks })
   },
-  graphCounts(state, projectCounts) {
-    window.datashare.localVue.set(state.neo4jGraphCounts, projectCounts.project, projectCounts.counts)
+  graphCounts(state, { project, counts }) {
+    Object.assign(state.neo4jGraphCounts, { [project]: counts })
   },
   status(state, newStatus) {
     state.neo4jAppStatus = newStatus
   },
-  projectInit(state, projectState) {
-    window.datashare.localVue.set(state.neo4jInitializedProjects, projectState.project, projectState.initialized)
+  projectInit(state, { project, initialized }) {
+    Object.assign(state.neo4jInitializedProjects, { [project]: initialized })
   },
 }
 const getters = {
