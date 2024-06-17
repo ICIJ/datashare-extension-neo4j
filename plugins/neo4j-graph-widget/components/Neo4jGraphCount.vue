@@ -7,7 +7,7 @@
     </template>
     <h5>Graph statistics</h5>
     <div class="widget__content">
-      <div v-if="documents > 0" class="row flex-row flex-wrap">
+      <div v-if="hasDocuments" class="row flex-row flex-wrap">
         <div class="col col-md-4 my-2">
           <div
             class="card py-2 bg-light widget__content__count align-items-center"
@@ -70,8 +70,10 @@ export default {
     },
     documentTitle() {
       return `${this.$tc('widget.barometer.document', this.documents, { total: this.documents })}`
-    }
-    ,
+    },
+    hasDocuments() {
+      return this.documents > 0
+    },
     humanEntities() {
       return Object.entries(this.namedEntities).reduce((human, [key, value]) => {
         human[key] = this.humanNumber(value)
