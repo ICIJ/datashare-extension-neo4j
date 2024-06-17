@@ -20,7 +20,7 @@
     <div
       class="col d-flex flex-row align-items-center pt-2"
       :class="{ 'justify-content-center': !this.neo4jImportTasks?.length }">
-      <div v-if="!isServer" class="mr-2">
+      <div v-if="!isServer" class="me-2">
         <b-form @submit.prevent="importGraph">
           <span id="disabled-import-wrapper">
             <b-button
