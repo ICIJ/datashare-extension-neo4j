@@ -1,5 +1,5 @@
 <template>
-    <b-badge :variant="batchVariant">{{ batchLabel }}</b-badge>
+  <b-badge :variant="batchVariant">{{ batchLabel }}</b-badge>
 </template>
 
 <script>
