@@ -9,7 +9,8 @@ export default {
   name: 'Neo4jStatusBadge',
   props: {
     status: {
-      type: AppStatus
+      type: 'string',
+      validator: (value) => Object.values(AppStatus).includes(value)
     }
   },
   computed: {
