@@ -1,14 +1,11 @@
 <template>
-  <div class="d-flex flex-column py-2">
+  <div class="neo4-graph-import d-flex flex-column py-2">
     <template v-if="hasTasks">
       <h5>Import tasks</h5>
       <div class="col">
-        <!-- TODO: use sass here rather than style -->
-        <div style="height: 100px; overflow-y: scroll" class="card">
-          <div v-for="t in neo4jImportTasks" :key="t.id" class="d-flex p-2">
-            <div>
-              <component :is="ellipseStatus" :status="t.status" :progress="t.progress" horizontal />
-            </div>
+        <div class="card neo4-graph-import__tasks">
+          <div v-for="t in neo4jImportTasks" :key="t.id" class="d-flex p-2 align-items-center ">
+            <component :is="ellipseStatus" :status="t.status" :progress="t.progress" horizontal />
             <div class="small">
               {{ displayTaskDate(t) }}
             </div>
@@ -147,3 +144,12 @@ Note that updating the graph will only add new documents and entities and update
   }
 }
 </script>
+
+<style lang="scss" scoped>
+.neo4-graph-import {
+  &__tasks {
+    height: 100px;
+    overflow-y: scroll;
+  }
+}
+</style>
