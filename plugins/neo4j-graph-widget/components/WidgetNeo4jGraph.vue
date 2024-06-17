@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="widget__header align-items-center card-header d-md-flex">
-      <h4 class="m-0 mr-2">neo4j</h4>
+      <h4 class="m-0 me-2">neo4j</h4>
       <neo4j-status-badge :status="neo4jAppStatus"></neo4j-status-badge>
     </div>
     <b-form flex-column @submit.prevent="displayConfirmOverlay" @reset="clear">
@@ -69,7 +69,7 @@
       <div class="project-view-insights card-footer">
         <div class="row">
           <div class="col-12 d-flex justify-content-end align-items-end">
-            <b-button type="reset" variant="danger" class="mr-2">Reset</b-button>
+            <b-button type="reset" variant="danger" class="me-2">Reset</b-button>
             <span id="disabled-wrapper">
               <b-button ref="submit" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">Export
                 graph</b-button>
@@ -91,7 +91,7 @@
               </p>
               <p>Download can take some time to start, <strong>please don't close the opened tab</strong> until then !</p>
               <div class="d-flex align-items-center justify-content-right">
-                <b-button variant="outline-primary" class="mr-3" @click="onCancellingExport">
+                <b-button variant="outline-primary" class="me-3" @click="onCancellingExport">
                   Back
                 </b-button>
                 <b-button variant="primary" @click="onExportConfirmation">Export graph</b-button>
