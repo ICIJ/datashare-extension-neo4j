@@ -1,8 +1,10 @@
 <template>
   <v-wait :for="loader" transition="fade">
-    <div slot="waiting" class="flex-grow text-center widget__spinner">
-      <fa icon="circle-notch" spin size="2x" />
-    </div>
+    <template #waiting>
+      <div class="flex-grow text-center widget__spinner">
+        <fa icon="circle-notch" spin size="2x" />
+      </div>
+    </template>
     <h5>Graph statistics</h5>
     <div class="widget__content">
       <div v-if="documents > 0" class="d-flex flex-row flex-wrap">
