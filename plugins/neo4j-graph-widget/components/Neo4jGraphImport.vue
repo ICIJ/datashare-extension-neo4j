@@ -43,7 +43,7 @@ import random from 'lodash/random'
 import { mapState } from 'vuex'
 import { AppStatus } from '../store/Neo4jModule'
 import { default as polling } from '../core/mixin/polling'
-import { humanShortDate, humanTime } from '../filters/humanDate'
+import { humanShortDate, humanTime } from '../utils/humanDate'
 // TODO: this should be imported from the client rather than duplicated
 import EllipseStatus from '../components/EllipseStatus.vue'
 
