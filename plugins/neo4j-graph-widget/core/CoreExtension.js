@@ -26,8 +26,8 @@ export class CoreExtension {
     const neo4jCore = this
     this.#core.use(
       class VueCoreNeo4jExtension {
-        static install(Vue) {
-          Vue.prototype.$neo4jCore = neo4jCore
+        static install(app) {
+          app.config.globalProperties.$neo4jCore = neo4jCore
         }
       }
     )
