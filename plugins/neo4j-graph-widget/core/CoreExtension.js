@@ -4,11 +4,11 @@ export class HTTPError extends Error {
     const message = `${title}
 Detail: ${detail}
 `
-    super(message);
+    super(message)
     if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, HTTPError);
+      Error.captureStackTrace(this, HTTPError)
     }
-    this.name = "HTTPError";
+    this.name = 'HTTPError'
     this.status = status
     this.title = title
     this.detail = detail
@@ -35,7 +35,7 @@ export class CoreExtension {
 
   static async handleAppError(response) {
     if (!response.ok) {
-      var error;
+      let error
       try {
         const { title, detail } = await response.json()
         error = new HTTPError(response.status, title, detail)
@@ -44,7 +44,7 @@ export class CoreExtension {
           const textError = await response.text()
           throw new Error(textError)
         }
-        throw e;
+        throw e
       }
       throw error
     }
@@ -61,14 +61,13 @@ export class CoreExtension {
       const r = await fetch(fullUrl, {
         body: JSON.stringify(config.data),
         ...config
-      });
+      })
       return CoreExtension.handleAppError(r)
     } catch (error) {
-      this.#core.api.eventBus?.$emit('http::error', error)
+      this.#core.emit('http::error', error)
       throw error
     }
   }
-
 }
 
 export default CoreExtension
