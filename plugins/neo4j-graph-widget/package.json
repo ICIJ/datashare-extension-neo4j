@@ -14,7 +14,6 @@
     "lodash": "^4.17.21",
     "moment": "^2.29.4",
     "vue": "^3.4.29",
-    "vue-ellipse-progress": "^2.1.2",
     "vuex": "^4"
   },
   "devDependencies": {
