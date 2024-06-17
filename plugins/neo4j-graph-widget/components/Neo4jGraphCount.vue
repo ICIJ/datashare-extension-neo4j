@@ -15,7 +15,7 @@
             :title=documentTitle>
             <fa icon="file" class="widget__icon" />
             <span>
-              {{ humanNumber(documents, $t('human.number')) }}
+              {{ humanNumber(documents, $tc('human.number')) }}
             </span>
           </div>
         </div>
