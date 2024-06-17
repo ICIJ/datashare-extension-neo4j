@@ -21,7 +21,8 @@
                   v-model="dumpFormat"
                   :options="availableFormats"
                   id="dump-format"
-                  required>Export format
+                  required>
+                  Export format
                 </b-form-select>
               </div>
             </div>
@@ -173,11 +174,10 @@ export default {
   data() {
     return {
       availableFormats: [
-        { value: null, text: 'Select a format' },
         { value: CYPHER_SHELL, text: 'Cypher shell' },
         { value: GRAPHML, text: 'GraphML' },
       ],
-      dumpFormat: null,
+      dumpFormat: CYPHER_SHELL,
       dumpDocUrl: null,
       fileType: null,
       fileTypes: [],
