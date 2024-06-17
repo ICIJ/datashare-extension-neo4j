@@ -7,7 +7,7 @@
     </template>
     <h5>Graph statistics</h5>
     <div class="widget__content">
-      <div v-if="documents > 0" class="d-flex flex-row flex-wrap">
+      <div v-if="documents > 0" class="row flex-row flex-wrap">
         <div class="col col-md-4 my-2">
           <div
             class="card py-2 bg-light widget__content__count align-items-center"
