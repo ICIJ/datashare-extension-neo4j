@@ -7,7 +7,7 @@
     <b-form class="d-flex flex-column" @submit.prevent="displayConfirmOverlay" @reset="clear">
       <div class="project-view-insights card-body pb-0">
         <div class="row">
-          <div class="d-flex flex-column col-12 col-md-6 justify-content-between">
+          <div class="d-flex flex-column col-12 col-md-6 justify-content-start">
             <neo4j-graph-count></neo4j-graph-count>
             <neo4j-graph-import></neo4j-graph-import>
           </div>
