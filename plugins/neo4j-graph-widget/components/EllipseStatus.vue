@@ -1,6 +1,6 @@
 <script>
-import { uniqueId } from 'lodash'
-
+import uniqueId from 'lodash/uniqueId'
+import { VueEllipseProgress } from "vue-ellipse-progress";
 import { toVariant, toVariantColor, toVariantIcon } from '../utils/utils'
 
 
@@ -13,6 +13,9 @@ export default {
     toVariant,
     toVariantIcon,
     toVariantColor
+  },
+  components: {
+    VueEllipseProgress
   },
   props: {
     /**
