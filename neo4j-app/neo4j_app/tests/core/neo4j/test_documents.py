@@ -81,13 +81,17 @@ async def test_import_documents(
     # Then
     assert n_created_first == n_existing
     assert n_created_second == num_docs - n_existing
-    query = """
-MATCH (doc:Document)
+    query = """MATCH (doc:Document)
 RETURN count(*) as numDocs"""
     res = await neo4j_test_session.run(query)
     # TODO: test the documents directly
     total_docs = await res.single()
     assert total_docs["numDocs"] == 3
+    query = """MATCH (doc:Document)-[:HAS_PARENT]->(doc)
+RETURN count(*) as numDocs"""
+    res = await neo4j_test_session.run(query)
+    total_docs = await res.single()
+    assert total_docs["numDocs"] == 0
 
 
 async def test_import_documents_should_update_document(
@@ -122,7 +126,7 @@ RETURN doc, count(*) as numDocs"""
     expected_doc = docs[0]
     assert len(doc) == 9
     assert doc["id"] == expected_doc["_id"]
-    ignored = {"type", "join"}
+    ignored = {"type", "join", "rootDocument"}
     # TODO: test the document directly
     for k, v in expected_doc["_source"].items():
         if k in ignored:
@@ -274,7 +278,7 @@ async def test_import_documents_should_add_title(
     source = {"path": "/some/path"}
     docs = list(make_docs(n=1))
     for i, d in enumerate(docs):
-        d["_id"] = f"document-id-{i}"
+        d["_id"] = f"doc-{i}"
         d["_source"].pop("path")
         d["_source"].update(source)
 

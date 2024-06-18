@@ -56,7 +56,7 @@ def es_to_neo4j_doc_row(document_hit: Dict) -> List[Dict[str, Any]]:
     hit_source = document_hit[SOURCE]
     doc.update({k: hit_source[k] for k in hit_source if k in DOC_COLUMNS})
     root_id = hit_source.get(DOC_ROOT_ID)
-    if root_id is not None:
+    if root_id is not None and root_id != doc_id:
         doc[DOC_ROOT_ID] = root_id
     doc_url = (
         f"{_DS_DOC_URL}{document_hit[INDEX_]}/{doc_id}/{doc.get(DOC_ROOT_ID, doc_id)}"
@@ -174,12 +174,10 @@ _DOC_ROOT_REL_END_COL = f"{NEO4J_CSV_END_ID}({DOC_NODE})"
 
 
 def es_to_neo4j_doc_root_rel_csv(document_hit: Dict) -> List[Dict[str, str]]:
+    doc_id = document_hit["_id"]
     root_id = document_hit[SOURCE].get(DOC_ROOT_ID)
-    if root_id is not None:
-        rel = {
-            _DOC_ROOT_REL_START_COL: document_hit["_id"],
-            _DOC_ROOT_REL_END_COL: root_id,
-        }
+    if root_id is not None and root_id != doc_id:
+        rel = {_DOC_ROOT_REL_START_COL: doc_id, _DOC_ROOT_REL_END_COL: root_id}
         return [rel]
     return []
 

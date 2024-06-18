@@ -9,6 +9,7 @@ from neo4j_app.core.neo4j.migrations import (
     migration_v_0_6_0,
     migration_v_0_7_0_tx,
     migration_v_0_8_0,
+    migration_v_0_9_0,
 )
 
 
@@ -150,3 +151,20 @@ async def test_migration_v_0_8_0_tx(neo4j_test_session: neo4j.AsyncSession):
     async for rec in constraints_res:
         existing_constraints.add(rec["name"])
     assert "constraint_stats_unique_id" in existing_constraints
+
+
+async def test_migration_v_0_9_0_tx(neo4j_test_session: neo4j.AsyncSession):
+    # Given
+    create_self_parent = "CREATE (doc:Document)-[:HAS_PARENT]->(doc)"
+    await neo4j_test_session.run(create_self_parent)
+    count_query = "MATCH (doc:Document)-[:HAS_PARENT]->(doc) RETURN count(doc) AS nDocs"
+    res = await neo4j_test_session.run(count_query)
+    count = await res.single()
+    assert count["nDocs"] == 1
+    # When
+    await migration_v_0_9_0(neo4j_test_session)
+    # Then
+    count_query = "MATCH (doc:Document)-[:HAS_PARENT]->(doc) RETURN count(doc) AS nDocs"
+    res = await neo4j_test_session.run(count_query)
+    count = await res.single()
+    assert count["nDocs"] == 0

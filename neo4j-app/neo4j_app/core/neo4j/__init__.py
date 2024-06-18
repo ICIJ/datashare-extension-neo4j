@@ -17,6 +17,7 @@ from .migrations import (
     migration_v_0_6_0,
     migration_v_0_7_0_tx,
     migration_v_0_8_0,
+    migration_v_0_9_0,
 )
 
 V_0_1_0 = Migration(
@@ -59,7 +60,22 @@ V_0_8_0 = Migration(
     label="compute project stats and create stats unique constraint",
     migration_fn=migration_v_0_8_0,
 )
-MIGRATIONS = [V_0_1_0, V_0_2_0, V_0_3_0, V_0_4_0, V_0_5_0, V_0_6_0, V_0_7_0, V_0_8_0]
+V_0_9_0 = Migration(
+    version="0.9.0",
+    label="delete self parent relationship",
+    migration_fn=migration_v_0_9_0,
+)
+MIGRATIONS = [
+    V_0_1_0,
+    V_0_2_0,
+    V_0_3_0,
+    V_0_4_0,
+    V_0_5_0,
+    V_0_6_0,
+    V_0_7_0,
+    V_0_8_0,
+    V_0_9_0,
+]
 
 
 def get_neo4j_csv_reader(
