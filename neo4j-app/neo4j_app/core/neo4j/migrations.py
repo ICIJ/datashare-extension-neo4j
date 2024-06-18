@@ -65,6 +65,10 @@ async def migration_v_0_8_0(sess: neo4j.AsyncSession):
     await sess.execute_write(refresh_project_statistics_if_needed_tx)
 
 
+async def migration_v_0_9_0(sess: neo4j.AsyncSession):
+    await sess.execute_write(_delete_useless_has_parent_tx)
+
+
 async def _create_document_and_ne_id_unique_constraint_tx(tx: neo4j.AsyncTransaction):
     doc_query = f"""CREATE CONSTRAINT constraint_document_unique_id
 IF NOT EXISTS 
@@ -152,3 +156,10 @@ async def refresh_project_statistics_if_needed_tx(tx: neo4j.AsyncTransaction):
         await refresh_project_statistics_tx(tx)
     else:
         logger.info("stats are already computed skipping !")
+
+
+async def _delete_useless_has_parent_tx(tx: neo4j.AsyncTransaction):
+    delete_self_parent = f"""MATCH (doc:{DOC_NODE})-[r:HAS_PARENT]->(doc)
+DELETE r
+"""
+    await tx.run(delete_self_parent)

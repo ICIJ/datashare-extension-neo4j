@@ -66,6 +66,8 @@ CALL {{
     WITH doc, row
     WHERE doc.{DOC_ID} = row.{DOC_ID} and row.{DOC_ROOT_ID} IS NOT NULL
     MERGE (root:{DOC_NODE} {{{DOC_ID}: row.{DOC_ROOT_ID}}})
+    WITH doc, root
+    WHERE doc <> root
     MERGE (doc)-[:{DOC_ROOT_TYPE}]->(root)
 }} IN TRANSACTIONS OF $batchSize ROWS
 """
