@@ -65,36 +65,26 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>datashare-api</artifactId>
-            <version>11.2.0</version>
+            <version>14.0.0</version>
+            <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>datashare-cli</artifactId>
             <version>13.5.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.CodeStory</groupId>
+            <artifactId>fluent-http</artifactId>
+            <version>3dd3f2b</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>com.konghq</groupId>
             <artifactId>unirest-java</artifactId>
             <version>3.14.5</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.github.CodeStory</groupId>
-            <artifactId>fluent-http</artifactId>
-            <version>5aba37b</version>
-            <type>jar</type>
-            <exclusions>
-                <exclusion>
-                    <groupId>commons-beanutils</groupId>
-                    <artifactId>commons-beanutils</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.github.sommeri</groupId>
-                    <artifactId>less4j</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
         <dependency>
@@ -113,6 +103,28 @@
             <version>${jna.version}</version>
         </dependency>
 
+        <!-- transitive dependencies from neo4j jars to avoid extension loading exceptions -->
+        <dependency>
+            <groupId>commons-pool</groupId>
+            <artifactId>commons-pool</artifactId>
+            <version>20030825.183949</version>
+        </dependency>
+        <dependency>
+            <groupId>com.querydsl</groupId>
+            <artifactId>querydsl-core</artifactId>
+            <version>5.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>cglib</groupId>
+            <artifactId>cglib</artifactId>
+            <version>3.3.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.ant</groupId>
+            <artifactId>ant</artifactId>
+            <version>1.10.3</version>
+        </dependency>
+        <!-- end transitive dependencies -->
 
         <dependency>
             <groupId>com.google.inject</groupId>
