@@ -4,7 +4,7 @@
 
     <groupId>org.icij.datashare</groupId>
     <artifactId>datashare-extension-neo4j</artifactId>
-    <version>0.4.2</version>
+    <version>0.4.4</version>
     <packaging>jar</packaging>
 
     <name>neo4j datashare extension</name>
@@ -103,7 +103,7 @@
             <version>${jna.version}</version>
         </dependency>
 
-        <!-- transitive dependencies from neo4j jars to avoid extension loading exceptions -->
+        
         <dependency>
             <groupId>commons-pool</groupId>
             <artifactId>commons-pool</artifactId>
@@ -124,7 +124,7 @@
             <artifactId>ant</artifactId>
             <version>1.10.3</version>
         </dependency>
-        <!-- end transitive dependencies -->
+        
 
         <dependency>
             <groupId>com.google.inject</groupId>
