@@ -31,6 +31,7 @@ executors:
   darwin-universal2:
     macos:
       xcode: 14.2.0
+    resource_class: macos.m1.medium.gen1
   frontend:
     docker:
       - image: cimg/node:16.16.0
