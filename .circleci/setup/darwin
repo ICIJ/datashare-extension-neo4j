@@ -23,7 +23,7 @@ function _commands() {
     }
 
     function _install_maven() {
-         command -v mvn 1>/dev/null 2>&1 || brew install maven
+         command -v mvn 1>/dev/null 2>&1 || brew install maven || true
     }
 
     function _install_poetry() {
