@@ -8,6 +8,16 @@ function _export_global_variables() {
 
 
 function _commands() {
+    function _remove_python3_links() {
+        # homebrew fails to update python 3.9.1 to 3.9.1.1 due to unlinking failure
+        # @see https://github.com/actions/setup-python/issues/577#issuecomment-1365231818
+        command -v rm /usr/local/bin/2to3 || true
+        command -v rm /usr/local/bin/idle3 || true
+        command -v rm /usr/local/bin/pydoc3 || true
+        command -v rm /usr/local/bin/python3 || true
+        command -v rm /usr/local/bin/python3-config || true
+    }
+
     function _install_jdk() {
          command -v javac 1>/dev/null 2>&1 || brew install openjdk@11
     }
@@ -36,6 +46,7 @@ function _main() {
 
     _commands
     _export_global_variables
+    _remove_python3_links()
 
     _install_python_universal2
     _install_poetry
