@@ -1,0 +1,7 @@
+{
+	"type": "neo4j",
+	"log_level": "DEBUG",
+	"neo4j_uri_scheme": "bolt",
+	"neo4j_password": "changeme",
+	"neo4j_user": "neo4j"
+}
