@@ -86,7 +86,7 @@
               Reset
             </b-button>
             <span id="disabled-wrapper">
-              <b-button ref="submit" type="submit" :disabled="!neo4jAppIsRunning" variant="primary">
+              <b-button ref="submit" type="submit" :disabled="!(neo4jAppIsRunning && projectDocs > 0)" variant="primary">
                 Export graph
               </b-button>
             </span>
@@ -215,6 +215,8 @@ export default {
         return "neo4j extension is starting..."
       } else if (!this.neo4jAppIsRunning) {
         return "neo4j extension is not running, refresh this page to start it or wait "
+      } else if (!this.projectDocs > 0) {
+        return "neo4j graph is empty, create it first to be able to export it !"
       }
       return null
     },
@@ -251,6 +253,9 @@ export default {
     project() {
       return this.$store.state.insights.project
     },
+    projectDocs() {
+      return this.neo4jGraphCounts[this.project]?.documents || 0
+    },
     neo4jAppIsRunning() {
       return this.neo4jAppStatus === AppStatus.Running
     },
@@ -262,6 +267,9 @@ export default {
     },
     neo4jDumpLimit() {
       return this.$store.state.neo4j.neo4jDumpLimit
+    },
+    neo4jGraphCounts() {
+      return this.$store.state.neo4j.neo4jGraphCounts
     }
   },
   methods: {

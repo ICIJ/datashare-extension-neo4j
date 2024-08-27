@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 from fastapi import APIRouter, HTTPException
-from icij_common.logging_utils import log_elapsed_time_cm
+from icij_common.logging_utils import TRACE, log_elapsed_time_cm
 from icij_worker import (
     Task,
     TaskError,
@@ -40,7 +40,7 @@ def tasks_router() -> APIRouter:
         try:
             await task_manager.enqueue(task, project)
         except TaskAlreadyExists:
-            return Response(task.id, status_code=200)
+            return Response(task.id)
         except TaskQueueIsFull as e:
             raise HTTPException(429, detail="Too Many Requests") from e
         logger.debug("Publishing task queuing event...")
