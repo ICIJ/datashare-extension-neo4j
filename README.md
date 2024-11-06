@@ -2,9 +2,14 @@
 
 Create [Neo4j](https://neo4j.com/docs/getting-started/get-started-with-neo4j/graph-database/) graphs from your [Datashare](https://datashare.icij.org/) projects.
 
-## Usage
+## Installation
 
-Learn how to setup the plugin and use it reading [Datashare's documentation](https://icij.gitbook.io/datashare/usage/explore-the-neo4j-graph). 
+Learn how to set up the plugin reading [Datashare's documentation](https://icij.gitbook.io/datashare/usage/explore-the-neo4j-graph).
+
+
+## Tutorials
+
+Learn how to use the plugin and extract information from your Datashare graph in [these tutorials](https://github.com/ICIJ/datashare-extension-neo4j-demos).
 
 ## Development
 
