@@ -69,15 +69,19 @@ public class ProcessUtils {
         liveProcesses
             .filter(handle -> handle.isAlive() && pid.equals(handle.pid()))
             .findFirst()
-            .ifPresent(parent -> parent
-                .descendants()
-                .forEach(child -> {
+            .ifPresent(parent -> {
+                parent.descendants().forEach(child -> {
                     if (force) {
                         child.destroyForcibly();
                     } else {
                         child.destroy();
                     }
-                })
-            );
+                });
+                if (force) {
+                    parent.destroyForcibly();
+                } else {
+                    parent.destroy();
+                }
+            });
     }
 }
