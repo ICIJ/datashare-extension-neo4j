@@ -78,8 +78,6 @@ commands:
     parameters:
       branch:
         type: string
-      macos_signing_and_notarization:
-        type: boolean
     steps:
       - checkout-code:
           revision: << parameters.branch >>
@@ -115,26 +113,36 @@ commands:
             ./neo4j build -p neo4j_app
       - run:
           name: MacOS signing and notarization
-          when: << parameters.macos_signing_and_notarization >>
           command: |
-              cargo install apple-codesign
+              cd datashare-extension-neo4j
+              if [ "$(uname)" == "Darwin" ]; then
+                  echo "Installing code signing crate..."
+                  cargo install apple-codesign@0.27.0
+                  echo "Installed code signing crate..."
+                  
+                  echo "Dumping secrets..."
+                  printf "$APPSTORE_PRIVATE_KEY_B64" | base64 --decode > /tmp/appstore_private_key.asc
+                  printf "$DATASHARE_CA_P12_B64" | base64 --decode > /tmp/datashare_ca.p12
             
-              echo "$APPSTORE_PRIVATE_KEY_B64" | base64 --decode > /tmp/appstore_private_key.asc
-              echo "$DATASHARE_CA_P12_B64" | base64 --decode > /tmp/datashare_ca.p12
-              
-              rcodesign sign --p12-file /tmp/datashare_ca.p12 --p12-password "$(DATASHARE_CA_PASSWORD)" bins/"$(./neo4j binary_name -p neo4j_app)"
-              
-              # Generate the APP Store Connect API Key
-              rcodesign encode-app-store-connect-api-key -o /tmp/api.json $(APPSTORE_ISSUER_ID) $(APPSTORE_KEY_ID) /tmp/appstore_private_key.asc
-              
-              # Submity the package for notarization and staple it
-              rcodesign notary-submit --api-key-path /tmp/api.json --staple bins/"$(./neo4j binary_name -p neo4j_app)"
-              
-              # Remove keys
-              rm -f /tmp/datashare_ca.p12 /tmp/datashare_ca.crt /tmp/key.json
+                  echo "Signing binary..."
+                  rcodesign sign --p12-file /tmp/datashare_ca.p12 --p12-password "$DATASHARE_CA_PASSWORD" bins/"$(./neo4j binary_name -p neo4j_app)"
+                  
+                  echo "Generating AppStore connect API Key..."
+                  rcodesign encode-app-store-connect-api-key -o /tmp/api.json "$APPSTORE_ISSUER_ID" "$APPSTORE_KEY_ID" /tmp/appstore_private_key.asc
+                  
+                  echo "Notorizing and stapling binary..."
+                  rcodesign notary-submit --api-key-path /tmp/api.json --staple bins/"$(./neo4j binary_name -p neo4j_app)"
+                  
+                  echo "Cleaning..."
+                  rm -f /tmp/datashare_ca.p12 /tmp/datashare_ca.crt /tmp/key.json
+              else
+                echo "Not on Macos, skipping..."
+              fi
       - run:
           name: Write binary signature to manifest
-          command: ./neo4j sign -p neo4j_app > bins/"$(./neo4j binary_name -p neo4j_app)-manifest.txt"
+          command: |
+              cd datashare-extension-neo4j 
+              ./neo4j sign -p neo4j_app > bins/"$(./neo4j binary_name -p neo4j_app)-manifest.txt"
       # TODO: store_artifacts here if it helps debugging
       - persist_to_workspace:
           root: datashare-extension-neo4j/bins
@@ -214,10 +222,9 @@ jobs:
           revision: << parameters.branch >>
       - run:
           name: Install cargo
-          command: curl https://sh.rustup.rs -sSf | sh
+          command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - build-python-binary:
           branch: << parameters.branch >>
-          macos_signing_and_notarization: true
 
   build-graph-widget-plugin:
     executor: frontend
