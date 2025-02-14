@@ -400,15 +400,8 @@ function _commands() {
 
     function build() {
         if _should_run_project "neo4j_app"; then
-            if [ -z "$PRINT_SHA" ]; then _print_step "Building Python app executable"; fi
+            _print_step "Building Python app executable"
             _build_neo4j_app
-            if [ -n "$PRINT_SHA" ]; then
-                # TODO: to avoid this, we could redirect logs from _build_neo4j_app to stderr and echo the bin path
-                #  to stdout
-                local bin_path
-                bin_path="bins/$(_make_neoj_binary_name)"
-                shasum -a 256 "$bin_path"
-            fi
         elif _should_run_project "neo4j_extension"; then
             _print_step "Compiling the java extension"
             cd "$ROOT_DIR"
@@ -607,6 +600,16 @@ Please run ./neo4j format"
             yarn install --immutable
         else
             _exit_with_message "Can't setup project $PROJECT"
+        fi
+    }
+
+    function sign() {
+        if _should_run_project "neo4j_app"; then
+            local bin_path
+            bin_path="bins/$(_make_neoj_binary_name)"
+            shasum -a 256 "$bin_path"
+        else
+            _exit_with_message "Can't sign project $PROJECT"
         fi
     }
 
