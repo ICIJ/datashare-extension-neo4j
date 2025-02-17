@@ -514,7 +514,9 @@ Please run ./neo4j format"
         python_version=$2
         if [ -z "$python_version" ]; then _exit_with_message "Missing python_version !"; fi
         echo "Installing Poetry to $poetry_home..."
-        curl -sSL https://install.python-poetry.org | POETRY_HOME=$poetry_home $python_version -
+        export POETRY_HOME="$poetry_home"
+        curl -sSL https://install.python-poetry.org -o install-poetry.py
+        "$python_version" install-poetry.py --version 2.0.1
         export PATH="$poetry_home/bin:$PATH"
     )
 
