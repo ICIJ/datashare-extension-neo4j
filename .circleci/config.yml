@@ -130,9 +130,6 @@ commands:
                   echo "Generating AppStore connect API Key..."
                   rcodesign encode-app-store-connect-api-key -o /tmp/api.json "$APPSTORE_ISSUER_ID" "$APPSTORE_KEY_ID" /tmp/appstore_private_key.asc
                   
-                  echo "Notorizing and stapling binary..."
-                  rcodesign notary-submit --api-key-path /tmp/api.json --staple bins/"$(./neo4j binary_name -p neo4j_app)"
-                  
                   echo "Cleaning..."
                   rm -f /tmp/datashare_ca.p12 /tmp/datashare_ca.crt /tmp/key.json
               else
