@@ -1,9 +1,7 @@
 // Follow: https://datatracker.ietf.org/doc/html/rfc9457
 export class HTTPError extends Error {
   constructor(status, title, detail) {
-    const message = `${title}
-Detail: ${detail}
-`
+    const message = `${title}\nDetail: ${detail}\n`
     super(message)
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, HTTPError)
@@ -20,17 +18,6 @@ export class CoreExtension {
 
   constructor(core) {
     this.#core = core
-  }
-
-  useExtension() {
-    const neo4jCore = this
-    this.#core.use(
-      class VueCoreNeo4jExtension {
-        static install(app) {
-          app.config.globalProperties.$neo4jCore = neo4jCore
-        }
-      }
-    )
   }
 
   static async handleAppError(response) {
@@ -58,11 +45,9 @@ export class CoreExtension {
   async request(url, config = {}) {
     const fullUrl = this.getFullUrl(url)
     try {
-      const r = await fetch(fullUrl, {
-        body: JSON.stringify(config.data),
-        ...config
-      })
-      return CoreExtension.handleAppError(r)
+      const body = JSON.stringify(config.data)
+      const result = await fetch(fullUrl, { body, ...config })
+      return CoreExtension.handleAppError(result)
     } catch (error) {
       this.#core.emit('http::error', error)
       throw error
