@@ -1,14 +1,9 @@
-// This configuration file for Vite sets up the plugin environment to seamlessly integrate with a Vue 3 application
-// that uses a shared global Vue instance (`__VUE_SHARED__`). This approach is essential for ensuring that the
-// plugin utilizes the same Vue instance as the main application,  thereby maintaining consistency and avoiding
-// potential conflicts.
-
-// We use the `vite-plugin-externals` plugin to externalize the Vue module. Instead of bundling Vue with the plugin,
-// the plugin will reference instance from the global `window` object, which is provided by the host application.
+import path, { resolve } from 'path'
 import { defineConfig, loadEnv } from 'vite'
-import path from 'path'
-import vue from '@vitejs/plugin-vue'
 import { viteExternalsPlugin } from 'vite-plugin-externals'
+import { BootstrapVueNextResolver } from 'unplugin-vue-components/resolvers'
+import Components from 'unplugin-vue-components/vite'
+import vue from '@vitejs/plugin-vue'
 
 export default ({ mode }) => {
   process.env = Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
@@ -16,9 +11,23 @@ export default ({ mode }) => {
   return defineConfig({
     plugins: [
       vue(),
-      // Map Vue imports to the global `__VUE_SHARED__` object on from `window`.
-      viteExternalsPlugin({ vue: '__VUE_SHARED__' })
+      viteExternalsPlugin({
+        vue: '__VUE_SHARED__',
+        pinia: '__PINIA_SHARED__'
+      }),
+      Components({
+        dts: false,
+        dirs: [],
+        resolvers: [BootstrapVueNextResolver()]
+      })
     ],
+    resolve: {
+      dedupe: ['vue'],
+      extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json', '.vue'],
+      alias: {
+        '@': resolve(__dirname)
+      }
+    },
     build: {
       sourcemap: mode === 'development',
       lib: {
