@@ -1,7 +1,7 @@
 {
   "name": "datashare-plugin-neo4j-graph-widget",
   "description": "A Datashare plugin to add a neo4j graph widget to the project page",
-  "version": "0.4.6",
+  "version": "1.0.0",
   "main": "dist/index.umd.cjs",
   "style": "dist/style.css",
   "type": "module",

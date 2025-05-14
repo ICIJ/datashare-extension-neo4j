@@ -4,7 +4,7 @@
 
     <groupId>org.icij.datashare</groupId>
     <artifactId>datashare-extension-neo4j</artifactId>
-    <version>0.4.6</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>neo4j datashare extension</name>
