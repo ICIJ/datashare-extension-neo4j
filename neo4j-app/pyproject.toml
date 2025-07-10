@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "neo4j_app"
-version = "1.0.0"
+version = "1.1.0"
 description = "neo4j backend for the Datashare extension"
 authors = [
     "Clément Doumouro <cdoumouro@icij.org>",

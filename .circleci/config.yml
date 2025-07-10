@@ -117,18 +117,18 @@ commands:
               cd datashare-extension-neo4j
               if [ "$(uname)" == "Darwin" ]; then
                   echo "Installing code signing crate..."
-                  cargo install apple-codesign@0.27.0
+                  cargo install apple-codesign@0.29.0
                   echo "Installed code signing crate..."
                   
                   echo "Dumping secrets..."
                   printf "$APPSTORE_PRIVATE_KEY_B64" | base64 --decode > /tmp/appstore_private_key.asc
                   printf "$DATASHARE_CA_P12_B64" | base64 --decode > /tmp/datashare_ca.p12
+                  
+                  echo "Signing binary..."
+                  rcodesign sign --p12-file /tmp/datashare_ca.p12 --p12-password "$DATASHARE_CA_PASSWORD" --code-signature-flags runtime bins/"$(./neo4j binary_name -p neo4j_app)"
             
                   echo "Zipping for notarization..."
                   zip -r bins/"$(./neo4j binary_name -p neo4j_app)".zip bins/"$(./neo4j binary_name -p neo4j_app)"
-            
-                  echo "Signing binary..."
-                  rcodesign sign --p12-file /tmp/datashare_ca.p12 --p12-password "$DATASHARE_CA_PASSWORD" --code-signature-flags runtime bins/"$(./neo4j binary_name -p neo4j_app)".zip
                   
                   echo "Generating AppStore connect API Key..."
                   rcodesign notary-submit --api-key-path ~/.appstoreconnect/key.json --wait bins/"$(./neo4j binary_name -p neo4j_app)".zip
