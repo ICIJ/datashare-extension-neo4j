@@ -78,10 +78,18 @@ commands:
     parameters:
       branch:
         type: string
+      brew-cache:
+        type: boolean
+        default: false
     steps:
       - checkout-code:
           revision: << parameters.branch >>
-      # TODO: cache apt
+      - when:
+          condition: <<parameters.brew-cache>>
+          steps:
+            - restore_cache:
+                key: brew-cache-v2
+            - run: echo 'export PATH="/opt/homebrew/bin:$PATH"' >> $BASH_ENV && source $BASH_ENV
       - run:
           name: Setting up environment
           # TODO: remove the source ~/.bashrc is not needed
@@ -95,6 +103,20 @@ commands:
             source "$BASH_ENV"
             mkdir $CIRCLE_WORKING_DIRECTORY/datashare-extension-neo4j/.cache
             poetry config cache-dir $CIRCLE_WORKING_DIRECTORY/datashare-extension-neo4j/.cache
+      - when:
+          condition: <<parameters.brew-cache>>
+          steps:
+            - save_cache:
+                key: brew-cache-v2
+                paths:
+                  - /opt/homebrew
+            - run:
+                name: Refresh environment after cache save
+                command: |
+                  # Refresh PATH and environment
+                  source $BASH_ENV
+                  export PATH="/opt/homebrew/bin:$PATH"
+                  hash -r  # Clear bash's command cache
       # This has to be done after installing poetry
       - run:
           name: Perform sanity checks
@@ -117,27 +139,34 @@ commands:
               cd datashare-extension-neo4j
               if [ "$(uname)" == "Darwin" ]; then
                   echo "Installing code signing crate..."
-                  cargo install apple-codesign@0.29.0
+                  cargo install apple-codesign@0.27.0
                   echo "Installed code signing crate..."
-                  
+                          
+                  P12_FILE="/tmp/datashare_ca.p12"
+                  APP_STORE_KEY_FILE="/tmp/appstore_private_key.asc"
+                  APP_STORE_JSON_KEY_FILE="~/.appstoreconnect/key.json"
+                  BINARY="$(./neo4j binary_name -p neo4j_app)"
+
                   echo "Dumping secrets..."
-                  printf "$APPSTORE_PRIVATE_KEY_B64" | base64 --decode > /tmp/appstore_private_key.asc
-                  printf "$DATASHARE_CA_P12_B64" | base64 --decode > /tmp/datashare_ca.p12
-                  
+                  printf "$APPSTORE_PRIVATE_KEY_B64" | base64 --decode > "$APP_STORE_KEY_FILE"
+                  printf "$DATASHARE_DEVELOPER_ID_CA_P12_B64" | base64 --decode > "$P12_FILE"
+            
                   echo "Signing binary..."
-                  rcodesign sign --p12-file /tmp/datashare_ca.p12 --p12-password "$DATASHARE_CA_PASSWORD" --code-signature-flags runtime bins/"$(./neo4j binary_name -p neo4j_app)"
+                  cd bins
+                  rcodesign sign -vv --for-notarization --p12-file "$P12_FILE" --p12-password "$DATASHARE_CA_PASSWORD" --code-signature-flags runtime "$BINARY"
             
                   echo "Zipping for notarization..."
-                  zip -r bins/"$(./neo4j binary_name -p neo4j_app)".zip bins/"$(./neo4j binary_name -p neo4j_app)"
-                  
-                  echo "Generating AppStore connect API Key..."
-                  rcodesign notary-submit --api-key-path ~/.appstoreconnect/key.json --wait bins/"$(./neo4j binary_name -p neo4j_app)".zip
+                  zip -r "$BINARY.zip" $BINARY
             
-                  unzip bins/"$(./neo4j binary_name -p neo4j_app)".zip -d bins
-                  rcodesign staple bins/"$(./neo4j binary_name -p neo4j_app)"
+                  echo "Notarizing binary..."
+                  rcodesign encode-app-store-connect-api-key -o "$APP_STORE_JSON_KEY_FILE" "$APPSTORE_ISSUER_ID" "$APPSTORE_KEY_ID" "$APP_STORE_KEY_FILE"
+                  rcodesign notary-submit -vv --api-key-path "$APP_STORE_JSON_KEY_FILE" --wait "$BINARY.zip"
+            
+                  echo "Unzipping notarized binary..."
+                  unzip "$BINARY.zip" -d bins
             
                   echo "Cleaning..."
-                  rm -f /tmp/datashare_ca.p12 /tmp/datashare_ca.crt /tmp/key.json
+                  rm -f "$P12_FILE" "$APP_STORE_KEY_FILE" "$APP_STORE_JSON_KEY_FILE"
               else
                 echo "Not on Macos, skipping..."
               fi
@@ -228,6 +257,7 @@ jobs:
           command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - build-python-binary:
           branch: << parameters.branch >>
+          brew-cache: true
 
   build-graph-widget-plugin:
     executor: frontend
