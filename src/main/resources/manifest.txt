@@ -100,3 +100,6 @@ c097a91a38d458fa8b7adac0a3db01274e63388468cb48f4f13d165112f8333c  bins/neo4j-app
 3962af242d21a55dd73cf5ce94b5bb450745eae1dec6009419f4ac956c9ff35a  bins/neo4j-app-darwin-universal2-1.1.0
 890be0478a1d3493ec1ab211ca49197552ac00b8f93362abafdf2802e8ddeda5  bins/neo4j-app-unknown-linux-arm64-1.1.0
 e64fcf092cefc39c0a42b3b70cc4fbbba465e33e64f5d20b51c133878cd59bfc  bins/neo4j-app-unknown-linux-x86_64-1.1.0
+8faa346989b889e5d562886eb8d006b3ac96da85c2104cd760680e7cb15dad00  bins/neo4j-app-darwin-universal2-1.1.1
+9e6cc3971a870892498e2283851c6ba3424e8b64fcef21f3a78bd8a1219616c9  bins/neo4j-app-unknown-linux-arm64-1.1.1
+293ea0c6f7a670718127edf92634e38fae2dab6161cc1187690ac835581d73db  bins/neo4j-app-unknown-linux-x86_64-1.1.1
