@@ -72,9 +72,9 @@ function _helpers() {
         local app_bin
         app_bin=$(_make_neoj_binary_name)
 
-        # TODO: provide hook rather than hidden imports here
-        PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py \
-            --distpath "$app_dir" \
+        local pyinstaller_args
+        pyinstaller_args=(
+          --distpath "$app_dir" \
             -F \
             -y \
             --name "$app_bin" \
@@ -84,6 +84,13 @@ function _helpers() {
             --hidden-import gunicorn.glogging \
             -p neo4j_app \
             -p "$site_packages_path"
+        )
+        if [ -n "$CODESIGN_IDENTITY" ]; then
+          pyinstaller_args+=(--codesign-identity "$CODESIGN_IDENTITY")
+        fi
+
+        # TODO: provide hook rather than hidden imports here
+        PYTHONHASHSEED=42 PYTHONOPTIMIZE=1 pyinstaller neo4j_app/run/run.py "${pyinstaller_args[@]}"
 
         echo "Successfully built bins/$app_bin"
         chmod +x "$app_dir/$app_bin"
@@ -700,6 +707,7 @@ Please run ./neo4j format"
 
 function _main() {
     CREATE_RELEASE=
+    CODESIGN_IDENTITY=
     DEV_FLAG=
     OLD_ELASTICSEARCH=
     OPENSEARCH_SUPPORT=
@@ -766,6 +774,9 @@ function _main() {
                     elif [[ $TYPE_ARG = "--sha" ]]; then
                         PRINT_SHA=1
                     elif [[ $TYPE_ARG = "--port" ]]; then
+                        SKIP_NEXT_TYPE_ARG=true
+                    elif [[ $TYPE_ARG = "--codesign-identity" ]]; then
+                        CODESIGN_IDENTITY=$VALUE_ARG
                         SKIP_NEXT_TYPE_ARG=true
                     fi
                 else
