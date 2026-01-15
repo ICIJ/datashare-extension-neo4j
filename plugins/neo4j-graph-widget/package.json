@@ -6,7 +6,6 @@
   "style": "dist/style.css",
   "type": "module",
   "dependencies": {
-    "@phosphor-icons/vue": "^2.2.1",
     "bodybuilder": "^2.5.1",
     "bootstrap-vue-next": "0.28",
     "vue": "^3.4.29"
@@ -14,8 +13,10 @@
   "devDependencies": {
     "@babel/eslint-parser": "^7.27.0",
     "@icij/eslint-config-icij": "^1.0.2",
+    "@iconify-json/ph": "^1.2.2",
     "@vitejs/plugin-vue": "^5.0.5",
     "sass": "^1.77.5",
+    "unplugin-icons": "^23.0.1",
     "unplugin-vue-components": "^28.4.1",
     "vite": "^5.3.1",
     "vite-plugin-externals": "^0.6.2"
@@ -25,6 +26,7 @@
   "scripts": {
     "build": "npx vite build --mode production",
     "build:pack": "echo \"$(npm pack)\"",
+    "build:pack:extract": "mkdir -p ./tmp && cat \"$(npm pack)\" | tar zxvf - -C ./tmp",
     "prepublishOnly": "yarn build",
     "lint": "eslint .",
     "lint:fix": "yarn lint --fix"
