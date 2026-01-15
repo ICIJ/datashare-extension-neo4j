@@ -1,4 +1,7 @@
-import { PhEnvelope, PhMapPin, PhBuildings, PhUserCircle } from '@phosphor-icons/vue'
+import IPhEnvelope from '~icons/ph/envelope'
+import IPhMapPin from '~icons/ph/map-pin'
+import IPhBuildings from '~icons/ph/buildings'
+import IPhUserCircle from '~icons/ph/user-circle'
 
 export const VARIANTS = Object.freeze({
   PERSON: 'category-person',
@@ -8,10 +11,10 @@ export const VARIANTS = Object.freeze({
 })
 
 export const ICONS = Object.freeze({
-  PERSON: PhUserCircle,
-  ORGANIZATION: PhBuildings,
-  LOCATION: PhMapPin,
-  EMAIL: PhEnvelope
+  PERSON: IPhUserCircle,
+  ORGANIZATION: IPhBuildings,
+  LOCATION: IPhMapPin,
+  EMAIL: IPhEnvelope
 })
 
 export function getCategoryIcon(category) {

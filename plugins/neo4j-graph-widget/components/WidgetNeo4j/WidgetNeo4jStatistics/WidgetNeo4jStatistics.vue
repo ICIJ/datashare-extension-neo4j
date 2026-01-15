@@ -1,9 +1,9 @@
 <script setup>
-import { PhFiles } from '@phosphor-icons/vue'
 import { computed, watch } from 'vue'
 
 import WidgetNeo4jStatisticsEntry from './WidgetNeo4jStatisticsEntry.vue'
 
+import IPhFiles from '~icons/ph/files'
 import { useWait } from '@/composables/useWait'
 import { useRoute } from '@/composables/useRoute'
 import { useCore } from '@/composables/useCore'
@@ -52,7 +52,7 @@ watch(isProjectReady, refreshCounts, { immediate: true })
     </template>
     <h5 class="h6 mb-4">Graph statistics</h5>
     <div class="widget-neo4j-statistics__grid">
-      <widget-barometer label="documents" :value="projectCounts?.documents" :icon="PhFiles" border-variant="light" />
+      <widget-barometer label="documents" :value="projectCounts?.documents" :icon="IPhFiles" border-variant="light" />
       <widget-neo4j-statistics-entry
         v-for="(value, category) in entities"
         :key="category"
