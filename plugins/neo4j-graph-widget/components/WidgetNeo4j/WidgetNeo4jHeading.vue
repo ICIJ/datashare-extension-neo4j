@@ -1,6 +1,7 @@
 <script setup>
-import IPhPolygon from '~icons/ph/polygon'
 import WidgetNeo4jStatus from './WidgetNeo4jStatus.vue'
+
+import IPhPolygon from '~icons/ph/polygon'
 
 defineProps({
   status: {
