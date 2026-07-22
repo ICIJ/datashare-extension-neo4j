@@ -28,9 +28,6 @@ executors:
   unknown-linux:
     machine:
       image: ubuntu-2004:2024.04.4
-  darwin-universal2:
-    macos:
-      xcode: 16.2.0
   frontend:
     docker:
       - image: cimg/node:20.19
@@ -276,21 +273,6 @@ jobs:
           name: Build
           command: ./neo4j docker_build -p base
 
-  build-darwin-universal2-binary:
-    executor: darwin-universal2
-    parameters:
-      branch:
-        type: string
-    steps:
-      - checkout-code:
-          revision: << parameters.branch >>
-      - run:
-          name: Install cargo
-          command: curl https://sh.rustup.rs -sSf | sh -s -- -y
-      - build-python-binary:
-          branch: << parameters.branch >>
-          brew-cache: true
-
   build-graph-widget-plugin:
     executor: frontend
     parameters:
@@ -457,15 +439,12 @@ workflows:
             parameters:
               resource_cls: [ medium, arm.medium ]
               branch: [ << pipeline.parameters.branch >> ]
-      - build-darwin-universal2-binary:
-          branch: << pipeline.parameters.branch >>
       - build-graph-widget-plugin:
           branch: << pipeline.parameters.branch >>
       - publish-backend-binaries:
           branch: << pipeline.parameters.branch >>
           requires:
             - build-unknown-linux-python-binary
-            - build-darwin-universal2-binary
       - publish-graph-widget-plugin-binaries:
           branch: << pipeline.parameters.branch >>
           create_tag: false
@@ -483,13 +462,10 @@ workflows:
             parameters:
               resource_cls: [ medium, arm.medium ]
               branch: [ << pipeline.parameters.branch >> ]
-      - build-darwin-universal2-binary:
-          branch: << pipeline.parameters.branch >>
       - publish-backend-binaries:
           branch: << pipeline.parameters.branch >>
           requires:
             - build-unknown-linux-python-binary
-            - build-darwin-universal2-binary
 
   release-graph-widget-plugin:
     when: << pipeline.parameters.release_graph_widget_plugin >>
