@@ -30,8 +30,8 @@ executors:
       image: ubuntu-2004:2024.04.4
   darwin-universal2:
     macos:
-      xcode: 16.2.0
-    resource_class: m4pro.medium
+      xcode: 14.2.0
+    resource_class: macos.x86.medium.gen2
   frontend:
     docker:
       - image: cimg/node:20.19
