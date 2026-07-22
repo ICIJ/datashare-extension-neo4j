@@ -105,5 +105,3 @@ e64fcf092cefc39c0a42b3b70cc4fbbba465e33e64f5d20b51c133878cd59bfc  bins/neo4j-app
 293ea0c6f7a670718127edf92634e38fae2dab6161cc1187690ac835581d73db  bins/neo4j-app-unknown-linux-x86_64-1.1.1
 4fb6e2caa842e37a95429a08d24bb5e49e4ef08133acab62eae6210ea8832a2e  bins/neo4j-app-unknown-linux-arm64-1.1.2
 ec9e998987c40d685c9c77ed88a57ee3862c03060141dc216313abe1ccadb9c0  bins/neo4j-app-unknown-linux-x86_64-1.1.2
-8d5aab6da1fe7318be992bdab04ddc81a6c13545e091a8e3dc279d9122426128  bins/neo4j-app-unknown-linux-arm64-1.1.2
-3902de5d87efbb4fb7bb1709e64204c1911fdfb75947eda6ca7bd42fc8ebdec0  bins/neo4j-app-unknown-linux-x86_64-1.1.2
