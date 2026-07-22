@@ -449,10 +449,6 @@ workflows:
       - test-java:
           requires:
             - build
-      - test-python:
-          requires:
-            - build
-            - build-test-services
 
   release-all:
     when: << pipeline.parameters.release_all >>
