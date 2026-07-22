@@ -61,7 +61,7 @@ function _tests() {
         # When
         echo "I'm tempering the file" >"$mocked_asset"
 
-        "$ROOT_DIR"/neo4j update_manifest -p neo4j_app "$mocked_asset" "$mocked_asset" "$mocked_asset" >"$stdout_capture" \
+        "$ROOT_DIR"/neo4j update_manifest -p neo4j_app "$mocked_asset" "$mocked_asset" >"$stdout_capture" \
             && _exit_with_message "Expected manifest to fail because of tempered asset"
 
         # Then
