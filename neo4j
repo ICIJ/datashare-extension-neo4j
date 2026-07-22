@@ -691,7 +691,7 @@ Please run ./neo4j format"
             args=("${@:3}")
             local num_args
             num_args=${#args[@]}
-            if [[ $num_args -ne 3 ]]; then _return_with_message "Expected 3 binaries found $num_args"; fi
+            if [[ $num_args -ne 2 ]]; then _return_with_message "Expected 2 binaries found $num_args"; fi
             for binary in "${args[@]}"; do
                 local manifest_path
                 manifest_path="$binary"-manifest.txt

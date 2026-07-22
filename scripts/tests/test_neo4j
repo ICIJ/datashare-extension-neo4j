@@ -43,7 +43,7 @@ function _tests() {
         # Then
         local captured
         captured="$(cat "$stdout_capture")"
-        if ! [[ "$captured" = "Expected 3 binaries found 1" ]]; then _exit_with_message "Unexpected error message: $captured"; fi
+        if ! [[ "$captured" = "Expected 2 binaries found 1" ]]; then _exit_with_message "Unexpected error message: $captured"; fi
     }
 
     function test_update_manifest_should_fail_when_assets_are_tempered() {
