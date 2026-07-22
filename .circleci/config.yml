@@ -31,7 +31,6 @@ executors:
   darwin-universal2:
     macos:
       xcode: 16.2.0
-    resource_class: m4pro.large
   frontend:
     docker:
       - image: cimg/node:20.19
