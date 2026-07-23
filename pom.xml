@@ -42,7 +42,7 @@
     <properties>
         <cypher-dsl.version>2022.8.5</cypher-dsl.version>
         <guava.version>33.6.0-jre</guava.version>
-        <guice.version>4.1.0</guice.version>
+        <guice.version>7.0.0</guice.version>
         <jackson.version>2.12.2</jackson.version>
         <jna.version>5.19.1</jna.version>
         <maven.compiler.release>11</maven.compiler.release>
