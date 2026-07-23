@@ -1,6 +1,7 @@
 package org.icij.datashare;
 
 import com.google.common.hash.Hashing;
+import com.google.inject.Inject;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -17,7 +18,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.stream.Stream;
-import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

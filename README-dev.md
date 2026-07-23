@@ -126,3 +126,35 @@ For instance:
 ```bash
 ./neo4j docker_test -p neo4j_app
 ```
+
+
+#### Releasing
+
+##### Create a `release/<my-tag>` branch
+Create a release branch starting the `release/` prefix (the rest of the branch name doesn't matter so much).
+
+##### Update the version and push
+Update the version using the
+```commandline
+./neo4j set_version <my_tag>
+```
+commit and push:
+```commandline
+git add .
+git commit -m "release: bump verison to <>"
+```
+
+##### Manually trigger the release
+
+From the circle CI UI or CLI trigger the release workflow manually.
+
+In the UI navigate to the branch, then trigger the release pipeline:
+- set `release_all` to `true`
+- set `branch` to your release branch `release/<my-tag>`
+
+Then trigger the release pipeline
+
+
+##### Merge you branch
+
+Once the release is done, merge your branch.
