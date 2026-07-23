@@ -34,7 +34,7 @@ executors:
       resource_class: m4pro.medium
   frontend:
     docker:
-      - image: cimg/node:18.19
+      - image: cimg/node:26.3.1
 
 commands:
   build-graph-widget-plugin-cmd:
