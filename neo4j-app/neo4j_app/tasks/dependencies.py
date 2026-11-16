@@ -116,6 +116,7 @@ async def migrate_app_db_enter(**_):
         timeout_s=config.neo4j_app_migration_timeout_s,
         throttle_s=config.neo4j_app_migration_throttle_s,
     )
+    logger.info("Done migrating !")
 
 
 ASYNC_APP_LIFESPAN_DEPS = [

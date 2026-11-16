@@ -13,7 +13,8 @@ import static org.icij.datashare.Objects.TaskError;
 import static org.icij.datashare.Objects.TaskJob;
 import static org.icij.datashare.Objects.TaskSearch;
 import static org.icij.datashare.Objects.TaskType;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.readValue;
+import static org.icij.datashare.json.JsonObjectMapper.writeValueAsString;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -125,7 +126,7 @@ public class Neo4jClient implements AutoCloseable {
     ) {
         String url = buildNeo4jUrl("/documents?project=" + project);
         logger.debug("Importing documents to neo4j with request: {}",
-            lazy(() -> MAPPER.writeValueAsString(body)));
+            lazy(() -> writeValueAsString(body)));
         return handleUnirestError(
             unirest.post(url)
                 .body(body)
@@ -139,7 +140,7 @@ public class Neo4jClient implements AutoCloseable {
     ) {
         String url = buildNeo4jUrl("/named-entities?project=" + project);
         logger.debug("Importing named entities to neo4j with request: {}",
-            lazy(() -> MAPPER.writeValueAsString(body)));
+            lazy(() -> writeValueAsString(body)));
         return handleUnirestError(
             unirest.post(url).body(body)
                 .header("Content-Type", "application/json")
@@ -151,9 +152,9 @@ public class Neo4jClient implements AutoCloseable {
         throws URISyntaxException, IOException, InterruptedException {
         // Let's use the native HTTP client here as unirest doesn't offer an easy way to deal with
         // stream responses...
-        logger.debug("Dumping graph with request: {}", lazy(() -> MAPPER.writeValueAsString(body)));
+        logger.debug("Dumping graph with request: {}", lazy(() -> writeValueAsString(body)));
         java.net.http.HttpRequest.BodyPublisher serializedBody =
-            java.net.http.HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(body));
+            java.net.http.HttpRequest.BodyPublishers.ofString(writeValueAsString(body));
         java.net.http.HttpRequest request =
             java.net.http.HttpRequest.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -194,7 +195,7 @@ public class Neo4jClient implements AutoCloseable {
     ) {
         String url = buildNeo4jUrl("/admin/neo4j-csvs?project=" + projectId);
         logger.debug("Exporting data to neo4j csv with request: {}",
-            lazy(() -> MAPPER.writeValueAsString(body)));
+            lazy(() -> writeValueAsString(body)));
         return handleUnirestError(
             unirest.post(url).body(body)
                 .header("Content-Type", "application/json")
@@ -259,7 +260,8 @@ public class Neo4jClient implements AutoCloseable {
         if (!success) {
             HttpUtils.HttpError error;
             try (InputStream errorStream = response.body()) {
-                error = MAPPER.readValue(errorStream.readAllBytes(), HttpUtils.HttpError.class);
+                error = readValue(
+                    new String(errorStream.readAllBytes()), HttpUtils.HttpError.class);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -319,8 +321,8 @@ public class Neo4jClient implements AutoCloseable {
             @Override
             public <T> T readValue(String s, Class<T> clazz) {
                 try {
-                    return MAPPER.readValue(s, clazz);
-                } catch (JsonProcessingException e) {
+                    return org.icij.datashare.json.JsonObjectMapper.readValue(s, clazz);
+                } catch (IOException e) {
                     throw new Neo4jAppError(fromException(e));
                 }
             }
@@ -332,8 +334,8 @@ public class Neo4jClient implements AutoCloseable {
                     //  List<G>... When T =  List<G>
                     TypeReference<T> typeRef = new TypeReference<>() {
                     };
-                    return MAPPER.readValue(value, typeRef);
-                } catch (JsonProcessingException e) {
+                    return org.icij.datashare.json.JsonObjectMapper.readValue(value, typeRef);
+                } catch (IOException e) {
                     throw new Neo4jAppError(fromException(e));
                 }
             }
@@ -341,7 +343,7 @@ public class Neo4jClient implements AutoCloseable {
             @Override
             public String writeValue(Object o) {
                 try {
-                    return MAPPER.writeValueAsString(o);
+                    return writeValueAsString(o);
                 } catch (JsonProcessingException e) {
                     throw new Neo4jAppError(fromException(e));
                 }

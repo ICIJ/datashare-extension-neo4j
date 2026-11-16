@@ -646,7 +646,7 @@ def sliced_search(
         query = deepcopy(query)
     update = {SLICE: {ID: id_, MAX: max_}}
     if pit is not None:
-        update[PIT] = pit
+        update[PIT] = normalize_pit(pit)
         if keep_alive is not None:
             update[PIT][KEEP_ALIVE] = keep_alive
     query.update(update)
@@ -664,3 +664,13 @@ class _retry_if_error_code(retry_base):  # pylint: disable=invalid-name
                 isinstance(exc, TransportError) and exc.status_code in self._recoverable
             )
         return False
+
+
+def normalize_pit(pit: Any) -> dict[str, Any]:
+    if isinstance(pit, str):
+        return {ID: pit}
+    if isinstance(pit, dict):
+        return {ID: pit[ID]}
+    if hasattr(pit, "body"):
+        return {ID: pit.body[ID]}
+    return pit

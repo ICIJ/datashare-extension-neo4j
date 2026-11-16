@@ -125,7 +125,7 @@ public class Neo4jAppLoader {
         URL assetUrl = new URL(urlAsString);
         ReadableByteChannel readableByteChannel = Channels.newChannel(assetUrl.openStream());
         File binFile = this.propertiesProvider
-            .get(PropertiesProvider.EXTENSIONS_DIR)
+            .get(PropertiesProvider.EXTENSIONS_DIR_OPT)
             .map(dir -> new File(Paths.get(dir, binaryName).toUri()))
             .orElse(Files.createTempDirectory(NEO4J_APP_BIN).resolve(binaryName).toFile());
         if (!binFile.exists()) {

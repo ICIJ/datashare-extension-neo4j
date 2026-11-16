@@ -2,14 +2,14 @@ package org.icij.datashare;
 
 import static ch.qos.logback.classic.Level.toLocationAwareLoggerInteger;
 import static org.fest.assertions.Fail.fail;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.readValue;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import java.io.IOException;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.LoggerFactory;
@@ -18,9 +18,9 @@ public class TestUtils {
 
     public static <T> void assertJson(String json, Class<T> cls, AssertionChain<T> assertionChain) {
         try {
-            T object = MAPPER.readValue(json, cls);
+            T object = readValue(json, cls);
             assertionChain.doAssert(object);
-        } catch (JsonProcessingException e) {
+        } catch (IOException e) {
             String msg = "Failed to convert the json string into a valid " + cls.getName() + ":";
             msg += "\nJSON string: " + json;
             msg += "\nerror: " + e;

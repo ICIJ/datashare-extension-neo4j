@@ -14,44 +14,16 @@ export class HTTPError extends Error {
 }
 
 export class CoreExtension {
-  #core
+  #api
 
-  constructor(core) {
-    this.#core = core
-  }
-
-  static async handleAppError(response) {
-    if (!response.ok) {
-      let error
-      try {
-        const { title, detail } = await response.json()
-        error = new HTTPError(response.status, title, detail)
-      } catch (e) {
-        if (e instanceof TypeError) {
-          const textError = await response.text()
-          throw new Error(textError)
-        }
-        throw e
-      }
-      throw error
-    }
-    return response
-  }
-
-  getFullUrl(url) {
-    return this.#core.api.constructor.getFullUrl(url)
+  constructor(api) {
+    this.#api = api
   }
 
   async request(url, config = {}) {
-    const fullUrl = this.getFullUrl(url)
-    try {
-      const body = JSON.stringify(config.data)
-      const result = await fetch(fullUrl, { body, ...config })
-      return CoreExtension.handleAppError(result)
-    } catch (error) {
-      this.#core.emit('http::error', error)
-      throw error
-    }
+    const body = JSON.stringify(config.data)
+    const result = await this.#api.sendAction(url, { body, ...config })
+    return result
   }
 }
 

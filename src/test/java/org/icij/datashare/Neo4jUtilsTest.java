@@ -1,7 +1,7 @@
 package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.readValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
@@ -227,8 +227,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("path_pattern_from"))) {
-                Neo4jUtils.PathPattern pattern = MAPPER.readValue(
-                    stream, Neo4jUtils.PathPattern.class);
+                Neo4jUtils.PathPattern pattern = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.PathPattern.class);
                 // When
                 cypher = Cypher.match(pattern.into())
                     .returning(Cypher.asterisk())
@@ -246,8 +246,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("path_pattern_to"))) {
-                Neo4jUtils.PathPattern pattern = MAPPER.readValue(
-                    stream, Neo4jUtils.PathPattern.class);
+                Neo4jUtils.PathPattern pattern = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.PathPattern.class);
                 // When
                 cypher = Cypher.match(pattern.into())
                     .returning(Cypher.asterisk())
@@ -265,8 +265,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("path_pattern_between"))) {
-                Neo4jUtils.PathPattern pattern = MAPPER.readValue(
-                    stream, Neo4jUtils.PathPattern.class);
+                Neo4jUtils.PathPattern pattern = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.PathPattern.class);
                 // When
                 cypher = Cypher.match(pattern.into())
                     .returning(Cypher.asterisk())
@@ -285,8 +285,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("path_pattern_without_names_and_types"))) {
-                Neo4jUtils.PathPattern pattern = MAPPER.readValue(
-                    stream, Neo4jUtils.PathPattern.class);
+                Neo4jUtils.PathPattern pattern = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.PathPattern.class);
                 // When
                 cypher = Cypher.match(pattern.into())
                     .returning(Cypher.asterisk())
@@ -307,8 +307,10 @@ public class Neo4jUtilsTest {
                 String expected = "Invalid number of nodes and relationships, "
                     + "found 2 nodes and 2 relationships";
                 assertThat(
-                    assertThrows(ValueInstantiationException.class, () -> MAPPER.readValue(
-                        stream, Neo4jUtils.PathPattern.class)).getMessage()
+                    assertThrows(ValueInstantiationException.class,
+                        () -> readValue(
+                            new String(stream.readAllBytes()), Neo4jUtils.PathPattern.class)
+                    ).getMessage()
                 ).contains(expected);
             }
         }
@@ -322,8 +324,11 @@ public class Neo4jUtilsTest {
                 String expected = "Invalid number of nodes and relationships, "
                     + "found 2 nodes and 0 relationships";
                 assertThat(
-                    assertThrows(ValueInstantiationException.class, () -> MAPPER.readValue(
-                        stream, Neo4jUtils.PathPattern.class)).getMessage()
+                    assertThrows(
+                        ValueInstantiationException.class,
+                        () -> readValue(
+                            new String(stream.readAllBytes()), Neo4jUtils.PathPattern.class
+                        )).getMessage()
                 ).contains(expected);
             }
         }
@@ -334,7 +339,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("query_optional_match"))) {
-                Neo4jUtils.Query query = MAPPER.readValue(stream, Neo4jUtils.Query.class);
+                Neo4jUtils.Query query = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.Query.class);
                 // When
                 cypher = query.singleStatementQuery(null, null).getCypher();
             }
@@ -352,8 +358,8 @@ public class Neo4jUtilsTest {
                 // When/Then
                 String expected = "missing matches";
                 assertThat(
-                    assertThrows(ValueInstantiationException.class, () -> MAPPER.readValue(
-                        stream, Neo4jUtils.Query.class)).getMessage()
+                    assertThrows(ValueInstantiationException.class, () -> readValue(
+                        new String(stream.readAllBytes()), Neo4jUtils.Query.class)).getMessage()
                 ).contains(expected);
             }
         }
@@ -366,8 +372,8 @@ public class Neo4jUtilsTest {
                 // When/Then
                 String expected = "empty matches";
                 assertThat(
-                    assertThrows(ValueInstantiationException.class, () -> MAPPER.readValue(
-                        stream, Neo4jUtils.Query.class)).getMessage()
+                    assertThrows(ValueInstantiationException.class, () -> readValue(
+                        new String(stream.readAllBytes()), Neo4jUtils.Query.class)).getMessage()
                 ).contains(expected);
             }
         }
@@ -378,7 +384,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("where_nested_conditions"))) {
-                Neo4jUtils.Where where = MAPPER.readValue(stream, Neo4jUtils.Where.class);
+                Neo4jUtils.Where where = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.Where.class);
                 // When
                 cypher = Cypher.match(Cypher.node("Document").named("doc"))
                     .where(where.into())
@@ -401,7 +408,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("where_variable_properties"))) {
-                Neo4jUtils.Where where = MAPPER.readValue(stream, Neo4jUtils.Where.class);
+                Neo4jUtils.Where where = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.Where.class);
                 // When
                 cypher = Cypher.match(Cypher.node("Document").named("doc"))
                     .match(Cypher.node("Person").named("person"))
@@ -423,7 +431,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("where_not"))) {
-                Neo4jUtils.Where where = MAPPER.readValue(stream, Neo4jUtils.Where.class);
+                Neo4jUtils.Where where = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.Where.class);
                 // When
                 cypher = Cypher.match(Cypher.node("Document").named("doc"))
                     .where(where.into())
@@ -441,7 +450,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("where_starts_with"))) {
-                Neo4jUtils.Where where = MAPPER.readValue(stream, Neo4jUtils.Where.class);
+                Neo4jUtils.Where where = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.Where.class);
                 // When
                 cypher = Cypher.match(Cypher.node("Document").named("doc"))
                     .where(where.into())
@@ -460,7 +470,8 @@ public class Neo4jUtilsTest {
             String cypher;
             try (FileInputStream stream = new FileInputStream(
                 TEST_FILES.get("where_ends_with"))) {
-                Neo4jUtils.Where where = MAPPER.readValue(stream, Neo4jUtils.Where.class);
+                Neo4jUtils.Where where = readValue(
+                    new String(stream.readAllBytes()), Neo4jUtils.Where.class);
                 // When
                 cypher = Cypher.match(Cypher.node("Document").named("doc"))
                     .where(where.into())

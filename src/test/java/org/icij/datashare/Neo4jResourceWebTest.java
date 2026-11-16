@@ -2,7 +2,7 @@ package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
 import static org.icij.datashare.TestUtils.assertJson;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.writeValueAsString;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.reset;
@@ -649,7 +649,7 @@ public class Neo4jResourceWebTest {
             // When
             Objects.DumpRequest request = new Objects.DumpRequest(Objects.DumpFormat.GRAPHML, null);
             String content = "dumpRequest=" + URLEncoder.encode(
-                MAPPER.writeValueAsString(request), StandardCharsets.UTF_8);
+                writeValueAsString(request), StandardCharsets.UTF_8);
 
             Response response = postRaw("/api/neo4j/graphs/dump?project=foo-datashare",
                 "application/x-www-form-urlencoded", content)
@@ -1109,7 +1109,7 @@ public class Neo4jResourceWebTest {
             String result = "hello world";
             neo4jApp.configure(routes -> routes.get("/tasks/:id/result",
                 (id, context) -> new Payload(
-                    "application/json", MAPPER.writeValueAsString(result)))
+                    "application/json", writeValueAsString(result)))
             );
             // When
             String response = neo4jAppResource.taskResult("taskId", "foo-datashare", String.class);
