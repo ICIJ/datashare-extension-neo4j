@@ -13,7 +13,6 @@ function _export_global_variables() {
     export DOCKER_UID
     DOCKER_GID="$(id -g)"
     export DOCKER_GID
-    export ELASTICSEARCH_PORT=9201
     export NEO4J_VERSION=4.4.29
     export TEST_APP_PORT=8002
     BIN_ARCHI="$(arch)"

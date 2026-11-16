@@ -67,7 +67,11 @@ from neo4j_app.constants import (
     NE_OFFSETS,
 )
 from neo4j_app.core.elasticsearch import ESClientABC
-from neo4j_app.core.elasticsearch.client import PointInTime, sliced_search
+from neo4j_app.core.elasticsearch.client import (
+    PointInTime,
+    normalize_pit,
+    sliced_search,
+)
 from neo4j_app.core.elasticsearch.to_neo4j import (
     es_to_neo4j_doc_csv,
     es_to_neo4j_doc_root_rel_csv,
@@ -864,7 +868,7 @@ def _make_named_entity_with_parent_queries(
         query = and_query(*queries)
         query = with_source(query, NE_ES_SOURCES)
         if es_pit is not None:
-            query[PIT] = es_pit
+            query[PIT] = normalize_pit(es_pit)
         if es_sort:
             query[SORT] = es_sort
         bodies.append(query)

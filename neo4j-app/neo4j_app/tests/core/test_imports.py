@@ -791,7 +791,7 @@ def test_make_named_entity_with_parent_queries():
     bodies = _make_named_entity_with_parent_queries(
         es_query=es_query,
         document_ids=["doc-0"],
-        es_pit=dict(),
+        es_pit={"id": "pit_id"},
         es_doc_type_field="type",
         es_page_size=10,
     )

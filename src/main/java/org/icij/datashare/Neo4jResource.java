@@ -16,7 +16,7 @@ import static org.icij.datashare.Objects.Task;
 import static org.icij.datashare.Objects.TaskError;
 import static org.icij.datashare.Objects.TaskSearch;
 import static org.icij.datashare.Objects.TaskType;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.writeValueAsString;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -518,7 +518,7 @@ public class Neo4jResource implements AutoCloseable {
         try {
             Neo4jCSVResponse res = client.exportNeo4jCSVs(projectId, request);
             logger.info("Exported data from ES to neo4j, statistics: {}",
-                lazy(() -> MAPPER.writeValueAsString(res.metadata)));
+                lazy(() -> writeValueAsString(res.metadata)));
             exportDir = Paths.get(res.path);
             InputStream is = new FileInputStream(res.path);
             return new BufferedInputStream(is);

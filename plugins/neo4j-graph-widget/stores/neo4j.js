@@ -164,8 +164,7 @@ export const useNeo4jStore = defineStore('neo4j', () => {
     const project = route.params.name
     if (status.value === AppStatus.Running && initializedProjects.value[project]) {
       const url = `/api/neo4j/full-imports?project=${project}`
-      const response = await neo4jCore.request(url, { method: 'GET' })
-      const tasks = await response.json()
+      const tasks = await neo4jCore.request(url, { method: 'GET' })
       setImportTasks(tasks)
     }
   }
@@ -180,13 +179,11 @@ export const useNeo4jStore = defineStore('neo4j', () => {
    * @returns {Promise<void>}
    */
   async function refreshStatus() {
-    const res = await neo4jCore.request('/api/neo4j/status', { method: 'GET' })
-    const { isRunning } = await res.json()
+    const { isRunning } = await neo4jCore.request('/api/neo4j/status', { method: 'GET' })
     if (isRunning) {
       setStatus(AppStatus.Running)
       const url = '/api/neo4j/graphs/dump/node-limit'
-      const resLimit = await neo4jCore.request(url, { method: 'GET' })
-      const dumpLimitText = await resLimit.text()
+      const dumpLimitText = await neo4jCore.request(url, { method: 'GET' })
       setDumpLimit(parseInt(dumpLimitText))
     } else if (status.value === AppStatus.Running) {
       setStatus(AppStatus.Stopped)
@@ -206,8 +203,7 @@ export const useNeo4jStore = defineStore('neo4j', () => {
   async function refreshGraphCounts(project) {
     if (status.value === AppStatus.Running && initializedProjects.value[project]) {
       const url = `/api/neo4j/graphs/counts?project=${project}`
-      const res = await neo4jCore.request(url, { method: 'GET' })
-      const projectCounts = await res.json()
+      const projectCounts = await neo4jCore.request(url, { method: 'GET' })
       setGraphCounts({ project, counts: projectCounts })
     }
   }

@@ -6,7 +6,7 @@ import static org.icij.datashare.Objects.IncrementalImportResponse;
 import static org.icij.datashare.Objects.Task;
 import static org.icij.datashare.Objects.TaskStatus;
 import static org.icij.datashare.Objects.TaskType;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.writeValueAsString;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -309,7 +309,7 @@ public class Neo4jCliExtensionTest {
             extension.run(props);
             // Then
             String output = captured.toString().trim();
-            assertThat(output).isEqualTo(MAPPER.writeValueAsString(fullImportResponse));
+            assertThat(output).isEqualTo(writeValueAsString(fullImportResponse));
         }
 
         @Test

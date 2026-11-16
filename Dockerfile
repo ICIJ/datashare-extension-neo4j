@@ -1,11 +1,10 @@
 # Global build args with placeholders in case they are not specified from outside (value don't matter much)
 ARG ELASTICSEARCH_VERSION=7.17.9
 ARG NEO4J_VERSION=4.4.17
-ARG NEO4J_IMAGE=neo4j
 ARG DOCKER_PLATFORM="linux/amd64"
 
 # Base image
-FROM phusion/baseimage:jammy-1.0.1 as base
+FROM phusion/baseimage:jammy-1.0.1 AS base
 USER $DOCKER_UID:$DOCKER_GID
 ENV HOME="/home/dev"
 RUN add-apt-repository --yes ppa:deadsnakes/ppa
@@ -19,7 +18,7 @@ RUN --mount=type=cache,target=/var/cache/apt  \
         maven \
         python3.10 \
         python3.10-dev \
-	    openjdk-11-jdk \
+	    openjdk-21-jdk \
         python3.10-distutils \
         python3.10-venv \
         wget
@@ -40,13 +39,13 @@ WORKDIR $HOME
 ADD neo4j $HOME/
 
 # Python base (we don't copy java assets not to destroy the cache in case of java changes)
-FROM base as base-python
+FROM base AS base-python
 ADD qa/python $HOME/qa/python
 ADD version $HOME
 ADD neo4j-app $HOME/neo4j-app
 
 # Java base (we don't copy python assets not to destroy the cache in case of python changes)
-FROM base as base-java
+FROM base AS base-java
 # Lets make maven point to the cached dependency dirs
 RUN mkdir $HOME/.m2 \
     &&sed -i -- "s@</settings>@<localRepository>$HOME/.m2</localRepository></settings>@g" \
@@ -56,7 +55,7 @@ ADD pom.xml $HOME
 ADD version $HOME
 ADD src $HOME/src
 
-FROM base as base-script
+FROM base AS base-script
 ADD bins/.gitignore $HOME/bins/.gitignore
 ADD .data/tmp/.gitignore $HOME/.data/tmp/.gitignore
 ADD neo4j-app/pyproject.toml $HOME/neo4j-app/pyproject.toml
@@ -66,8 +65,8 @@ ADD version $HOME
 ADD scripts $HOME/scripts
 
 # We use placeholders here
-FROM ${NEO4J_IMAGE}:${NEO4J_VERSION} as neo4j
+FROM neo4j:${NEO4J_VERSION} AS neo4j
 ADD scripts/neo4j_healthcheck /var/lib/neo4j
 RUN sed -i -- 's/dbms.directories.import=import/#dbms.directories.import=import/g' conf/neo4j.conf
 
-FROM --platform=$DOCKER_PLATFORM docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION} AS elasticsearch
+FROM docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION} AS elasticsearch

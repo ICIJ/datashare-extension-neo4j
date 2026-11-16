@@ -66,19 +66,19 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>datashare-api</artifactId>
-            <version>14.0.0</version>
+            <version>15.0.1</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>datashare-cli</artifactId>
-            <version>13.5.0</version>
+            <version>13.6.1</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.github.CodeStory</groupId>
             <artifactId>fluent-http</artifactId>
-            <version>5ee80de</version>
+            <version>5b61329</version>
             <scope>provided</scope>
             <exclusions>
                 <exclusion>

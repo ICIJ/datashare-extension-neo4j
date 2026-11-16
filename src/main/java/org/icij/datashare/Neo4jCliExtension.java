@@ -3,7 +3,7 @@ package org.icij.datashare;
 import static java.lang.Thread.sleep;
 import static java.util.Arrays.asList;
 import static org.icij.datashare.Neo4jResource.TASK_POLL_INTERVAL_S;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.writeValueAsString;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.inject.Injector;
@@ -91,7 +91,7 @@ public class Neo4jCliExtension implements CliExtension, AutoCloseable {
         try {
             // Logs are handled by the logger, output however goes on stdout to allow piping
             // the command
-            System.out.println(MAPPER.writeValueAsString(res));
+            System.out.println(writeValueAsString(res));
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to parse full import response as JSON", e);
         }

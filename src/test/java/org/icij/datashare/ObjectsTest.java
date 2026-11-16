@@ -1,7 +1,7 @@
 package org.icij.datashare;
 
 import static org.fest.assertions.Assertions.assertThat;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.readValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.FileInputStream;
@@ -74,8 +74,8 @@ public class ObjectsTest {
             try (FileInputStream fileInputStream = new FileInputStream(
                 TEST_FILES.get("dump_query"))) {
 
-                Objects.DumpQuery query = MAPPER.readValue(
-                    fileInputStream, Objects.DumpQuery.class);
+                Objects.DumpQuery query = readValue(
+                    new String(fileInputStream.readAllBytes()), Objects.DumpQuery.class);
 
                 // When
                 String cypher = query.asValidated(null).getCypher();
@@ -96,8 +96,8 @@ public class ObjectsTest {
             // Given
             try (FileInputStream fileInputStream = new FileInputStream(
                 TEST_FILES.get("dump_query_several_queries"))) {
-                Objects.DumpQuery query = MAPPER.readValue(
-                    fileInputStream, Objects.DumpQuery.class);
+                Objects.DumpQuery query = readValue(
+                    new String(fileInputStream.readAllBytes()), Objects.DumpQuery.class);
                 String expected = "expected a single query matching documents to be specified";
                 assertThat(
                     assertThrows(IllegalArgumentException.class,
@@ -111,8 +111,8 @@ public class ObjectsTest {
             // Given
             try (FileInputStream fileInputStream = new FileInputStream(
                 TEST_FILES.get("dump_query_without_matches"))) {
-                Objects.DumpQuery query = MAPPER.readValue(
-                    fileInputStream, Objects.DumpQuery.class);
+                Objects.DumpQuery query = readValue(
+                    new String(fileInputStream.readAllBytes()), Objects.DumpQuery.class);
                 // When
                 String cypher = query.asValidated(null).getCypher();
 
@@ -132,8 +132,8 @@ public class ObjectsTest {
             // Given
             try (FileInputStream fileInputStream = new FileInputStream(
                 TEST_FILES.get("dump_query_empty_queries"))) {
-                Objects.DumpQuery query = MAPPER.readValue(
-                    fileInputStream, Objects.DumpQuery.class);
+                Objects.DumpQuery query = readValue(
+                    new String(fileInputStream.readAllBytes()), Objects.DumpQuery.class);
                 // When
                 String cypher = query.asValidated(null).getCypher();
 
@@ -153,8 +153,8 @@ public class ObjectsTest {
             // Given
             try (FileInputStream fileInputStream = new FileInputStream(
                 TEST_FILES.get("dump_query_without_queries"))) {
-                Objects.DumpQuery query = MAPPER.readValue(
-                    fileInputStream, Objects.DumpQuery.class);
+                Objects.DumpQuery query = readValue(
+                    new String(fileInputStream.readAllBytes()), Objects.DumpQuery.class);
                 // When
                 String cypher = query.asValidated(null).getCypher();
 

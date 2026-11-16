@@ -10,7 +10,7 @@ import static org.icij.datashare.Objects.Task;
 import static org.icij.datashare.Objects.TaskError;
 import static org.icij.datashare.Objects.TaskStatus.DONE;
 import static org.icij.datashare.Objects.TaskType.FULL_IMPORT;
-import static org.icij.datashare.json.JsonObjectMapper.MAPPER;
+import static org.icij.datashare.json.JsonObjectMapper.readValue;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 
 import java.io.ByteArrayInputStream;
@@ -66,7 +66,7 @@ public class Neo4jClientTest {
             String body;
             String project = context.query().get("project");
             if (project != null && project.equals("myproject")) {
-                IncrementalImportRequest req = MAPPER.readValue(
+                IncrementalImportRequest req = readValue(
                     context.request().content(), IncrementalImportRequest.class);
                 if (req.query == null) {
                     body = "{\"imported\": 3,\"nodesCreated\": 3,\"relationshipsCreated\": 3}";
@@ -82,7 +82,7 @@ public class Neo4jClientTest {
         private Payload mockDump(Context context) throws IOException {
             String project = context.query().get("project");
             if (project != null && project.equals("myproject")) {
-                Neo4jAppDumpRequest request = MAPPER.readValue(context.request().content(),
+                Neo4jAppDumpRequest request = readValue(context.request().content(),
                     Neo4jAppDumpRequest.class);
                 String dump;
                 if (request.query == null) {
