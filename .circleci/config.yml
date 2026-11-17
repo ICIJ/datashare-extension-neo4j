@@ -172,7 +172,7 @@ commands:
               cd datashare-extension-neo4j
               if [ "$(uname)" == "Darwin" ]; then
                   echo "Installing code signing crate..."
-                  cargo install apple-codesign@0.27.0
+                  cargo install --git https://github.com/indygreg/apple-platform-rs.git apple-codesign --tag apple-codesign/0.29.0 --locked
                   echo "Installed code signing crate..."
                           
                   P12_FILE="/tmp/datashare_ca.p12"
