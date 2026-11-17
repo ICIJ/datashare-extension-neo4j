@@ -288,6 +288,9 @@ jobs:
       - run:
           name: Install cargo
           command: curl https://sh.rustup.rs -sSf | sh -s -- -y
+      - run:
+          name: Install rust
+          command: rustup toolchain install 1.81.0 && rustup default 1.81.0
       - build-python-binary:
           branch: << parameters.branch >>
           brew-cache: true
