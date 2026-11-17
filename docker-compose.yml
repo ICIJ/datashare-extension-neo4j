@@ -10,7 +10,7 @@ services:
       - discovery.type=single-node
       - http.port=9200
     ports:
-      - 9200:9200
+      - ${ELASTICSEARCH_PORT:-9201}:9200
     healthcheck:
       test: [ "CMD", "curl", "http://localhost:9200" ]
       interval: 3s
