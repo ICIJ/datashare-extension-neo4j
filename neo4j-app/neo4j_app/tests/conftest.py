@@ -83,7 +83,7 @@ from neo4j_app.tasks.dependencies import (
 DATA_DIR = Path(__file__).parents[3].joinpath(".data")
 NEO4J_TEST_IMPORT_DIR = DATA_DIR.joinpath("neo4j", "import")
 NEO4J_IMPORT_PREFIX = Path(os.sep).joinpath(".neo4j", "import")
-ELASTICSEARCH_TEST_PORT = 9200
+ELASTICSEARCH_TEST_PORT = 9201
 
 _INDEX_BODY = {
     "mappings": {
