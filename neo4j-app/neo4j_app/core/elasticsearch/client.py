@@ -670,7 +670,7 @@ def normalize_pit(pit: Any) -> dict[str, Any]:
     if isinstance(pit, str):
         return {ID: pit}
     if isinstance(pit, dict):
-        return {ID: pit[ID]}
+        return {k: pit[k] for k in (ID, KEEP_ALIVE) if k in pit}
     if hasattr(pit, "body"):
         return {ID: pit.body[ID]}
     return pit

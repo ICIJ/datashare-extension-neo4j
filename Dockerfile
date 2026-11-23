@@ -1,6 +1,6 @@
 # Global build args with placeholders in case they are not specified from outside (value don't matter much)
 ARG ELASTICSEARCH_VERSION=7.17.9
-ARG NEO4J_VERSION=4.4.17
+ARG NEO4J_VERSION=4.4.29
 ARG DOCKER_PLATFORM="linux/amd64"
 
 # Base image

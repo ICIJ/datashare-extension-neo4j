@@ -151,6 +151,14 @@ export const useNeo4jStore = defineStore('neo4j', () => {
     return !!initializedProjects.value[project]
   }
 
+  async function generateDumpToken(project, request) {
+    if (status.value === AppStatus.Running && initializedProjects.value[project]) {
+      const tokenUrl = `/api/neo4j/graphs/dump?project=${project}`
+      return await neo4jCore.request(tokenUrl, { method: 'POST', data: request })
+    }
+    throw new Error('app is not running or project was not initialized !')
+  }
+
   /**
    * Refreshes the import tasks for the current project.
    *
@@ -219,6 +227,7 @@ export const useNeo4jStore = defineStore('neo4j', () => {
     syncTasks,
     graphCounts,
     // Actions
+    generateDumpToken,
     isTaskPending,
     setDumpLimit,
     setImportTasks,

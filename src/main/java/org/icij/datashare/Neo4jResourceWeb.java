@@ -1,6 +1,7 @@
 package org.icij.datashare;
 
 
+import static java.util.UUID.randomUUID;
 import static org.icij.datashare.HttpUtils.fromException;
 import static org.icij.datashare.HttpUtils.parseRequestContent;
 import static org.icij.datashare.Objects.DumpRequest;
@@ -13,13 +14,16 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.io.InputStream;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import net.codestory.http.Context;
 import net.codestory.http.annotations.Get;
 import net.codestory.http.annotations.Post;
 import net.codestory.http.annotations.Prefix;
 import net.codestory.http.errors.ForbiddenException;
 import net.codestory.http.errors.HttpException;
+import net.codestory.http.errors.NotFoundException;
 import net.codestory.http.payload.Payload;
+import org.icij.datashare.function.Pair;
 import org.icij.datashare.user.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +33,8 @@ import org.slf4j.LoggerFactory;
 public class Neo4jResourceWeb extends Neo4jResource {
     private final Repository repository;
     protected static final Logger logger = LoggerFactory.getLogger(Neo4jResourceWeb.class);
+    protected static final ConcurrentHashMap<String, Pair<String, DumpRequest>> requests =
+        new ConcurrentHashMap<>();
 
     @Inject
     public Neo4jResourceWeb(Repository repository, PropertiesProvider propertiesProvider) {
@@ -119,7 +125,22 @@ public class Neo4jResourceWeb extends Neo4jResource {
         return wrapNeo4jAppCall(() -> {
             checkProjectAccess(project, context);
             DumpRequest request = parseRequestContent(
-                context.get("dumpRequest"), DumpRequest.class);
+                context.request().content(), DumpRequest.class);
+            String token = randomUUID().toString();
+            requests.put(token, new Pair<>(project, request));
+            return new Payload(token);
+        });
+    }
+
+    @Get("/graphs/dump/:token")
+    public Payload getGraphDump(String token) {
+        return wrapNeo4jAppCall(() -> {
+            Pair<String, DumpRequest> p = requests.get(token);
+            if (p == null) {
+                throw new NotFoundException();
+            }
+            String project = p._1();
+            DumpRequest request = p._2();
             InputStream is = this.dumpGraph(project, request);
             String fileName = "datashare-graph" + request.dumpExtension();
             return new Payload(is)
