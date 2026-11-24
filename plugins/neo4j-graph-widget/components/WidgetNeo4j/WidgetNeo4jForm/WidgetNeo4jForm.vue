@@ -75,22 +75,13 @@ function reset() {
 }
 
 async function dumpGraph() {
-  const form = document.createElement('form')
-  form.method = 'POST'
-  form.action = neo4jCore.getFullUrl(`/api/neo4j/graphs/dump?project=${project.value}`)
-  form.target = '_blank'
-
-  const format = dumpFormat.value
-  const query = dumpQuery.value
-  const input = document.createElement('input')
-  input.type = 'hidden'
-  input.name = 'dumpRequest'
-  input.value = JSON.stringify({ format, query })
-
-  form.appendChild(input)
-  document.body.appendChild(form)
-  form.submit()
-  document.body.removeChild(form)
+  const token = await neo4jStore.generateDumpToken(project.value, { format: dumpFormat.value, query: dumpQuery.value })
+  const a = document.createElement('a')
+  a.href = neo4jCore.getFullUrl(`/api/neo4j/graphs/dump/${token}`)
+  a.download = ''
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 
 function contentTypeToWhere(type) {

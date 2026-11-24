@@ -8,12 +8,10 @@ function _export_global_variables() {
     export DOCKER_HOME=/home/dev
     export PYTHON_APP_DIR="$ROOT_DIR/neo4j-app"
     export NEO4J_APP_BIN="neo4j-app"
-    export ELASTICSEARCH_VERSION=7.17.9
     DOCKER_UID="$(id -u)"
     export DOCKER_UID
     DOCKER_GID="$(id -g)"
     export DOCKER_GID
-    export NEO4J_VERSION=4.4.29
     export TEST_APP_PORT=8002
     BIN_ARCHI="$(arch)"
     if [ "$BIN_ARCHI" == "x86_64" ] || [ "$BIN_ARCHI" == "i386" ] || [ "$BIN_ARCHI" == "amd64" ]; then
@@ -622,19 +620,11 @@ Please run ./neo4j format"
     }
 
     function start_all_test_services() (
-        if [[ -z $OLD_ELASTICSEARCH ]]; then
-            docker compose up --detach \
-                --wait \
-                --build \
-                test-elasticsearch \
-                test-neo4j
-        else
-            docker compose up --detach \
-                --wait \
-                --build \
-                test-old-elasticsearch \
-                test-neo4j
-        fi
+        docker compose up --detach \
+            --wait \
+            --build \
+            test-elasticsearch \
+            test-neo4j
     )
 
     function start_debug_app() (
@@ -652,7 +642,7 @@ Please run ./neo4j format"
     )
 
     function stop_all_test_services() (
-        docker compose stop test-elasticsearch test-neo4j test-old-elasticsearch
+        docker compose stop test-elasticsearch test-neo4j
     )
 
     function stop_test_elasticsearch() (
@@ -708,7 +698,6 @@ function _main() {
     CREATE_RELEASE=
     CODESIGN_IDENTITY=
     DEV_FLAG=
-    OLD_ELASTICSEARCH=
     OPENSEARCH_SUPPORT=
     PRINT_SHA=
     PRINT_VERSION=
@@ -766,8 +755,6 @@ function _main() {
                         DEV_FLAG=true
                     elif [[ "$TYPE_ARG" == "--opensearch-support" ]]; then
                         OPENSEARCH_SUPPORT=true
-                    elif [[ "$TYPE_ARG" == "--old-elasticsearch" ]]; then
-                        OLD_ELASTICSEARCH=true
                     elif [[ "$TYPE_ARG" == "--create-release" ]]; then
                         CREATE_RELEASE=true
                     elif [[ $TYPE_ARG = "--sha" ]]; then

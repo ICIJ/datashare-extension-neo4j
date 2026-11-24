@@ -801,3 +801,4 @@ def test_make_named_entity_with_parent_queries():
     body = bodies[0]
     assert "_source" in body
     assert body["_source"]
+    assert body["pit"]

@@ -144,7 +144,7 @@ public class Objects {
     }
 
 
-    protected static class DumpRequest {
+    public static class DumpRequest {
         protected final DumpFormat format;
         protected final DumpQuery query;
 

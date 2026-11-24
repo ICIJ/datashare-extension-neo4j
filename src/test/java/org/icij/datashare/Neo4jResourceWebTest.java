@@ -12,8 +12,6 @@ import static org.mockito.MockitoAnnotations.initMocks;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -648,14 +646,17 @@ public class Neo4jResourceWebTest {
             );
             // When
             Objects.DumpRequest request = new Objects.DumpRequest(Objects.DumpFormat.GRAPHML, null);
-            String content = "dumpRequest=" + URLEncoder.encode(
-                writeValueAsString(request), StandardCharsets.UTF_8);
-
-            Response response = postRaw("/api/neo4j/graphs/dump?project=foo-datashare",
-                "application/x-www-form-urlencoded", content)
+            String body = writeValueAsString(request);
+            Response response = post("/api/neo4j/graphs/dump?project=foo-datashare", body)
                 .withPreemptiveAuthentication("foo", "null")
                 .response();
             // Then
+            assertThat(response.code()).isEqualTo(200);
+            String token = response.content();
+            // When
+            response = get("/api/neo4j/graphs/dump/" + token)
+                .withPreemptiveAuthentication("foo", "null")
+                .response();
             assertThat(response.code()).isEqualTo(200);
             String dumpAsString = response.content();
             assertThat(dumpAsString).isEqualTo("somedump");
@@ -693,6 +694,18 @@ public class Neo4jResourceWebTest {
                 body).withPreemptiveAuthentication("foo", "null").response();
             // Then
             assertThat(response.code()).isEqualTo(403);
+        }
+
+        @Test
+        public void test_post_graph_dump_should_return_404_for_unknown_token() {
+            // When
+            when(parentRepository.getProject("foo-datashare"))
+                .thenReturn(new Project("foo-datashare", "1.2.3.4"));
+            Response response = get("/api/neo4j/graphs/dump/idontexists")
+                .withPreemptiveAuthentication("foo", "null")
+                .response();
+            // Then
+            assertThat(response.code()).isEqualTo(404);
         }
 
         @Test
